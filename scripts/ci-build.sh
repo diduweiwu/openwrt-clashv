@@ -142,13 +142,25 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   }
   # SDK 默认把全部 1200+ 个 kmod 置为 m，而本包依赖的 kmod-tun 由
   # package/kernel/linux 一个 Makefile 生成——依赖链会触发整个 kernel 包
-  # 编译（=m 的 kmod 全编，数十分钟到数小时甚至 OOM）。只保留 kmod-tun
-  # 及其依赖，其余全部关掉
-  sed -i 's/^CONFIG_PACKAGE_kmod-\([^=]*\)=m/# CONFIG_PACKAGE_kmod-\1 is not set/' .config
-  echo "CONFIG_PACKAGE_kmod-tun=m" >> .config
-  make defconfig
+  # 编译（=m 的 kmod 全编，数十分钟）。全部剪掉，再从包元数据解析 kmod-tun
+  # 的传递依赖重新打开。注意剪减后不能再跑 make defconfig：SDK 模式下
+  # Kconfig 的包默认值是 m，defconfig 会把剪掉的又全部改回 =m
+  sed -i 's/^CONFIG_PACKAGE_kmod-\([^=]*\)=m$/# CONFIG_PACKAGE_kmod-\1 is not set/' .config
+  open_kmod() {
+    p=$1
+    grep -q "^CONFIG_PACKAGE_$p=m" .config && return 0
+    echo "CONFIG_PACKAGE_$p=m" >> .config
+    # 从 tmp/.packageinfo 取该包 Depends 中的 kmod，递归打开
+    for d in $(awk -v pkg="Package: $p" \
+      '$0 == pkg { f = 1; next } f && /^Depends:/ { sub(/^Depends: /, ""); print; exit } f && /^$/ { exit }' \
+      tmp/.packageinfo); do
+      d=$(echo "$d" | tr -d '+' | sed 's/:.*//')
+      case "$d" in kmod-*) open_kmod "$d" ;; esac
+    done
+  }
+  open_kmod kmod-tun
   echo "==> 选中的 kmod: $(grep -c '^CONFIG_PACKAGE_kmod-.*=m' .config) 个"
-  grep '^CONFIG_PACKAGE_kmod-.*=m' .config | head
+  grep '^CONFIG_PACKAGE_kmod-.*=m' .config
   make package/$PKG_NAME/compile V=s
 
   case "$TARGET" in
