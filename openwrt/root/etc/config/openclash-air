@@ -1,0 +1,21 @@
+# openclash-air UCI 默认配置
+# 首次安装时由 uci-defaults 写入
+
+config openclash_air 'main'
+	option enabled '1'
+	option core_autostart '1'
+	option ui_port '9097'
+	option mixed_port '7890'
+	option controller_port '9090'
+	option controller_secret ''
+	option token ''
+	option allow_lan '1'
+	option tun '0'
+	option tun_stack 'mixed'
+	option dns '1'
+	option auto_update '12'
+	option core_path '/usr/bin/mihomo'
+	option core_arch ''
+	option workdir '/etc/openclash-air'
+	option plugin_repo 'nier/openclash-air'
+	option active_profile ''

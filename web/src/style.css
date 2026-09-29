@@ -1,0 +1,124 @@
+/* openclash-air 全局样式 — 参考 Clash Verge 的深色卡片风格 */
+
+:root {
+  --accent: #5b6bf0;
+  --accent-soft: rgba(91, 107, 240, 0.14);
+  --green: #3fb96f;
+  --orange: #e8a13c;
+  --red: #e05555;
+  --radius: 14px;
+}
+
+html[data-theme='dark'] {
+  --bg: #14161c;
+  --bg-card: #1e222c;
+  --bg-card-2: #242938;
+  --sidebar: #101218;
+  --text: #e2e5ec;
+  --text-dim: #8b91a0;
+  --border: rgba(255, 255, 255, 0.07);
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  --hover: rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme='light'] {
+  --bg: #f3f4f8;
+  --bg-card: #ffffff;
+  --bg-card-2: #f5f6fa;
+  --sidebar: #1b1f2a;
+  --text: #23262f;
+  --text-dim: #7a8090;
+  --border: rgba(20, 22, 30, 0.08);
+  --shadow: 0 2px 12px rgba(30, 34, 48, 0.08);
+  --hover: rgba(20, 22, 30, 0.045);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app { height: 100%; margin: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; }
+p { margin: 0; }
+
+button {
+  font: inherit;
+  border: none;
+  cursor: pointer;
+  border-radius: 9px;
+  padding: 7px 14px;
+  background: var(--bg-card-2);
+  color: var(--text);
+  transition: filter 0.15s, opacity 0.15s;
+}
+button:hover { filter: brightness(1.12); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #fff; }
+button.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+button.ghost { background: transparent; border: 1px solid var(--border); }
+button.sm { padding: 4px 10px; font-size: 12.5px; border-radius: 7px; }
+
+input, select {
+  font: inherit;
+  background: var(--bg-card-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 11px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: var(--accent); }
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+}
+
+.page { display: flex; flex-direction: column; gap: 16px; max-width: 1080px; margin: 0 auto; }
+
+.page-title { font-size: 19px; margin-bottom: 2px; }
+.page-sub { color: var(--text-dim); font-size: 13px; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; padding: 3px 10px; border-radius: 99px;
+  background: var(--accent-soft); color: var(--accent);
+}
+
+.mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* 开关 */
+.switch { position: relative; width: 40px; height: 22px; flex: none; cursor: pointer; }
+.switch input { display: none; }
+.switch .track {
+  position: absolute; inset: 0; border-radius: 99px;
+  background: var(--bg-card-2); border: 1px solid var(--border);
+  transition: background 0.18s;
+}
+.switch .thumb {
+  position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--text-dim); transition: all 0.18s;
+}
+.switch input:checked ~ .track { background: var(--accent); border-color: var(--accent); }
+.switch input:checked ~ .thumb { left: 21px; background: #fff; }
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--text-dim); opacity: 0.4; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* 过场动画 */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.15s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }

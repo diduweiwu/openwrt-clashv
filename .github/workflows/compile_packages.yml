@@ -1,0 +1,164 @@
+name: Build openclash-air (ipk & apk)
+
+# 用法：
+#   1. push 到 master 分支且改动相关目录时自动构建
+#   2. Actions 页面手动 Run workflow 随时触发
+# 产物：Actions Artifacts + GitHub Release（tag = v<openwrt/Makefile 里的 PKG_VERSION>）
+#
+# 平台说明：本包 PKGARCH:=all —— 一个包通用所有平台（x86/64 / arm / mips…）。
+# 包内附带 7 种架构的 Go 二进制，安装后由 /usr/bin/openclash-air 启动器按设备
+# DISTRIB_ARCH 自动选择，postinst 删除其余架构节省空间。
+# mihomo 内核由插件在界面上按架构一键下载。
+
+on:
+  # push: disabled during identity rewrite
+    branches:
+      - master
+    paths:
+      - 'cmd/**'
+      - 'internal/**'
+      - 'web/**'
+      - 'openwrt/**'
+      - 'scripts/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/compile_packages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PKG_DIR: openclash-air
+
+jobs:
+  Version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read PKG_VERSION
+        id: v
+        run: echo "version=$(grep 'PKG_VERSION:=' ./${{ env.PKG_DIR }}/openwrt/Makefile | awk -F '=' '{print $2}')" >> $GITHUB_OUTPUT
+
+  Compile:
+    runs-on: ubuntu-latest
+    needs: Version
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          # ipk：22.03 SDK（opkg 系统 22.03/23.05 全部可用）
+          - name: ipk
+            sdk_url: "https://downloads.openwrt.org/releases/22.03.7/targets/x86/64/openwrt-sdk-22.03.7-x86-64_gcc-11.2.0_musl.Linux-x86_64.tar.xz"
+            artifact_pattern: "openclash-air_*.ipk"
+          # apk：snapshot SDK（apk 系统即 OpenWrt 24.10+/snapshot）
+          - name: apk
+            sdk_url: "snapshot"
+            artifact_pattern: "openclash-air-*.apk"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Frontend (Vite)
+        run: |
+          cd web
+          npm install --no-fund --no-audit
+          npm run build
+          cd ..
+          rm -rf internal/web/dist/assets
+          cp -r web/dist/* internal/web/dist/
+
+      - name: Build Go Binaries (7 arch)
+        run: ./scripts/build-linux.sh bin "${{ needs.Version.outputs.version }}"
+
+      - name: Install Dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install curl git tar zstd python3 python3-pyelftools python3-setuptools build-essential
+
+      - name: Download OpenWrt SDK
+        run: |
+          mkdir -p tmp
+          if [ "${{ matrix.target.name }}" = "ipk" ]; then
+            curl -SLfk --connect-timeout 30 --retry 3 "${{ matrix.target.sdk_url }}" -o ./tmp/SDK.tar.xz
+            cd tmp && tar xf SDK.tar.xz
+            mv openwrt-sdk-* SDK
+          else
+            BASE_URL="https://downloads.openwrt.org/snapshots/targets/x86/64/"
+            SDK_NAME=$(curl -sf $BASE_URL | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
+            if ! curl -SLfk --connect-timeout 30 --retry 3 "$BASE_URL/$SDK_NAME" -o ./tmp/SNAPSDK.tar.zst; then
+              BASE_URL2="https://mirrors.pku.edu.cn/files/openwrt/snapshots/targets/x86/64/"
+              SDK_NAME=$(curl -sf $BASE_URL2 | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
+              curl -SLfk --connect-timeout 30 --retry 3 "$BASE_URL2/$SDK_NAME" -o ./tmp/SNAPSDK.tar.zst
+            fi
+            cd tmp
+            zstd -d SNAPSDK.tar.zst
+            tar xf SNAPSDK.tar
+            SDK_DIR=$(tar tf SNAPSDK.tar | head -n 1 | cut -d/ -f1)
+            mv "$SDK_DIR" SNAPSDK
+          fi
+
+      - name: Copy Package Source
+        run: |
+          if [ "${{ matrix.target.name }}" = "ipk" ]; then
+            SDK=tmp/SDK
+          else
+            SDK=tmp/SNAPSDK
+          fi
+          mkdir -p $SDK/package/${{ env.PKG_DIR }}
+          # 整个仓库（含刚构建的 bin/ 与前端产物）进入包目录
+          rsync -a --exclude .git --exclude tmp --exclude web/node_modules \
+            ./ $SDK/package/${{ env.PKG_DIR }}/
+          # 包 Makefile 放到包目录根（SDK 约定）
+          cp $SDK/package/${{ env.PKG_DIR }}/openwrt/Makefile $SDK/package/${{ env.PKG_DIR }}/Makefile
+          echo "SDK_DIR=$SDK" >> $GITHUB_ENV
+
+      - name: Compile Package
+        run: |
+          SDK=${{ env.SDK_DIR }}
+          cd $SDK
+          make defconfig
+          make package/${{ env.PKG_DIR }}/compile V=s
+          mkdir -p out
+          find bin -name "${{ matrix.target.artifact_pattern }}" -exec cp {} out/ \; 2>/dev/null || true
+          ls -lh out/
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclash-air-${{ matrix.target.name }}
+          path: ${{ env.SDK_DIR }}/out/*
+
+  Release:
+    runs-on: ubuntu-latest
+    needs: [Version, Compile]
+    if: ${{ always() && contains(needs.Compile.result, 'success') }}
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: ./release
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.Version.outputs.version }}
+        run: |
+          ls -lh ./release
+          gh release create "$TAG" --title "openclash-air v${{ needs.Version.outputs.version }}" \
+            --notes "单包全平台：内置 7 种架构二进制（arm64/armv7/mips/mipsle/amd64/riscv64/loong64），安装后自动保留当前架构。ipk 适用于 opkg 系统（OpenWrt 22.03/23.05）；apk 适用于 apk 系统（OpenWrt 24.10+/snapshot）。mihomo 内核请在插件「设置 → 内核」中一键下载。" \
+            --latest || true
+          gh release upload "$TAG" ./release/* --clobber

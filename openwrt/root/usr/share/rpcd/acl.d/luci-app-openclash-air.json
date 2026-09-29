@@ -1,0 +1,11 @@
+{
+	"luci-app-openclash-air": {
+		"description": "Grant access to openclash-air",
+		"read": {
+			"uci": ["openclash-air"]
+		},
+		"write": {
+			"uci": ["openclash-air"]
+		}
+	}
+}

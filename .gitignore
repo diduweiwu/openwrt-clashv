@@ -1,0 +1,16 @@
+# Go
+bin/
+.devdata/
+
+# 前端构建产物（由 make web 生成后复制进 internal/web/dist 供嵌入）
+web/dist/
+web/node_modules/
+internal/web/dist/assets/
+
+# 运行时数据
+*.log
+config.yaml
+profiles/
+
+# macOS
+.DS_Store

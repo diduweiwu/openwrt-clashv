@@ -1,0 +1,11 @@
+{
+	"admin/services/openclash-air": {
+		"title": "openclash-air",
+		"order": 65,
+		"action": { "type": "firstchild" },
+		"depends": {
+			"acl": ["luci-app-openclash-air"],
+			"fs": { "/usr/bin/openclash-air": "executable" }
+		}
+	}
+}

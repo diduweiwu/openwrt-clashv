@@ -1,0 +1,20 @@
+#!/bin/sh
+# 首次安装：启用服务并放行管理界面端口
+# 默认 UCI 配置已随包安装在 /etc/config/openclash-air，这里不做覆盖。
+
+[ -x /etc/init.d/openclash-air ] && /etc/init.d/openclash-air enable
+
+# 防火墙放行管理界面（LAN 区域）
+if [ -f /etc/config/firewall ]; then
+	uci -q batch <<EOF
+add firewall rule
+set firewall.@rule[-1].name='Allow-openclash-air-UI'
+set firewall.@rule[-1].src='lan'
+set firewall.@rule[-1].dest_port='9097'
+set firewall.@rule[-1].proto='tcp'
+set firewall.@rule[-1].target='ACCEPT'
+commit firewall
+EOF
+fi
+
+exit 0
