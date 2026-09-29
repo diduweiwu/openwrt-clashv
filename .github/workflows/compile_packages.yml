@@ -136,10 +136,20 @@ jobs:
         run: |
           SDK=${{ env.SDK_DIR }}
           cd $SDK
+          # defconfig 不会自动选中第三方包；不显式打开，package/xxx/compile 目标不会生成
+          echo "CONFIG_PACKAGE_${{ env.PKG_DIR }}=m" >> .config
           make defconfig
+          grep -q "^CONFIG_PACKAGE_${{ env.PKG_DIR }}=m" .config || {
+            echo "::error::${{ env.PKG_DIR }} 未能进入 SDK .config（多半是 DEPENDS 在该 SDK 中缺失）"
+            exit 1
+          }
           make package/${{ env.PKG_DIR }}/compile V=s
           mkdir -p out
           find bin -name "${{ matrix.target.artifact_pattern }}" -exec cp {} out/ \; 2>/dev/null || true
+          if ! ls out/* >/dev/null 2>&1; then
+            echo "::error::bin/ 下未找到匹配 ${{ matrix.target.artifact_pattern }} 的产物"
+            exit 1
+          fi
           ls -lh out/
 
       - name: Upload Artifact
