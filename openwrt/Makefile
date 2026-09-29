@@ -92,4 +92,4 @@ fi
 exit 0
 endef
 
-$(eval $(call Package,openclash-air))
+$(eval $(call BuildPackage,openclash-air))

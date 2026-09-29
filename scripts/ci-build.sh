@@ -105,6 +105,9 @@ rsync -a --delete \
   "$REPO_ROOT/" "$PKG_SRC/"
 # 包 Makefile 放到包目录根（SDK 约定）
 cp "$PKG_SRC/openwrt/Makefile" "$PKG_SRC/Makefile"
+# 嵌套的 openwrt/Makefile 与包根 Makefile 内容相同，SDK 元数据扫描会把两份
+# 都当成包定义，删掉包内这份（install 引用的 openwrt/root/ 等文件保留）
+rm -f "$PKG_SRC/openwrt/Makefile"
 # 清掉上次构建残留在 SDK bin/ 里的旧产物，避免不同版本号混入
 rm -f "$SDK/bin/openclash-air_*.ipk" "$SDK/bin/openclash-air-*.apk"
 
