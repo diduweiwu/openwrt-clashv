@@ -1,6 +1,6 @@
-# Go
-bin/
-.devdata/
+# Go 构建产物（注意：必须锚定根目录，否则会误伤 openwrt/root/usr/bin/ 等源码目录）
+/bin/
+/.devdata/
 
 # 前端构建产物（由 make web 生成后复制进 internal/web/dist 供嵌入）
 web/dist/
@@ -8,7 +8,7 @@ web/node_modules/
 internal/web/dist/assets/
 
 # 本地 Docker 构建产物（scripts/build-local-docker.sh）
-build/
+/build/
 
 # 运行时数据
 *.log

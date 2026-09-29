@@ -1,0 +1,29 @@
+#!/bin/sh
+# openclash-air 多架构启动器（arch-all 包内置多架构二进制，按设备架构选择执行）
+# 可用环境变量覆盖（特殊设备/调试用）:
+#   OCA_BIN_DIR      二进制目录，默认 /usr/lib/openclash-air/bin
+#   OCA_ARCH_OVERRIDE 强制指定架构名，默认读 /etc/openwrt_release 的 DISTRIB_ARCH
+DIR="${OCA_BIN_DIR:-/usr/lib/openclash-air/bin}"
+
+DISTRIB_ARCH=""
+[ -r /etc/openwrt_release ] && . /etc/openwrt_release 2>/dev/null
+DISTRIB_ARCH="${OCA_ARCH_OVERRIDE:-$DISTRIB_ARCH}"
+
+case "$DISTRIB_ARCH" in
+	aarch64*|arm64*)  B=arm64 ;;
+	arm*)             B=armv7 ;;
+	mipsel*)          B=mipsle ;;
+	mips*)            B=mips ;;
+	x86_64|amd64)     B=amd64 ;;
+	riscv64)          B=riscv64 ;;
+	loongarch64)      B=loong64 ;;
+	*)                B="" ;;
+esac
+
+if [ -z "$B" ] || [ ! -x "$DIR/openclash-air-$B" ]; then
+	echo "openclash-air: 未找到适配架构 ${DISTRIB_ARCH:-未知} 的二进制" >&2
+	echo "openclash-air: 期待以下之一: $DIR/openclash-air-{arm64,armv7,mips,mipsle,amd64,riscv64,loong64}" >&2
+	exit 1
+fi
+
+exec "$DIR/openclash-air-$B" "$@"

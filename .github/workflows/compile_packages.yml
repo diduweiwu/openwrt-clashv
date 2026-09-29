@@ -76,10 +76,29 @@ jobs:
           sudo apt-get -y install curl git tar zstd rsync python3 python3-pyelftools python3-setuptools build-essential
 
       # 构建流程抽在 scripts/ci-build.sh，与本地 scripts/build-local-docker.sh 共用同一条
-      # 流水线（前端 → Go 多架构 → SDK → 打包 → 收集产物），保证 CI 和本地行为一致
-      - name: Build Package (ci-build.sh)
+      # 流水线，按阶段拆步保证日志可读、耗时可查
+      - name: Build Frontend (Vite)
         env:
           TARGET: ${{ matrix.target.name }}
+          STAGE: frontend
+        run: ./scripts/ci-build.sh
+
+      - name: Build Go Binaries (7 arch)
+        env:
+          TARGET: ${{ matrix.target.name }}
+          STAGE: go
+        run: ./scripts/ci-build.sh
+
+      - name: Download OpenWrt SDK
+        env:
+          TARGET: ${{ matrix.target.name }}
+          STAGE: sdk
+        run: ./scripts/ci-build.sh
+
+      - name: Compile Package
+        env:
+          TARGET: ${{ matrix.target.name }}
+          STAGE: package
         run: ./scripts/ci-build.sh
 
       - name: Upload Artifact
