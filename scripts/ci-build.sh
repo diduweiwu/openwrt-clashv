@@ -130,18 +130,23 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   rm -f "$SDK/bin/openclash-air_*.ipk" "$SDK/bin/openclash-air-*.apk"
 
   echo "==> [package] 编译包 (make package/$PKG_NAME/compile)"
+  # 与 OpenClash 的打包逻辑一致：包正确注册（BuildPackage 宏）后，SDK 模式下
+  # make defconfig 会把所有包默认置为 m，无需手动写入 CONFIG
   cd "$SDK"
-  # defconfig 不会自动选中第三方包；不显式打开，package/xxx/compile 目标不会生成
-  # snapshot SDK 默认 CONFIG_ALL_KMODS=y 会把 1200+ 个 kmod 全编一遍（数小时），
-  # 关掉它；本包依赖的 kmod-tun 由依赖选择自动拉起
-  sed -i '/^CONFIG_ALL_KMODS=y/d' .config
-  echo "# CONFIG_ALL_KMODS is not set" >> .config
-  echo "CONFIG_PACKAGE_$PKG_NAME=m" >> .config
   make defconfig
   grep -q "^CONFIG_PACKAGE_$PKG_NAME=m" .config || {
     echo "ERROR: $PKG_NAME 未能进入 SDK .config（多半是 DEPENDS 在该 SDK 中缺失）" >&2
     exit 1
   }
+  # SDK 默认把全部 1200+ 个 kmod 置为 m，而本包依赖的 kmod-tun 由
+  # package/kernel/linux 一个 Makefile 生成——依赖链会触发整个 kernel 包
+  # 编译（=m 的 kmod 全编，数十分钟到数小时甚至 OOM）。只保留 kmod-tun
+  # 及其依赖，其余全部关掉
+  sed -i 's/^CONFIG_PACKAGE_kmod-\([^=]*\)=m/# CONFIG_PACKAGE_kmod-\1 is not set/' .config
+  echo "CONFIG_PACKAGE_kmod-tun=m" >> .config
+  make defconfig
+  echo "==> 选中的 kmod: $(grep -c '^CONFIG_PACKAGE_kmod-.*=m' .config) 个"
+  grep '^CONFIG_PACKAGE_kmod-.*=m' .config | head
   make package/$PKG_NAME/compile V=s
 
   case "$TARGET" in
