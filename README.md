@@ -78,6 +78,20 @@ make build        # 本机二进制 bin/openclash-air（内嵌前端）
 make linux        # 交叉编译 7 种 Linux 架构 bin/openclash-air-{arm64,armv7,mips,mipsle,amd64,riscv64,loong64}
 ```
 
+## 本地打包（Docker，与 CI 一致）
+
+推送前可在本地 Docker（OrbStack / Docker Desktop）里跑与 GitHub Actions 完全相同的流水线，产物输出到 `build/` 目录（已 gitignore）：
+
+```bash
+./scripts/build-local-docker.sh            # 构建 ipk + apk
+./scripts/build-local-docker.sh ipk        # 只构建 ipk（opkg 系统 22.03/23.05）
+./scripts/build-local-docker.sh apk        # 只构建 apk（OpenWrt 24.10+/snapshot）
+./scripts/build-local-docker.sh --shell    # 进入构建容器手动排查
+```
+
+- 流水线脚本 `scripts/ci-build.sh` 由 CI 与本地共用（前端 → Go 多架构 → 下载 SDK → 打包），本地能过 CI 大概率能过
+- 容器固定 linux/amd64，与 Actions 运行器同架构（OrbStack 走 Rosetta）；首次要构建镜像 + 下载 SDK（约 200MB+），之后有缓存会快很多
+
 ## 打包发布（GitHub Actions）
 
 `.github/workflows/compile_packages.yml`（参照 OpenClash 的方案）：

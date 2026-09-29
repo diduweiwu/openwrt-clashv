@@ -1,0 +1,33 @@
+# 本地构建镜像：对齐 GitHub Actions 的 ubuntu-latest（x86_64）构建环境。
+# 由 scripts/build-local-docker.sh 自动 docker build 并缓存，无需手动操作。
+FROM --platform=linux/amd64 ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 依赖 = workflow「Install Dependencies」步骤 + OpenWrt SDK 编译前置
+# （gawk/flex/bison/perl/libncurses-dev/libssl-dev 等在 Actions 运行器已预装、
+#   而 ubuntu 基础镜像没有）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl git tar zstd xz-utils rsync file wget unzip bzip2 \
+      python3 python3-pyelftools python3-setuptools \
+      build-essential gawk flex bison gettext perl \
+      libncurses-dev libssl-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node 20（对齐 setup-node@v4 的 node-version: '20'）
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Go（对齐 setup-go@v5 按 go.mod 解析到的 1.22.x）
+ARG GO_VERSION=1.22.12
+RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# 非 root 用户（对齐 Actions runner）；-o 允许 uid 1000 与镜像自带 ubuntu 用户重复
+RUN useradd -m -u 1000 -o builder \
+    && mkdir -p /sdkcache /home/builder/.cache/go-build /home/builder/go/pkg/mod /home/builder/.npm \
+    && chown -R builder:builder /sdkcache /home/builder
+ENV HOME=/home/builder
+USER builder
+WORKDIR /work
