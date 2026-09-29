@@ -2,6 +2,16 @@
 
 OpenWrt 专用的 Clash/Mihomo 管理插件。Go 后端 + 内嵌 Web 界面，一个二进制搞定，**不玩脚本编辑那一套**——所有操作都是点击和选择，像 Clash Verge 一样开箱即用。
 
+## 界面预览
+
+| 首页：状态 / 实时流量 / 快速切换 | 代理：分组节点 / 点击切换 / 整组测速 |
+|---|---|
+| ![首页](docs/screenshots/home.png) | ![代理](docs/screenshots/proxies.png) |
+| **节点切换弹窗（带延迟）** | **订阅管理** |
+| ![节点切换](docs/screenshots/node-picker.png) | ![订阅](docs/screenshots/profiles.png) |
+| **设置：内核与插件更新 / TUN / 访问控制** | **浅色主题（默认跟随系统）** |
+| ![设置](docs/screenshots/settings.png) | ![浅色主题](docs/screenshots/light.png) |
+
 ## 特性
 
 - **首页**：运行状态、实时流量（上传/下载/连接数/内核内存）、一键启停重启、快速切换节点
