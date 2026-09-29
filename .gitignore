@@ -10,7 +10,7 @@ internal/web/dist/assets/
 # 运行时数据
 *.log
 config.yaml
-profiles/
+/profiles/
 
 # macOS
 .DS_Store
