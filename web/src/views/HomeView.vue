@@ -2,7 +2,7 @@
 // 首页：运行状态、流量概览、快速切换节点
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api } from '../api.js'
-import { store, toast, fmtRate, fmtBytes, fmtUptime } from '../store.js'
+import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
 import NodeSheet from '../components/NodeSheet.vue'
 
