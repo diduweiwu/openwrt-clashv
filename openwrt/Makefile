@@ -13,7 +13,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=openclash-air
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 PKG_MAINTAINER:=Nier
 PKG_LICENSE:=MIT
 
@@ -86,7 +86,10 @@ case "$$DISTRIB_ARCH" in
 	*)                KEEP="" ;;
 esac
 if [ -n "$$KEEP" ] && [ -d /usr/lib/openclash-air/bin ]; then
-	find /usr/lib/openclash-air/bin -type f ! -name "openclash-air-$$KEEP" -delete
+	# 部分固件的 BusyBox find 无 -delete/-exec，用纯 shell 循环保证兼容
+	for f in /usr/lib/openclash-air/bin/openclash-air-*; do
+		[ "$$f" = "/usr/lib/openclash-air/bin/openclash-air-$$KEEP" ] || rm -f "$$f"
+	done
 	echo "openclash-air: 已保留 $$KEEP 架构内核二进制"
 fi
 # 刷新 LuCI 菜单缓存并重载 rpcd ACL，否则「服务」菜单不会出现
