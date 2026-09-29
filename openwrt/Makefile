@@ -13,7 +13,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=openclash-air
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_MAINTAINER:=Nier
 PKG_LICENSE:=MIT
 
@@ -89,6 +89,11 @@ if [ -n "$$KEEP" ] && [ -d /usr/lib/openclash-air/bin ]; then
 	find /usr/lib/openclash-air/bin -type f ! -name "openclash-air-$$KEEP" -delete
 	echo "openclash-air: 已保留 $$KEEP 架构内核二进制"
 fi
+# 刷新 LuCI 菜单缓存并重载 rpcd ACL，否则「服务」菜单不会出现
+[ -n "$${IPKG_INSTROOT}" ] || {
+	rm -f /tmp/luci-indexcache* 2>/dev/null
+	/etc/init.d/rpcd reload 2>/dev/null || killall -HUP rpcd 2>/dev/null
+}
 exit 0
 endef
 
