@@ -97,10 +97,12 @@ if [ "$STAGE" = "sdk" ] || [ "$STAGE" = "all" ]; then
       zstd -d SNAPSDK.tar.zst
       rm -f SNAPSDK.tar.zst
       tar xf SNAPSDK.tar
-      SDK_DIR=$(tar tf SNAPSDK.tar | head -n 1 | cut -d/ -f1)
       rm -f SNAPSDK.tar
       rm -rf "$SDK_NAME"
-      mv "$SDK_DIR" "$SDK_NAME"
+      # 解压出的目录固定叫 openwrt-sdk-*，直接 glob；不要用 tar tf 读
+      # 整个 1.4GB tarball 拿目录名（慢，且 head 提前退出会报无害的
+      # "tar: stdout: write error"）
+      mv openwrt-sdk-* "$SDK_NAME"
     fi
   else
     echo "==> [sdk] 复用缓存的 SDK: $SDK_CACHE_DIR/$SDK_NAME"
