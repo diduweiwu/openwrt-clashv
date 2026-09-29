@@ -18,7 +18,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 
-	"openclash-air/internal/config"
+	"clashv/internal/config"
 )
 
 // Profile 是一条订阅的元数据。
@@ -193,7 +193,7 @@ func (m *Manager) download(url string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("订阅地址无效: %w", err)
 	}
-	req.Header.Set("User-Agent", "clash-verge/openclash-air")
+	req.Header.Set("User-Agent", "clash-verge/clashv")
 	resp, err := m.hc.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("下载订阅失败: %w", err)

@@ -1,32 +1,32 @@
-// openclash-air: OpenWrt mihomo 管理插件
+// clashv: OpenWrt mihomo 管理插件
 //
 // 子命令:
 //
-//	openclash-air run      启动管理服务（默认）
-//	openclash-air version  打印版本
+//	clashv run      启动管理服务（默认）
+//	clashv version  打印版本
 package main
 
 import (
 	"fmt"
 	"os"
 
-	"openclash-air/internal/api"
-	"openclash-air/internal/config"
-	"openclash-air/internal/core"
-	"openclash-air/internal/profiles"
+	"clashv/internal/api"
+	"clashv/internal/config"
+	"clashv/internal/core"
+	"clashv/internal/profiles"
 )
 
 var Version = "dev"
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `openclash-air %s — OpenWrt mihomo 管理插件
+	fmt.Fprintf(os.Stderr, `clashv %s — OpenWrt mihomo 管理插件
 
 用法:
-  openclash-air run [-dev]   启动管理服务（默认子命令）
-  openclash-air version      打印版本
+  clashv run [-dev]   启动管理服务（默认子命令）
+  clashv version      打印版本
 
 选项:
-  -dev    开发模式：使用文件存储(~/.openclash-air)而非 UCI，前端从 web/dist 读取
+  -dev    开发模式：使用文件存储(~/.clashv)而非 UCI，前端从 web/dist 读取
 `, Version)
 }
 
@@ -61,7 +61,7 @@ func main() {
 	mgr := core.NewManager(cfg, prof, Version)
 
 	if err := api.Serve(cfg, prof, mgr, Version); err != nil {
-		fmt.Fprintln(os.Stderr, "openclash-air:", err)
+		fmt.Fprintln(os.Stderr, "clashv:", err)
 		os.Exit(1)
 	}
 }

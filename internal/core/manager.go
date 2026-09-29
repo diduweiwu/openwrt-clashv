@@ -18,8 +18,8 @@ import (
 	"syscall"
 	"time"
 
-	"openclash-air/internal/config"
-	"openclash-air/internal/profiles"
+	"clashv/internal/config"
+	"clashv/internal/profiles"
 )
 
 // Traffic 是一次流量采样快照。

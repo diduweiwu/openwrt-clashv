@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// UCI 布局（/etc/config/openclash-air）:
+// UCI 布局（/etc/config/clashv）:
 //
-//	config openclash_air 'main'
+//	config clashv 'main'
 //	    option enabled '1'
 //	    option core_autostart '1'
 //	    option ui_port '9097'
@@ -25,11 +25,11 @@ import (
 //	    option core_path ''
 //	    option core_arch ''
 //	    option workdir ''
-//	    option plugin_repo 'nier/openclash-air'
+//	    option plugin_repo 'nier/clashv'
 //	    option download_proxy 'https://gh-proxy.com'
 //	    option active_profile ''
 
-const uciSection = "openclash-air.main"
+const uciSection = "clashv.main"
 
 func uciGet(key string) (string, bool) {
 	out, err := exec.Command("uci", "-q", "get", key).Output()
@@ -105,7 +105,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	}
 	// 首次写入时 section 可能不存在
 	if _, ok := uciGet(uciSection + ".ui_port"); !ok {
-		line("set %s=openclash_air", uciSection)
+		line("set %s=clashv", uciSection)
 	}
 	line("set %s.enabled='%s'", uciSection, onOff(s.Enabled))
 	line("set %s.core_autostart='%s'", uciSection, onOff(s.CoreAutostart))
@@ -125,7 +125,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.plugin_repo='%s'", uciSection, s.PluginRepo)
 	line("set %s.download_proxy='%s'", uciSection, s.DownloadProxy)
 	line("set %s.active_profile='%s'", uciSection, s.ActiveProfile)
-	line("commit openclash-air")
+	line("commit clashv")
 
 	cmd := exec.Command("uci", "batch")
 	cmd.Stdin = &b

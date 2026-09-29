@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"openclash-air/internal/config"
-	"openclash-air/internal/core"
-	"openclash-air/internal/profiles"
-	"openclash-air/internal/web"
+	"clashv/internal/config"
+	"clashv/internal/core"
+	"clashv/internal/profiles"
+	"clashv/internal/web"
 )
 
 // deps 聚合各模块，供 handler 使用。
@@ -93,17 +93,17 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	})
 
 	addr := fmt.Sprintf(":%d", s.UIPort)
-	slog.Info("openclash-air 管理服务已启动", "addr", addr, "mode", map[bool]string{true: "uci", false: "file"}[cfg.IsOpenWrt()])
+	slog.Info("clashv 管理服务已启动", "addr", addr, "mode", map[bool]string{true: "uci", false: "file"}[cfg.IsOpenWrt()])
 	server := &http.Server{Addr: addr, Handler: d.auth(mux), ReadHeaderTimeout: 10 * time.Second}
 	return server.ListenAndServe()
 }
 
-// auth 管理界面访问令牌校验：设置了 Token 时，除本机访问外都要求 X-Openclash-Air-Token。
+// auth 管理界面访问令牌校验：设置了 Token 时，除本机访问外都要求 X-Clashv-Token。
 func (d *deps) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s, err := d.cfg.Get()
 		if err == nil && s.Token != "" && !isLocal(r) {
-			if r.Header.Get("X-Openclash-Air-Token") != s.Token {
+			if r.Header.Get("X-Clashv-Token") != s.Token {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "访问令牌错误，请在登录框输入设置中配置的令牌"})

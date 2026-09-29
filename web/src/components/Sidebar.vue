@@ -48,7 +48,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none">
         <path d="M13 2 4.5 13.5H11L9.5 22 19 10h-6.5L13 2Z" fill="var(--accent)" stroke="var(--accent)" stroke-width="1.4" stroke-linejoin="round"/>
       </svg>
-      <span>openclash-air</span>
+      <span>clashv</span>
     </div>
 
     <nav>

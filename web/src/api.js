@@ -1,5 +1,5 @@
 // 轻量 API 封装：JSON 请求、错误上抛、访问令牌自动重试。
-const TOKEN_KEY = 'openclash_air_token'
+const TOKEN_KEY = 'clashv_token'
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -14,7 +14,7 @@ async function request(method, url, body) {
   const headers = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   const token = getToken()
-  if (token) headers['X-Openclash-Air-Token'] = token
+  if (token) headers['X-Clashv-Token'] = token
 
   const res = await fetch(url, {
     method,

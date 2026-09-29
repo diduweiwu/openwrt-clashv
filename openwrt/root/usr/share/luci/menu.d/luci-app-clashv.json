@@ -1,0 +1,11 @@
+{
+	"admin/services/clashv": {
+		"title": "clashv",
+		"order": 65,
+		"action": { "type": "view", "path": "clashv/app" },
+		"depends": {
+			"acl": ["luci-app-clashv"],
+			"fs": { "/usr/bin/clashv": "executable" }
+		}
+	}
+}

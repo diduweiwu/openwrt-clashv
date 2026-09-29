@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="dark light">
-  <title>openclash-air</title>
+  <title>clashv</title>
   <script>
     // 在应用挂载前解析主题，避免首屏闪烁（与 src/theme.js 保持同一存储键与解析逻辑）
     (function () {
-      var m = localStorage.getItem('openclash_air_theme') || 'system'
+      var m = localStorage.getItem('clashv_theme') || 'system'
       var dark = m === 'dark' || (m !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       document.documentElement.dataset.theme = dark ? 'dark' : 'light'
       document.documentElement.style.background = dark ? '#14161c' : '#f3f4f8'

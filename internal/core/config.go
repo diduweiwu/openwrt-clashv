@@ -7,10 +7,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"openclash-air/internal/config"
+	"clashv/internal/config"
 )
 
-// buildRuntimeConfig 把「订阅原文 + openclash-air 托管的基础设置」合成为
+// buildRuntimeConfig 把「订阅原文 + clashv 托管的基础设置」合成为
 // <workdir>/config.yaml 交给 mihomo 加载。
 //
 // 合成规则：以订阅内容为底，托管键覆盖其上——端口、控制器、TUN、DNS、

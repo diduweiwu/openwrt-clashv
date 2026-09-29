@@ -93,7 +93,7 @@ func fetchReleaseVia(ctx context.Context, url string) (*ghRelease, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "openclash-air")
+	req.Header.Set("User-Agent", "clashv")
 	req.Header.Set("Accept", "application/vnd.github+json")
 	// 直连场景不走系统代理，加速前缀地址本身是可达端点
 	hc := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}}
@@ -211,7 +211,7 @@ func downloadToFile(ctx context.Context, url, dst string, gz bool) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "openclash-air")
+	req.Header.Set("User-Agent", "clashv")
 	hc := &http.Client{Timeout: 10 * time.Minute}
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -281,7 +281,7 @@ func (m *Manager) UpgradePlugin(ctx context.Context) (string, bool, error) {
 		return "", false, err
 	}
 	plat := runtime.GOOS + "-" + runtime.GOARCH
-	re := regexp.MustCompile(`^openclash-air-` + regexp.QuoteMeta(plat) + `(-v[\w.\-]+)?$`)
+	re := regexp.MustCompile(`^clashv-` + regexp.QuoteMeta(plat) + `(-v[\w.\-]+)?$`)
 	assetURL, ok := rel.findAsset(re)
 	if !ok {
 		return rel.TagName, false, fmt.Errorf("最新版本 %s 没有 %s 的插件文件", rel.TagName, plat)
@@ -306,7 +306,7 @@ func (m *Manager) RestartService() error {
 	}
 	go func() {
 		time.Sleep(500 * time.Millisecond)
-		_ = exec.Command("sh", "-c", "/etc/init.d/openclash-air restart >/dev/null 2>&1 &").Run()
+		_ = exec.Command("sh", "-c", "/etc/init.d/clashv restart >/dev/null 2>&1 &").Run()
 	}()
 	return nil
 }

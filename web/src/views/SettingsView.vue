@@ -133,7 +133,7 @@ async function upgradePlugin() {
 }
 
 async function restartService() {
-  if (!confirm('确认重启 openclash-air 服务？')) return
+  if (!confirm('确认重启 clashv 服务？')) return
   try {
     await api.post('/api/service/restart')
     toast('服务重启中，请稍后刷新页面', 'success')
@@ -277,7 +277,7 @@ onMounted(load)
 
     <!-- 插件 -->
     <div class="card">
-      <h3 class="sec">openclash-air 插件</h3>
+      <h3 class="sec">clashv 插件</h3>
       <div class="rows">
         <div class="row">
           <div class="row-text">

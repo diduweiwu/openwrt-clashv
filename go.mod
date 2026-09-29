@@ -1,4 +1,4 @@
-module openclash-air
+module clashv
 
 go 1.22
 

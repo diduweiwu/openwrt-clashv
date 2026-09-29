@@ -1,7 +1,7 @@
 // 主题管理：深色 / 浅色 / 跟随系统（默认），全局单例
 import { ref, watch } from 'vue'
 
-const KEY = 'openclash_air_theme'
+const KEY = 'clashv_theme'
 
 // themeMode: 用户选择的模式；resolvedTheme: 实际生效的配色
 export const themeMode = ref(localStorage.getItem(KEY) || 'system')

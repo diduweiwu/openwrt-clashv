@@ -1,0 +1,11 @@
+{
+	"luci-app-clashv": {
+		"description": "Grant access to clashv",
+		"read": {
+			"uci": ["clashv"]
+		},
+		"write": {
+			"uci": ["clashv"]
+		}
+	}
+}

@@ -25,7 +25,7 @@ case "$TARGET" in
   ipk|apk) ;;
   *) echo "ERROR: TARGET 必须是 ipk 或 apk，当前为 $TARGET" >&2; exit 1 ;;
 esac
-PKG_NAME=openclash-air
+PKG_NAME=clashv
 
 STAGE="${STAGE:-all}"
 case "$STAGE" in
@@ -38,7 +38,7 @@ if [ -z "$VERSION" ]; then
   echo "ERROR: 无法从 openwrt/Makefile 读取 PKG_VERSION" >&2
   exit 1
 fi
-echo "==> openclash-air $VERSION (target: $TARGET, stage: $STAGE)"
+echo "==> clashv $VERSION (target: $TARGET, stage: $STAGE)"
 
 # ---------- 前端构建 ----------
 # 副本目录里构建：npm 会装平台相关的二进制依赖（如 esbuild），在容器里装出的是
@@ -129,7 +129,7 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   # 都当成包定义，删掉包内这份（install 引用的 openwrt/root/ 等文件保留）
   rm -f "$PKG_SRC/openwrt/Makefile"
   # 清掉上次构建残留在 SDK bin/ 里的旧产物，避免不同版本号混入
-  rm -f "$SDK/bin/openclash-air_*.ipk" "$SDK/bin/openclash-air-*.apk"
+  rm -f "$SDK/bin/clashv_*.ipk" "$SDK/bin/clashv-*.apk"
 
   echo "==> [package] 编译包 (make package/$PKG_NAME/compile)"
   # 与 OpenClash 的打包逻辑一致：包正确注册（BuildPackage 宏）后，SDK 模式下
@@ -167,8 +167,8 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   make package/$PKG_NAME/compile V=s
 
   case "$TARGET" in
-    ipk) PATTERN='openclash-air_*.ipk' ;;
-    apk) PATTERN='openclash-air-*.apk' ;;
+    ipk) PATTERN='clashv_*.ipk' ;;
+    apk) PATTERN='clashv-*.apk' ;;
   esac
   rm -rf "$OUT_DIR"
   mkdir -p "$OUT_DIR"

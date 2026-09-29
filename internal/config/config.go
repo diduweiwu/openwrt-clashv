@@ -1,7 +1,7 @@
-// Package config 负责 openclash-air 自身设置。
+// Package config 负责 clashv 自身设置。
 //
-// OpenWrt 上持久化到 UCI（/etc/config/openclash-air）；非 OpenWrt 开发环境回退到
-// $HOME/.openclash-air/config.json，其余数据（订阅文件、日志、运行时配置）统一放 WorkDir。
+// OpenWrt 上持久化到 UCI（/etc/config/clashv）；非 OpenWrt 开发环境回退到
+// $HOME/.clashv/config.json，其余数据（订阅文件、日志、运行时配置）统一放 WorkDir。
 package config
 
 import (
@@ -55,7 +55,7 @@ func Defaults() Settings {
 		CorePath:         "",
 		CoreArch:         "",
 		WorkDir:          "",
-		PluginRepo:       "nier/openclash-air",
+		PluginRepo:       "nier/clashv",
 		DownloadProxy:    "https://gh-proxy.com",
 		ActiveProfile:    "",
 	}
@@ -95,10 +95,10 @@ func (m *Manager) Home() string {
 		return s.WorkDir
 	}
 	if m.useUCI {
-		return "/etc/openclash-air"
+		return "/etc/clashv"
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".openclash-air")
+	return filepath.Join(home, ".clashv")
 }
 
 // ProfilesDir 返回订阅文件目录。
@@ -195,7 +195,7 @@ func (s *Settings) normalize() {
 	s.Token = strings.ReplaceAll(s.Token, "'", "")
 	s.PluginRepo = strings.Trim(s.PluginRepo, "/ ")
 	if s.PluginRepo == "" {
-		s.PluginRepo = "nier/openclash-air"
+		s.PluginRepo = "nier/clashv"
 	}
 	s.DownloadProxy = strings.TrimSuffix(strings.TrimSpace(s.DownloadProxy), "/")
 }
@@ -221,7 +221,7 @@ func (m *Manager) fileCfgPath() string {
 		return m.fileCfg
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".openclash-air", "config.json")
+	return filepath.Join(home, ".clashv", "config.json")
 }
 
 func (m *Manager) loadFile(s *Settings) error {
@@ -229,7 +229,7 @@ func (m *Manager) loadFile(s *Settings) error {
 	if os.IsNotExist(err) {
 		if s.WorkDir == "" {
 			home, _ := os.UserHomeDir()
-			s.WorkDir = filepath.Join(home, ".openclash-air")
+			s.WorkDir = filepath.Join(home, ".clashv")
 		}
 		return nil
 	}

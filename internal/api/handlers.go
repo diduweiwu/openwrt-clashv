@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"openclash-air/internal/config"
-	"openclash-air/internal/profiles"
+	"clashv/internal/config"
+	"clashv/internal/profiles"
 )
 
 // writeJSON 统一 JSON 响应。

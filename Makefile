@@ -1,10 +1,10 @@
-# openclash-air 顶层 Makefile
+# clashv 顶层 Makefile
 #
 # 常用目标:
 #   make web          构建前端 (Vite → web/dist)
-#   make build        构建本机二进制（内嵌前端）→ bin/openclash-air
+#   make build        构建本机二进制（内嵌前端）→ bin/clashv
 #   make dev          开发模式跑后端（文件存储，配合 npm run dev 热更新前端）
-#   make linux        交叉编译全部 OpenWrt 目标架构 → bin/openclash-air-linux-*
+#   make linux        交叉编译全部 OpenWrt 目标架构 → bin/clashv-linux-*
 #   make test-sub     起一个本地测试订阅服务器 (127.0.0.1:8899/sub.yaml)
 #   make clean        清理构建产物
 
@@ -23,10 +23,10 @@ web:
 
 build: web
 	mkdir -p bin
-	$(GO) build -trimpath -ldflags "-s -w -X main.Version=$(VERSION)" -o bin/openclash-air ./cmd/openclash-air
+	$(GO) build -trimpath -ldflags "-s -w -X main.Version=$(VERSION)" -o bin/clashv ./cmd/clashv
 
 dev:
-	$(GO) run ./cmd/openclash-air run -dev
+	$(GO) run ./cmd/clashv run -dev
 
 linux:
 	./scripts/build-linux.sh bin $(VERSION)

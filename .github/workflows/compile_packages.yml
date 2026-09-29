@@ -1,4 +1,4 @@
-name: Build openclash-air (ipk & apk)
+name: Build clashv (ipk & apk)
 
 # 用法：
 #   1. push 到 master 分支且改动相关目录时自动构建
@@ -6,7 +6,7 @@ name: Build openclash-air (ipk & apk)
 # 产物：Actions Artifacts + GitHub Release（tag = v<openwrt/Makefile 里的 PKG_VERSION>）
 #
 # 平台说明：本包 PKGARCH:=all —— 一个包通用所有平台（x86/64 / arm / mips…）。
-# 包内附带 7 种架构的 Go 二进制，安装后由 /usr/bin/openclash-air 启动器按设备
+# 包内附带 7 种架构的 Go 二进制，安装后由 /usr/bin/clashv 启动器按设备
 # DISTRIB_ARCH 自动选择，postinst 删除其余架构节省空间。
 # mihomo 内核由插件在界面上按架构一键下载。
 
@@ -104,7 +104,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openclash-air-${{ matrix.target.name }}
+          name: clashv-${{ matrix.target.name }}
           path: tmp/out/*
 
   Release:
@@ -127,7 +127,7 @@ jobs:
           TAG: v${{ needs.Version.outputs.version }}
         run: |
           ls -lh ./release
-          gh release create "$TAG" --title "openclash-air v${{ needs.Version.outputs.version }}" \
+          gh release create "$TAG" --title "clashv v${{ needs.Version.outputs.version }}" \
             --notes "单包全平台：内置 7 种架构二进制（arm64/armv7/mips/mipsle/amd64/riscv64/loong64），安装后自动保留当前架构。ipk 适用于 opkg 系统（OpenWrt 22.03/23.05）；apk 适用于 apk 系统（OpenWrt 24.10+/snapshot）。mihomo 内核请在插件「设置 → 内核」中一键下载。" \
             --latest || true
           gh release upload "$TAG" ./release/* --clobber

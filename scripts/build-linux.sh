@@ -1,16 +1,16 @@
 #!/bin/sh
-# 构建 openclash-air 的 Linux 二进制
+# 构建 clashv 的 Linux 二进制
 #
 # 用法: ./scripts/build-linux.sh [输出目录] [版本号]
 #
 # 产物命名（通用架构名，供 openwrt 打包与启动器按设备架构选择）:
-#   openclash-air-arm64     aarch64 全系（cortex-a53/a72/generic…）
-#   openclash-air-armv7     armv6/v7（cortex-a7/a9…，armv6 设备可尝试）
-#   openclash-air-mips      big-endian 软浮点（mips_24kc 等）
-#   openclash-air-mipsle    little-endian 软浮点（mipsel_24kc 等）
-#   openclash-air-amd64     x86_64（GOAMD64=v1 最大兼容）
-#   openclash-air-riscv64   riscv64_generic
-#   openclash-air-loong64   loongarch64_generic
+#   clashv-arm64     aarch64 全系（cortex-a53/a72/generic…）
+#   clashv-armv7     armv6/v7（cortex-a7/a9…，armv6 设备可尝试）
+#   clashv-mips      big-endian 软浮点（mips_24kc 等）
+#   clashv-mipsle    little-endian 软浮点（mipsel_24kc 等）
+#   clashv-amd64     x86_64（GOAMD64=v1 最大兼容）
+#   clashv-riscv64   riscv64_generic
+#   clashv-loong64   loongarch64_generic
 
 set -e
 cd "$(dirname "$0")/.."
@@ -47,12 +47,12 @@ echo "$TARGETS" | while IFS=: read -r goos goarch extra suffix; do
 	[ -z "$goarch" ] && continue
 	name="$goarch"
 	[ -n "$suffix" ] && name="$suffix"
-	echo "==> ${goos}/${goarch} ${extra} -> openclash-air-$name"
+	echo "==> ${goos}/${goarch} ${extra} -> clashv-$name"
 	# shellcheck disable=SC2086
 	env GOOS="$goos" GOARCH="$goarch" $extra \
 		go build -trimpath -ldflags "$LDFLAGS" \
-		-o "$OUT/openclash-air-$name" ./cmd/openclash-air
+		-o "$OUT/clashv-$name" ./cmd/clashv
 done
 
 echo "==> 完成:"
-ls -lh "$OUT"/openclash-air-*
+ls -lh "$OUT"/clashv-*
