@@ -136,6 +136,9 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   # make defconfig 会把所有包默认置为 m，无需手动写入 CONFIG
   cd "$SDK"
   make defconfig
+  # .build 是「配置已就绪」的标记：缺它时 package/xxx/compile 前会再跑一次
+  # defconfig，SDK 默认值会把下面的 kmod 剪减全部冲掉，所以这里必须补上
+  touch tmp/.build
   grep -q "^CONFIG_PACKAGE_$PKG_NAME=m" .config || {
     echo "ERROR: $PKG_NAME 未能进入 SDK .config（多半是 DEPENDS 在该 SDK 中缺失）" >&2
     exit 1
