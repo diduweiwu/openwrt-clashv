@@ -11,9 +11,10 @@ import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
 
-// hero 控制按钮与左侧状态瓦片同高；启动/重启/停止常驻三个圆形图标钮（同 Verge）
+// hero 控制按钮与左侧状态瓦片同高；启停为常驻圆形切换钮，重启为等高长方形文字钮
 const HERO_H = 62
 const heroCtl = { width: HERO_H + 'px', height: HERO_H + 'px' }
+const heroRestart = { height: HERO_H + 'px', padding: '0 24px', fontSize: '15px' }
 const proxies = ref({})
 const showSheet = ref(false)
 const sheetGroup = ref(null)
@@ -244,29 +245,29 @@ function currentOf(g) {
         <n-flex justify="space-between" align="center" :size="18">
           <n-flex :size="10">
             <div class="meta-item">
-              <span class="k">当前订阅</span>
+              <span class="k"><AppIcon name="file-text" :size="13" />当前订阅</span>
               <span class="v">{{ status?.profile || '未设置' }}</span>
             </div>
             <div class="meta-item">
-              <span class="k">内核版本</span>
+              <span class="k"><AppIcon name="cpu" :size="13" />内核版本</span>
               <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
             </div>
             <div class="meta-item">
-              <span class="k">运行时长</span>
+              <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
               <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
             </div>
             <div class="meta-item">
-              <span class="k">混合端口</span>
+              <span class="k"><AppIcon name="plug" :size="13" />混合端口</span>
               <span class="v mono">{{ status?.mixed_port || '—' }}</span>
             </div>
             <div class="meta-item">
-              <span class="k">DNS</span>
+              <span class="k"><AppIcon name="globe" :size="13" />DNS</span>
               <span class="v mono" :class="{ dim: !status?.dns }">
                 {{ status?.dns ? (status.dns_mode || 'fake-ip') : '未接管' }}
               </span>
             </div>
             <div class="meta-item">
-              <span class="k">模式</span>
+              <span class="k"><AppIcon name="layers" :size="13" />模式</span>
               <span class="v">
                 <n-tag v-if="status?.tun" size="small" round :bordered="false">TUN</n-tag>
                 <n-tag v-else-if="status?.openwrt" size="small" round :bordered="false">透明代理</n-tag>
@@ -276,11 +277,11 @@ function currentOf(g) {
           </n-flex>
           <n-flex :size="12">
             <n-button
-              circle title="重启内核"
-              :style="heroCtl"
+              title="重启内核"
+              :style="heroRestart"
               :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
             >
-              <template #icon><AppIcon name="restart" :size="20" /></template>
+              <template #icon><AppIcon name="restart" :size="18" /></template>重启内核
             </n-button>
             <!-- 启动/停止同一个按钮：停止态主色播放，运行态红色方块 -->
             <n-button
@@ -489,7 +490,7 @@ function currentOf(g) {
   padding: 9px 14px 10px;
   min-width: 104px;
 }
-.meta-item .k { color: var(--text-dim); font-size: 11.5px; }
+.meta-item .k { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 
