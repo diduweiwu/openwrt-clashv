@@ -27,6 +27,7 @@ type Settings struct {
 	TUN              bool   `json:"tun"`               // TUN 模式（接管全局流量）；关闭时自动用防火墙做 TCP 透明代理
 	TUNStack         string `json:"tun_stack"`         // TUN 协议栈: system / gvisor / mixed
 	DNS              bool   `json:"dns"`               // 由 mihomo 接管 DNS（TUN 模式建议开启）
+	DNSMode          string `json:"dns_mode"`          // DNS 解析模式: fake-ip / redir-host
 	AutoUpdateHours  int    `json:"auto_update"`       // 订阅自动更新间隔（小时），0 为关闭
 	CorePath         string `json:"core_path"`         // mihomo 二进制路径
 	CoreArch         string `json:"core_arch"`         // 内核下载平台名，留空自动检测（如 linux-arm64）
@@ -51,6 +52,7 @@ func Defaults() Settings {
 		TUN:              false,
 		TUNStack:         "mixed",
 		DNS:              true,
+		DNSMode:          "fake-ip",
 		AutoUpdateHours:  12,
 		CorePath:         "",
 		CoreArch:         "",
@@ -207,6 +209,13 @@ func (s *Settings) normalize() {
 	case "firewall", "dnsmasq", "off":
 	default:
 		s.DNSHijack = "firewall"
+	}
+	// DNS 解析模式白名单；历史配置为空时视为 fake-ip
+	s.DNSMode = strings.TrimSpace(s.DNSMode)
+	switch s.DNSMode {
+	case "fake-ip", "redir-host":
+	default:
+		s.DNSMode = "fake-ip"
 	}
 }
 

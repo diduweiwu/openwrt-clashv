@@ -169,22 +169,33 @@ func managedOverlay(s config.Settings) map[string]any {
 		},
 	}
 	if s.DNS {
-		m["dns"] = map[string]any{
+		// DNS 解析模式：fake-ip（默认，返回假 IP，兼容性最好）/
+		// redir-host（返回真实 IP，靠内核 DNS 缓存反查域名来匹配规则，
+		// 供不支持假 IP 的设备使用）。劫持管线两种模式完全一致，
+		// LAN 的 53 端口都必须交给内核 DNS 才能拿到正确的解析结果。
+		mode := s.DNSMode
+		if mode != "redir-host" {
+			mode = "fake-ip"
+		}
+		dns := map[string]any{
 			"enable":        true,
 			"listen":        "0.0.0.0:1053",
 			"ipv6":          false,
-			"enhanced-mode": "fake-ip",
-			"fake-ip-range": "198.18.0.1/16",
+			"enhanced-mode": mode,
+			"default-nameserver": []any{"223.5.5.5", "119.29.29.29"},
+			"nameserver":         []any{"https://doh.pub/dns-query", "https://dns.alidns.com/dns-query"},
+		}
+		if mode == "fake-ip" {
+			dns["fake-ip-range"] = "198.18.0.1/16"
 			// NTP/系统连通性检查走真实 IP，避免假 IP 干扰时间同步等
-			"fake-ip-filter": []any{
+			dns["fake-ip-filter"] = []any{
 				"*.lan", "+.local", "+.market.xiaomi.com",
 				"+.msftconnecttest.com", "+.msftncsi.com",
 				"time.windows.com", "time.nist.gov", "*.ntp.org",
 				"time.apple.com", "time.asia.apple.com", "time1.cloud.tencent.com",
-			},
-			"default-nameserver": []any{"223.5.5.5", "119.29.29.29"},
-			"nameserver":         []any{"https://doh.pub/dns-query", "https://dns.alidns.com/dns-query"},
+			}
 		}
+		m["dns"] = dns
 	}
 	return m
 }

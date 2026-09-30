@@ -59,6 +59,7 @@ const form = reactive({
   tun: false,
   tun_stack: 'mixed',
   dns: true,
+  dns_mode: 'fake-ip',
   dns_hijack: 'firewall',
   auto_update: 12,
   token: '',
@@ -112,6 +113,7 @@ async function load() {
       tun: s.tun,
       tun_stack: s.tun_stack,
       dns: s.dns,
+      dns_mode: s.dns_mode || 'fake-ip',
       dns_hijack: s.dns_hijack || 'firewall',
       auto_update: s.auto_update,
       token: s.token || '',
@@ -138,6 +140,7 @@ async function save() {
       tun: r.settings.tun,
       tun_stack: r.settings.tun_stack,
       dns: r.settings.dns,
+      dns_mode: r.settings.dns_mode || 'fake-ip',
       dns_hijack: r.settings.dns_hijack || 'firewall',
       auto_update: r.settings.auto_update,
       token: r.settings.token || '',
@@ -280,13 +283,23 @@ onBeforeUnmount(stopProgPoll)
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">接管 DNS（fake-ip）</span>
-            <span class="rs">TUN 模式建议开启，由 mihomo 处理域名解析</span>
+            <span class="rt">接管 DNS</span>
+            <span class="rs">由 mihomo 处理局域网域名解析，透明代理/TUN 模式建议开启</span>
           </div>
           <label class="switch">
             <input v-model="form.dns" type="checkbox">
             <span class="track"></span><span class="thumb"></span>
           </label>
+        </div>
+        <div class="row" v-if="form.dns">
+          <div class="row-text">
+            <span class="rt">DNS 解析模式</span>
+            <span class="rs">fake-ip 返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（部分 IPTV、游戏机、打印机会异常时可换它）</span>
+          </div>
+          <select v-model="form.dns_mode" style="width:160px">
+            <option value="fake-ip">fake-ip（推荐）</option>
+            <option value="redir-host">redir-host</option>
+          </select>
         </div>
         <div class="row" v-if="form.dns && store.status?.openwrt">
           <div class="row-text">

@@ -14,8 +14,9 @@ import (
 
 // 流量接管（旁路由/网关模式的关键），两部分必须配套：
 //
-//  1. DNS 劫持：LAN 的 53 端口查询交给内核 DNS（1053，fake-ip），
-//     否则域名解析被污染，google 等解析到假 IP。方式二选一（dns_hijack 设置）：
+//  1. DNS 劫持：LAN 的 53 端口查询交给内核 DNS（1053，fake-ip 或
+//     redir-host 模式由设置决定），否则域名解析被污染，google 等解析
+//     到错误 IP。方式二选一（dns_hijack 设置）：
 //     firewall —— nft/iptables 把 53 端口流量重定向到内核 DNS；
 //     dnsmasq  —— 把 dnsmasq 的上游改成 127.0.0.1#1053。
 //

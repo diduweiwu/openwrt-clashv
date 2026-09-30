@@ -20,6 +20,7 @@ import (
 //	    option tun '0'
 //	    option tun_stack 'mixed'
 //	    option dns '1'
+//	    option dns_mode 'fake-ip'
 //	    option auto_update '12'
 //	    option core_path ''
 //	    option core_arch ''
@@ -78,6 +79,7 @@ func (m *Manager) loadUCI(s *Settings) error {
 	if _, ok := getOK("dns"); ok {
 		s.DNS = isOn("dns")
 	}
+	setStr(&s.DNSMode, "dns_mode")
 	setInt(&s.AutoUpdateHours, "auto_update")
 	setStr(&s.CorePath, "core_path")
 	setStr(&s.CoreArch, "core_arch")
@@ -117,6 +119,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.tun='%s'", uciSection, onOff(s.TUN))
 	line("set %s.tun_stack='%s'", uciSection, s.TUNStack)
 	line("set %s.dns='%s'", uciSection, onOff(s.DNS))
+	line("set %s.dns_mode='%s'", uciSection, s.DNSMode)
 	line("set %s.auto_update='%d'", uciSection, s.AutoUpdateHours)
 	line("set %s.core_path='%s'", uciSection, s.CorePath)
 	line("set %s.core_arch='%s'", uciSection, s.CoreArch)
