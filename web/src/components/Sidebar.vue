@@ -113,7 +113,7 @@ function pickTheme(v) {
 }
 nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
-  display: flex; align-items: center; gap: 30px;
+  display: flex; align-items: center; gap: 15px;
   padding: 10px 12px;
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.62);
