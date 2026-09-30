@@ -94,6 +94,25 @@ const subExpire = computed(() => {
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
 })
 
+// ---- 运行时配置查看 ----
+const showConfig = ref(false)
+const cfgContent = ref('')
+const cfgLoading = ref(false)
+
+async function viewConfig() {
+  showConfig.value = true
+  cfgLoading.value = true
+  try {
+    const r = await api.get('/api/core/config')
+    cfgContent.value = r.content || ''
+  } catch (e) {
+    showConfig.value = false
+    toast(e.message, 'error')
+  } finally {
+    cfgLoading.value = false
+  }
+}
+
 function openGroup(g) {
   sheetGroup.value = g
   showSheet.value = true
@@ -188,6 +207,7 @@ function currentOf(g) {
           <button class="ghost sm" :disabled="subBusy || !activeProfile" @click="refreshProfile">
             {{ subBusy ? '更新中…' : '刷新订阅' }}
           </button>
+          <button v-if="status?.running" class="ghost sm" @click="viewConfig">运行时配置</button>
           <button class="ghost sm" @click="router.push('/profiles')">切换订阅</button>
           <button class="ghost sm" @click="router.push('/profiles?add=1')">添加订阅</button>
         </div>
@@ -260,6 +280,18 @@ function currentOf(g) {
       @close="showSheet = false"
       @selected="loadProxies"
     />
+
+    <!-- 运行时配置查看 -->
+    <div v-if="showConfig" class="overlay" @click.self="showConfig = false">
+      <div class="cfg-modal">
+        <div class="cfg-head">
+          <h3>运行时配置（config.yaml）</h3>
+          <button class="ghost sm" @click="showConfig = false">关闭</button>
+        </div>
+        <pre v-if="!cfgLoading" class="cfg-view mono">{{ cfgContent }}</pre>
+        <div v-else class="empty-hint" style="padding:40px">加载中…</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -315,4 +347,30 @@ function currentOf(g) {
 }
 .g-arrow { color: var(--text-dim); font-size: 18px; flex: none; }
 .empty-hint { color: var(--text-dim); text-align: center; padding: 22px 0; }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.cfg-modal {
+  width: 760px; max-width: 100%; height: 80vh;
+  display: flex; flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.cfg-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cfg-head h3 { font-size: 14.5px; }
+.cfg-view {
+  flex: 1; margin: 0; padding: 14px;
+  overflow: auto;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border); border-radius: 10px;
+  font-size: 12px; line-height: 1.6;
+  white-space: pre; tab-size: 2;
+}
 </style>

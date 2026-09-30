@@ -46,8 +46,11 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	// 代理（转发 mihomo 控制接口）
 	mux.HandleFunc("GET /api/proxies", d.handleProxies)
 	mux.HandleFunc("PUT /api/proxies/{group}", d.handleSelectProxy)
-	mux.HandleFunc("GET /api/proxies/{group}/delay", d.handleGroupDelay)
-	mux.HandleFunc("POST /api/proxies/{name}/delay", d.handleProxyDelay)
+	// 与内核 API 保持一致：单节点测速走 /api/proxies/{name}/delay，整组测速走
+	// /api/group/{name}/delay。若整组也挂在 /api/proxies/{x}/delay 下，逐节点
+	// 测速的 GET 会被它截走，节点名被当成组名导致内核返回 404 Resource not found。
+	mux.HandleFunc("GET /api/proxies/{name}/delay", d.handleProxyDelay)
+	mux.HandleFunc("GET /api/group/{name}/delay", d.handleGroupDelay)
 
 	// 订阅
 	mux.HandleFunc("GET /api/profiles", d.handleProfileList)
@@ -66,6 +69,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("POST /api/core/restart", d.wrap(d.coreRestart))
 	mux.HandleFunc("GET /api/core/status", d.handleCoreStatus)
 	mux.HandleFunc("GET /api/core/latest", d.handleCoreLatest)
+	mux.HandleFunc("GET /api/core/config", d.handleCoreConfig)
 	mux.HandleFunc("POST /api/core/upgrade", d.handleCoreUpgrade)
 
 	// 插件自更新

@@ -16,6 +16,19 @@ const url = ref('')
 const adding = ref(false)
 const busyId = ref('')
 
+// 内置 clash 相关 UA；很多机场按 UA 返回对应格式的配置
+const CUSTOM_UA = '__custom__'
+const UA_OPTIONS = [
+  { v: '', label: '默认（clash-verge/clashv）' },
+  { v: 'clash.meta', label: 'clash.meta（mihomo）' },
+  { v: 'ClashforWindows/0.20.39', label: 'Clash for Windows' },
+  { v: 'ClashMetaForAndroid/2.11.5', label: 'ClashMeta for Android' },
+  { v: 'Stash/2.7.3', label: 'Stash' },
+  { v: CUSTOM_UA, label: '自定义…' },
+]
+const uaPick = ref('')
+const customUa = ref('')
+
 async function load() {
   try {
     const data = await api.get('/api/profiles')
@@ -30,17 +43,32 @@ async function load() {
   }
 }
 
-function openAdd() {
+async function openAdd() {
   name.value = ''
   url.value = ''
+  uaPick.value = ''
+  customUa.value = ''
+  // 上次用的 UA 不是内置项 → 自动选中"自定义"并预填
+  try {
+    const s = await api.get('/api/settings')
+    const last = s.custom_ua || ''
+    if (last && !UA_OPTIONS.some(o => o.v === last)) {
+      uaPick.value = CUSTOM_UA
+      customUa.value = last
+    } else if (last) {
+      uaPick.value = last
+    }
+  } catch { /* 拿不到就保持默认 */ }
   showModal.value = true
 }
 
 async function add() {
   if (!url.value.trim()) { toast('请输入订阅链接', 'info'); return }
+  const ua = uaPick.value === CUSTOM_UA ? customUa.value.trim() : uaPick.value
+  if (uaPick.value === CUSTOM_UA && !ua) { toast('请输入自定义 User-Agent', 'info'); return }
   adding.value = true
   try {
-    await api.post('/api/profiles', { name: name.value.trim(), url: url.value.trim() })
+    await api.post('/api/profiles', { name: name.value.trim(), url: url.value.trim(), ua })
     toast('订阅已添加', 'success')
     showModal.value = false
     name.value = ''
@@ -133,7 +161,7 @@ onMounted(() => {
           <span v-if="p.id === active" class="badge">✓ 使用中</span>
         </div>
         <p class="p-url">{{ p.url }}</p>
-        <p class="page-sub">更新于 {{ fmtTime(p.updated_at) }} · {{ fmtBytes(p.size) }}</p>
+        <p class="page-sub">更新于 {{ fmtTime(p.updated_at) }} · {{ fmtBytes(p.size) }}<template v-if="p.ua"> · UA <span class="mono">{{ p.ua }}</span></template></p>
         <div v-if="trafficOf(p)" class="p-traffic">
           <div class="bar"><div class="bar-fill" :style="{ width: trafficOf(p).percent + '%' }"></div></div>
           <span class="mono p-traffic-text">
@@ -162,6 +190,19 @@ onMounted(() => {
         <h3>添加订阅</h3>
         <input v-model="name" placeholder="备注名（可选）" @keyup.enter="add">
         <input v-model="url" placeholder="https://example.com/subscription" class="url-input" @keyup.enter="add">
+        <div class="ua-row">
+          <select v-model="uaPick" class="ua-select">
+            <option v-for="o in UA_OPTIONS" :key="o.v" :value="o.v">{{ o.label }}</option>
+          </select>
+        </div>
+        <input
+          v-if="uaPick === CUSTOM_UA"
+          v-model="customUa"
+          placeholder="自定义 User-Agent，如 clash.meta/1.19.31"
+          class="url-input"
+          @keyup.enter="add"
+        >
+        <p class="page-sub">部分机场按 UA 返回不同格式的配置，更新订阅时沿用添加时的 UA</p>
         <div class="modal-actions">
           <button class="ghost" @click="showModal = false">取消</button>
           <button class="primary" :disabled="adding" @click="add">
@@ -209,5 +250,7 @@ onMounted(() => {
 }
 .modal h3 { font-size: 15px; }
 .modal input { width: 100%; box-sizing: border-box; }
+.ua-row { display: flex; }
+.ua-select { width: 100%; box-sizing: border-box; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 </style>

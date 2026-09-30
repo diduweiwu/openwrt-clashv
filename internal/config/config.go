@@ -32,6 +32,7 @@ type Settings struct {
 	CorePath         string `json:"core_path"`          // mihomo 二进制路径
 	CoreArch         string `json:"core_arch"`          // 内核下载平台名，留空自动检测（如 linux-arm64）
 	DNSHijack        string `json:"dns_hijack"`         // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
+	CustomUA         string `json:"custom_ua"`          // 上次使用的自定义订阅 User-Agent（记住，下次预填）
 	WorkDir          string `json:"workdir"`            // 数据目录：订阅、运行时配置、日志
 	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
 	DownloadProxy    string `json:"download_proxy"`    // GitHub 下载加速前缀（如 https://gh-proxy.com），留空直连
@@ -56,6 +57,7 @@ func Defaults() Settings {
 		CorePath:         "",
 		CoreArch:         "",
 		DNSHijack:        "firewall", // 与 OpenClash 一致：默认防火墙转发 DNS
+		CustomUA:         "",
 		WorkDir:          "",
 		PluginRepo:       "nier/clashv",
 		DownloadProxy:    "https://gh-proxy.com",
@@ -200,6 +202,7 @@ func (s *Settings) normalize() {
 		s.PluginRepo = "nier/clashv"
 	}
 	s.DownloadProxy = strings.TrimSuffix(strings.TrimSpace(s.DownloadProxy), "/")
+	s.CustomUA = strings.ReplaceAll(strings.TrimSpace(s.CustomUA), "'", "")
 	// DNS 劫持模式白名单；历史配置为空时视为默认防火墙转发
 	s.DNSHijack = strings.TrimSpace(s.DNSHijack)
 	switch s.DNSHijack {

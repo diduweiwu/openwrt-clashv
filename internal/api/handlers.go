@@ -199,15 +199,20 @@ func (d *deps) handleProfileAdd(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
+		UA   string `json:"ua"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.URL == "" {
 		writeErr(w, 400, errStr("缺少 url 字段"))
 		return
 	}
-	p, err := d.prof.Add(body.Name, body.URL)
+	p, err := d.prof.Add(body.Name, body.URL, body.UA)
 	if err != nil {
 		writeErr(w, 400, err)
 		return
+	}
+	// 记住本次使用的 UA（含内置），下次打开弹窗可继续使用
+	if body.UA != "" {
+		_ = d.cfg.Update(func(u *config.Settings) { u.CustomUA = body.UA })
 	}
 	// 首个订阅自动激活
 	s, _ := d.cfg.Get()
@@ -215,6 +220,16 @@ func (d *deps) handleProfileAdd(w http.ResponseWriter, r *http.Request) {
 		_ = d.cfg.Update(func(u *config.Settings) { u.ActiveProfile = p.ID })
 	}
 	writeJSON(w, 200, p)
+}
+
+// handleCoreConfig 返回当前合成给 mihomo 的运行时配置（config.yaml）。
+func (d *deps) handleCoreConfig(w http.ResponseWriter, r *http.Request) {
+	data, err := os.ReadFile(d.cfg.RuntimeConfigPath())
+	if err != nil {
+		writeErr(w, 404, errStr("运行时配置不存在，内核启动后生成"))
+		return
+	}
+	writeJSON(w, 200, map[string]any{"content": string(data)})
 }
 
 func (d *deps) handleProfileUpdate(w http.ResponseWriter, r *http.Request) {

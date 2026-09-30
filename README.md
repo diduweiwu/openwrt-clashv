@@ -172,8 +172,8 @@ ssh root@router "/etc/uci-defaults/99-clashv; /etc/init.d/clashv start"
 | GET/PUT | /api/settings | 读写设置 |
 | GET | /api/proxies | 全部代理与分组（透传内核） |
 | PUT | /api/proxies/{group} | 切换节点 `{"name":"..."}` |
-| GET | /api/proxies/{group}/delay | 整组测速 |
-| POST | /api/proxies/{name}/delay | 单节点测速 |
+| GET | /api/proxies/{name}/delay | 单节点测速 |
+| GET | /api/group/{name}/delay | 整组测速 |
 | GET/POST | /api/profiles | 订阅列表/添加 |
 | POST | /api/profiles/{id}/update·activate | 更新/启用订阅 |
 | DELETE | /api/profiles/{id} | 删除订阅 |

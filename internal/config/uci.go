@@ -25,6 +25,7 @@ import (
 //	    option core_path ''
 //	    option core_arch ''
 //	    option dns_hijack 'firewall'
+//	    option custom_ua ''
 //	    option workdir ''
 //	    option plugin_repo 'nier/clashv'
 //	    option download_proxy 'https://gh-proxy.com'
@@ -85,6 +86,7 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setStr(&s.CorePath, "core_path")
 	setStr(&s.CoreArch, "core_arch")
 	setStr(&s.DNSHijack, "dns_hijack")
+	setStr(&s.CustomUA, "custom_ua")
 	setStr(&s.WorkDir, "workdir")
 	setStr(&s.PluginRepo, "plugin_repo")
 	setStr(&s.DownloadProxy, "download_proxy")
@@ -124,6 +126,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.core_path='%s'", uciSection, s.CorePath)
 	line("set %s.core_arch='%s'", uciSection, s.CoreArch)
 	line("set %s.dns_hijack='%s'", uciSection, s.DNSHijack)
+	line("set %s.custom_ua='%s'", uciSection, s.CustomUA)
 	line("set %s.workdir='%s'", uciSection, s.WorkDir)
 	line("set %s.plugin_repo='%s'", uciSection, s.PluginRepo)
 	line("set %s.download_proxy='%s'", uciSection, s.DownloadProxy)

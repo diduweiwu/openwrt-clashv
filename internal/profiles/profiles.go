@@ -29,6 +29,7 @@ type Profile struct {
 	URL       string `json:"url"`
 	UpdatedAt int64  `json:"updated_at"`
 	Size      int64  `json:"size"`
+	UA        string `json:"ua,omitempty"` // 添加订阅时用的 User-Agent，更新时沿用
 	// 订阅流量信息（来自 subscription-userinfo 响应头），0 表示机场未提供
 	Upload  int64 `json:"upload,omitempty"`
 	Download int64 `json:"download,omitempty"`
@@ -122,8 +123,8 @@ func (m *Manager) List() ([]Profile, error) {
 // Path 返回订阅 yaml 文件路径（不存在时也返回期望路径）。
 func (m *Manager) Path(id string) string { return m.yamlPath(id) }
 
-// Add 下载 url 并保存为新订阅，返回元数据。
-func (m *Manager) Add(name, url string) (Profile, error) {
+// Add 下载 url 并保存为新订阅，返回元数据。ua 为空时用默认 User-Agent。
+func (m *Manager) Add(name, url, ua string) (Profile, error) {
 	name = strings.TrimSpace(name)
 	url = strings.TrimSpace(url)
 	if name == "" {
@@ -132,12 +133,12 @@ func (m *Manager) Add(name, url string) (Profile, error) {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return Profile{}, fmt.Errorf("订阅地址必须以 http(s):// 开头")
 	}
-	data, info, err := m.download(url)
+	data, info, err := m.download(url, ua)
 	if err != nil {
 		return Profile{}, err
 	}
 	id := newID(name, url)
-	p := Profile{ID: id, Name: name, URL: url, UpdatedAt: time.Now().Unix(), Size: int64(len(data))}
+	p := Profile{ID: id, Name: name, URL: url, UpdatedAt: time.Now().Unix(), Size: int64(len(data)), UA: strings.TrimSpace(ua)}
 	p.Upload, p.Download, p.Total, p.Expire = info.upload, info.download, info.total, info.expire
 	if err := m.write(p, data); err != nil {
 		return Profile{}, err
@@ -145,13 +146,13 @@ func (m *Manager) Add(name, url string) (Profile, error) {
 	return p, nil
 }
 
-// Update 重新下载订阅内容。
+// Update 重新下载订阅内容（沿用添加时的 User-Agent）。
 func (m *Manager) Update(id string) (Profile, error) {
 	p, err := m.Get(id)
 	if err != nil {
 		return p, err
 	}
-	data, info, err := m.download(p.URL)
+	data, info, err := m.download(p.URL, p.UA)
 	if err != nil {
 		return p, err
 	}
@@ -230,12 +231,16 @@ func parseSubInfo(header string) subInfo {
 }
 
 // download 拉取订阅内容并做最低限度校验（必须是 clash/mihomo 配置）。
-func (m *Manager) download(url string) ([]byte, subInfo, error) {
+// ua 为空时使用默认 UA；很多机场按 UA 决定返回的配置格式，需与添加时保持一致。
+func (m *Manager) download(url, ua string) ([]byte, subInfo, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, subInfo{}, fmt.Errorf("订阅地址无效: %w", err)
 	}
-	req.Header.Set("User-Agent", "clash-verge/clashv")
+	if ua = strings.TrimSpace(ua); ua == "" {
+		ua = "clash-verge/clashv"
+	}
+	req.Header.Set("User-Agent", ua)
 	resp, err := m.hc.Do(req)
 	if err != nil {
 		return nil, subInfo{}, fmt.Errorf("下载订阅失败: %w", err)
