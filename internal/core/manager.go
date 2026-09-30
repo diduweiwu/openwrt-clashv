@@ -20,6 +20,7 @@ import (
 
 	"clashv/internal/config"
 	"clashv/internal/profiles"
+	"clashv/internal/tz"
 )
 
 // Traffic 是一次流量采样快照。
@@ -58,6 +59,8 @@ type Manager struct {
 	conns    []ConnItem // 最近一次轮询的活动连接快照
 	lastTot  [2]int64
 	lastTime time.Time
+	pollErr  string // 最近一次连接轮询失败的错误（空 = 正常）
+	pollLog  string // 上次已告警的错误，用于去重
 	polling  atomic.Bool
 }
 
@@ -129,17 +132,34 @@ func (m *Manager) Start() error {
 		return err
 	}
 
+	// 清理上次异常残留的孤儿内核（procd respawn、Start 中途失败等都会留下）。
+	// 孤儿会占住控制/redir/DNS 端口，让新内核绑不上、本插件与旧实例对话：
+	// 表现为「代理能用但连接列表为空、测速全失败」。按内核二进制路径精确匹配，
+	// 不会误杀 OpenClash 等其他插件的内核。
+	if killed := sweepOrphanCores(corePath); killed > 0 {
+		slog.Warn("已清理残留的内核进程", "count", killed, "path", corePath)
+	}
+
 	rotateLog(m.cfg.LogDir()+"/core.log", 8<<20)
 	logFile, err := os.OpenFile(m.cfg.LogDir()+"/core.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
 	defer logFile.Close()
+	// 记录本次启动前内核日志的末尾位置，就绪后检查这段日志里的端口绑定错误
+	logOffset := int64(0)
+	if st, err := logFile.Stat(); err == nil {
+		logOffset = st.Size()
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.Command(corePath, "-d", m.cfg.Home(), "-f", m.cfg.RuntimeConfigPath())
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+	// 透传 TZ，让内核日志也用本地时区（OpenWrt 的 /etc/TZ 由本插件解析后同步）
+	if tzVal := tz.EnvValue(); tzVal != "" {
+		cmd.Env = append(os.Environ(), "TZ="+tzVal)
+	}
 	cmd.SysProcAttr = sysProcAttr()
 	if err := cmd.Start(); err != nil {
 		cancel()
@@ -163,9 +183,10 @@ func (m *Manager) Start() error {
 
 	// 等待控制接口就绪
 	m.hc.setEndpoint(s.ControllerPort, s.ControllerSecret)
-	deadline := time.Now().Add(8 * time.Second)
+	deadline := time.Now().Add(15 * time.Second)
 	for {
 		if ctx.Err() != nil {
+			killCoreProcess(cmd, m.exited)
 			return errors.New("内核启动中止")
 		}
 		if !m.running.Load() {
@@ -175,9 +196,19 @@ func (m *Manager) Start() error {
 			break
 		}
 		if time.Now().After(deadline) {
-			return errors.New("内核控制接口 8 秒内未就绪，请查看日志（工作目录 logs/core.log）")
+			// 15 秒仍未就绪：多半是配置错误或弱 CPU 加载 geodata 慢。
+			// 必须把子进程杀掉，否则它稍后就绪后成为孤儿，占住全部端口。
+			killCoreProcess(cmd, m.exited)
+			return errors.New("内核控制接口 15 秒内未就绪，已终止内核，请查看日志（工作目录 logs/core.log）")
 		}
 		time.Sleep(300 * time.Millisecond)
+	}
+	// 内核「能应答」不代表监听都起来了：端口被占时 mihomo 只在日志里报错并继续运行，
+	// 后果是流量根本进不来。这里检查本次启动新增的日志段，把绑定失败变成显式错误。
+	time.Sleep(500 * time.Millisecond)
+	if err := checkCoreBindErrors(m.cfg.LogDir()+"/core.log", logOffset); err != nil {
+		killCoreProcess(cmd, m.exited)
+		return fmt.Errorf("内核端口绑定失败: %w", err)
 	}
 	m.startPolling(ctx)
 	// DNS 劫持 + TCP 透明代理在内核就绪后异步套用
@@ -249,6 +280,8 @@ func (m *Manager) resetTraffic() {
 	m.conns = nil
 	m.lastTot = [2]int64{}
 	m.lastTime = time.Time{}
+	m.pollErr = ""
+	m.pollLog = ""
 }
 
 // Connections 返回内核当前活动连接快照（随流量每秒轮询刷新）；内核未运行为空。
@@ -258,6 +291,30 @@ func (m *Manager) Connections() []ConnItem {
 	out := make([]ConnItem, len(m.conns))
 	copy(out, m.conns)
 	return out
+}
+
+// PollError 返回连接轮询最近的错误（空字符串表示正常）。
+// 连接列表为空时用它区分「没有连接」和「轮询失败」。
+func (m *Manager) PollError() string {
+	m.tmu.Lock()
+	defer m.tmu.Unlock()
+	return m.pollErr
+}
+
+func (m *Manager) setPollError(err error) {
+	m.tmu.Lock()
+	defer m.tmu.Unlock()
+	if err == nil {
+		m.pollErr = ""
+		return
+	}
+	msg := err.Error()
+	m.pollErr = msg
+	// 同一类错误只告警一次，避免每秒刷屏
+	if msg != m.pollLog {
+		m.pollLog = msg
+		slog.Warn("内核连接轮询失败，连接列表将保持为空", "err", msg)
+	}
 }
 
 // startPolling 每秒轮询一次 /connections 计算速率，并采样内核内存。
@@ -280,8 +337,10 @@ func (m *Manager) startPolling(ctx context.Context) {
 				}
 				snap, err := m.hc.connections(ctx)
 				if err != nil {
+					m.setPollError(err)
 					continue
 				}
+				m.setPollError(nil)
 				now := time.Now()
 				m.tmu.Lock()
 				if !m.lastTime.IsZero() {
@@ -327,7 +386,15 @@ func (m *Manager) processRSSMB() float64 {
 	if data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid)); err == nil {
 		for _, line := range strings.Split(string(data), "\n") {
 			if strings.HasPrefix(line, "VmRSS:") {
-				kb, _ := strconv.ParseFloat(strings.TrimSpace(strings.TrimPrefix(line, "VmRSS:")), 64)
+				// 行形如 "VmRSS:  12345 kB"，数字与单位间有空格，只能取首段
+				fields := strings.Fields(strings.TrimPrefix(line, "VmRSS:"))
+				if len(fields) == 0 {
+					return 0
+				}
+				kb, err := strconv.ParseFloat(fields[0], 64)
+				if err != nil {
+					return 0
+				}
 				return kb / 1024.0
 			}
 		}

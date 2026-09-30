@@ -26,10 +26,12 @@ func (c *controllerClient) setEndpoint(port int, secret string) {
 	defer c.mu.Unlock()
 	c.base = fmt.Sprintf("http://127.0.0.1:%d", port)
 	c.secret = secret
-	// Proxy: nil 强制直连 —— 绝不让系统代理环境变量劫持发往本机内核的请求
+	// Proxy: nil 强制直连 —— 绝不让系统代理环境变量劫持发往本机内核的请求。
+	// DisableKeepAlives: 每次请求新建连接 —— 若内核重启瞬间有旧监听残留，
+	// 复用的 keep-alive 连接会把后续所有请求送到错误的实例且永不自愈。
 	c.hc = &http.Client{
 		Timeout:   10 * time.Second,
-		Transport: &http.Transport{Proxy: nil},
+		Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true},
 	}
 }
 
@@ -39,7 +41,7 @@ func (c *controllerClient) endpoint() (string, *http.Client) {
 	if c.hc == nil {
 		c.hc = &http.Client{
 			Timeout:   10 * time.Second,
-			Transport: &http.Transport{Proxy: nil},
+			Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true},
 		}
 	}
 	return c.base, c.hc
@@ -129,6 +131,27 @@ func (c *controllerClient) connections(ctx context.Context) (connSnapshot, error
 	var s connSnapshot
 	err := c.do(ctx, http.MethodGet, "/connections", nil, &s)
 	return s, err
+}
+
+// RuleItem 是内核加载的一条路由规则（mihomo /rules）。
+type RuleItem struct {
+	Type    string `json:"type"`    // 如 DOMAIN-SUFFIX / RULE-SET / MATCH
+	Payload string `json:"payload"` // 规则内容，如 google.com
+	Proxy   string `json:"proxy"`   // 命中后走的目标（节点/组/DIRECT/REJECT）
+	Size    int    `json:"size"`    // RULE-SET 的规则条数，其他为 0
+}
+
+func (c *controllerClient) rules(ctx context.Context) ([]RuleItem, error) {
+	var out struct {
+		Rules []RuleItem `json:"rules"`
+	}
+	err := c.do(ctx, http.MethodGet, "/rules", nil, &out)
+	return out.Rules, err
+}
+
+// closeAllConnections 断开内核当前全部活动连接。
+func (c *controllerClient) closeAllConnections(ctx context.Context) error {
+	return c.do(ctx, http.MethodDelete, "/connections", nil, nil)
 }
 
 // proxies 返回 /proxies 的完整数据（mihomo 会把 map 键按字典序输出，组内节点

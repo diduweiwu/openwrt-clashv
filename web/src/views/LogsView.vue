@@ -21,6 +21,7 @@ const loading = ref(false)
 
 const conns = ref([])
 const connsTotal = ref(0)
+const pollError = ref('')
 
 const preRef = ref(null)
 let timer = null
@@ -64,6 +65,7 @@ async function loadConns(silent = true) {
     const r = await api.get('/api/connections')
     connsTotal.value = (r.items || []).length
     conns.value = r.items || []
+    pollError.value = r.poll_error || ''
   } catch (e) {
     if (!silent) toast(e.message, 'error')
   }
@@ -179,6 +181,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
           </tbody>
         </table>
       </div>
+      <div v-if="pollError" class="empty-hint poll-err">⚠ {{ pollError }}</div>
       <div v-else class="empty-hint">暂无活动连接，内核运行且有设备访问后这里会出现记录</div>
     </div>
 
@@ -211,6 +214,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   overflow-y: auto;
 }
 .empty-hint { color: var(--text-dim); text-align: center; padding: 60px 0; }
+.empty-hint.poll-err { color: var(--orange, #e6a23c); font-size: 13px; padding: 34px 16px; white-space: pre-wrap; word-break: break-all; }
 .conn-scroll { max-height: calc(100vh - 210px); min-height: 300px; overflow-y: auto; }
 .conn-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .conn-table th, .conn-table td {

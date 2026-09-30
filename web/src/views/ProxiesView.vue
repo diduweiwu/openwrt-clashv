@@ -71,8 +71,9 @@ async function testGroup(g) {
     while (nodes.length) {
       const node = nodes.shift()
       try {
+        // 8s：弱 CPU 上 TLS 握手 + 代理链路往返较慢，5s 会把可用节点误判为超时
         const r = await api.get(
-          `/api/proxies/${encodeURIComponent(node)}/delay?timeout=5000`
+          `/api/proxies/${encodeURIComponent(node)}/delay?timeout=8000`
         )
         const delay = r?.delay || 0
         if (delay > 0) ok++

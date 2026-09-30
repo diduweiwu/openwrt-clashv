@@ -5,13 +5,19 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"clashv/internal/config"
+	"clashv/internal/tz"
 )
 
 // setupLogger 把 slog 输出同时写到 stderr（procd → syslog）和
 // <workdir>/logs/clashv.log（界面「日志」页读取）。超过 8MB 时启动轮转。
+//
+// OpenWrt 通常没有 zoneinfo，Go 拿不到本地时区会按 UTC 记日志；
+// 这里解析 /etc/TZ、uci zonename 等兜底，让日志时间与系统一致。
 func setupLogger(cfg *config.Manager) {
+	time.Local = tz.Resolve()
 	logPath := filepath.Join(cfg.LogDir(), "clashv.log")
 	rotateLog(logPath, 8<<20)
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)

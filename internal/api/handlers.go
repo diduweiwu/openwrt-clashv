@@ -107,12 +107,15 @@ func (d *deps) handleTraffic(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleConnections 返回当前活动连接快照（随内核每秒轮询刷新）。
+// poll_error 非空表示轮询内核失败——列表为空时应展示该错误而非「暂无连接」。
 func (d *deps) handleConnections(w http.ResponseWriter, r *http.Request) {
 	items := []core.ConnItem{}
+	var pollErr string
 	if d.mgr.Running() {
 		items = d.mgr.Connections()
+		pollErr = d.mgr.PollError()
 	}
-	writeJSON(w, 200, map[string]any{"items": items})
+	writeJSON(w, 200, map[string]any{"items": items, "poll_error": pollErr})
 }
 
 // ---- 代理 ----
