@@ -355,7 +355,7 @@ const tab = ref('general')
           </div>
           <n-select
             v-model:value="form.dns_hijack"
-            :options="[{ value: 'firewall', label: '防火墙转发' }, { value: 'dnsmasq', label: 'dnsmasq 转发' }, { value: 'off', label: '禁用' }]"
+            :options="[{ value: 'firewall', label: '防火墙转发' }, { value: 'dnsmasq', label: 'dnsmasq' }, { value: 'off', label: '禁用' }]"
             class="ctl"
             style="width: 190px"
           />

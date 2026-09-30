@@ -28,6 +28,8 @@ const selectableGroups = computed(() => groups.value.filter(g => g.type === 'Sel
 
 const status = computed(() => store.status)
 const traffic = computed(() => store.traffic)
+// CPU 占用率超 80% 标橙（字段缺失 = 非 Linux 环境，显示 —）
+const cpuHigh = computed(() => (status.value?.cpu ?? 0) > 80)
 
 async function loadProxies(silent = true) {
   if (!status.value?.running) { proxies.value = {}; return }
@@ -252,6 +254,12 @@ function currentOf(g) {
               <span class="v mono">{{ status?.mixed_port || '—' }}</span>
             </div>
             <div class="meta-item">
+              <span class="k">DNS</span>
+              <span class="v mono" :class="{ dim: !status?.dns }">
+                {{ status?.dns ? (status.dns_mode || 'fake-ip') : '未接管' }}
+              </span>
+            </div>
+            <div class="meta-item">
               <span class="k">模式</span>
               <span class="v">
                 <n-tag v-if="status?.tun" size="small" round :bordered="false">TUN</n-tag>
@@ -325,6 +333,12 @@ function currentOf(g) {
           <div class="tn">
             <span class="k">连接</span>
             <span class="v mono">{{ traffic.connections }}</span>
+          </div>
+          <div class="tn">
+            <span class="k">CPU</span>
+            <span class="v mono" :style="cpuHigh ? 'color: var(--orange)' : ''">
+              {{ status?.cpu != null ? Math.round(status.cpu) + '%' : '—' }}
+            </span>
           </div>
           <div class="tn">
             <span class="k">内核内存</span>
@@ -438,10 +452,19 @@ function currentOf(g) {
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(1.5); opacity: 0; }
 }
-.meta { display: flex; gap: 30px; flex-wrap: wrap; }
-.meta-item { display: flex; flex-direction: column; gap: 3px; }
-.meta-item .k { color: var(--text-dim); font-size: 12px; }
-.meta-item .v { font-size: 13.5px; font-weight: 500; }
+.meta { display: flex; gap: 10px; flex-wrap: wrap; }
+/* 状态项做成小卡片瓦片：浅底圆角，标签在上、值在下 */
+.meta-item {
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 14px 10px;
+  min-width: 104px;
+}
+.meta-item .k { color: var(--text-dim); font-size: 11.5px; }
+.meta-item .v { font-size: 13.5px; font-weight: 600; }
+.meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 .actions { display: flex; gap: 10px; }
 
 .traffic-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }

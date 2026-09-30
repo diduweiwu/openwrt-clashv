@@ -3,7 +3,6 @@
 
 config clashv 'main'
 	option enabled '1'
-	option core_autostart '1'
 	option ui_port '9097'
 	option mixed_port '7890'
 	option controller_port '9090'

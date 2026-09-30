@@ -2,15 +2,19 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	"clashv/internal/config"
 )
 
 // 内核进程残留（孤儿）防护：
@@ -123,6 +127,44 @@ func checkCoreBindErrors(path string, from int64) error {
 		}
 	}
 	return nil
+}
+
+// waitCoreServing 模拟客户端真实拨号，确认内核服务端口已在接受连接：
+// mixed（HTTP/SOCKS 混合代理）与 redir（透明代理重定向入口）必须可连，
+// DNS 接管开启时内核 DNS 端口也要可连（mihomo 对 dns.listen 同时提供
+// TCP/UDP 服务）。控制器就绪≠服务就绪，全部探测通过才算启动完成；
+// 超时仍不通则报错（调用方会杀掉刚拉起的内核）。
+func waitCoreServing(ctx context.Context, s config.Settings) error {
+	ports := []string{fmt.Sprintf("127.0.0.1:%d", s.MixedPort), "127.0.0.1:" + redirPort}
+	if s.DNS {
+		ports = append(ports, "127.0.0.1:"+dnsListenPort)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	var lastAddr string
+	var lastErr error
+	for {
+		reachable := true
+		for _, addr := range ports {
+			conn, err := (&net.Dialer{Timeout: 500 * time.Millisecond}).DialContext(ctx, "tcp", addr)
+			if err != nil {
+				lastAddr, lastErr = addr, err
+				reachable = false
+				break
+			}
+			_ = conn.Close()
+		}
+		if reachable {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("服务端口 %s 持续不可连接: %w", lastAddr, lastErr)
+		}
+		select {
+		case <-ctx.Done():
+			return errors.New("内核启动中止")
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
 }
 
 // killCoreProcess 结束刚拉起、但启动流程未完成的子进程（SIGTERM → 5s → SIGKILL），

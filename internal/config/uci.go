@@ -11,7 +11,6 @@ import (
 //
 //	config clashv 'main'
 //	    option enabled '1'
-//	    option core_autostart '1'
 //	    option ui_port '9097'
 //	    option mixed_port '7890'
 //	    option controller_port '9090'
@@ -65,9 +64,6 @@ func (m *Manager) loadUCI(s *Settings) error {
 	if _, ok := getOK("enabled"); ok {
 		s.Enabled = isOn("enabled")
 	}
-	if _, ok := getOK("core_autostart"); ok {
-		s.CoreAutostart = isOn("core_autostart")
-	}
 	setInt(&s.UIPort, "ui_port")
 	setInt(&s.MixedPort, "mixed_port")
 	setInt(&s.ControllerPort, "controller_port")
@@ -112,7 +108,6 @@ func (m *Manager) saveUCI(s *Settings) error {
 		line("set %s=clashv", uciSection)
 	}
 	line("set %s.enabled='%s'", uciSection, onOff(s.Enabled))
-	line("set %s.core_autostart='%s'", uciSection, onOff(s.CoreAutostart))
 	line("set %s.ui_port='%d'", uciSection, s.UIPort)
 	line("set %s.mixed_port='%d'", uciSection, s.MixedPort)
 	line("set %s.controller_port='%d'", uciSection, s.ControllerPort)

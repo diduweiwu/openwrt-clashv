@@ -84,12 +84,18 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if !startedAt.IsZero() {
 		uptime = int64(time.Since(startedAt).Seconds())
 	}
+	// CPU 占用率：两次 status 轮询间的差值；非 Linux（本机开发）为 nil，前端隐藏
+	var cpu any
+	if v, ok := core.CPUPercent(); ok {
+		cpu = v
+	}
 	writeJSON(w, 200, map[string]any{
 		"running":        d.mgr.Running(),
 		"starting":       d.mgr.Starting(),
 		"pid":            d.mgr.PID(),
 		"uptime":         uptime,
 		"started_at":     startedAt.Unix(),
+		"cpu":            cpu,
 		"core":           cs,
 		"plugin_version": d.ver,
 		"profile":        profileName,
@@ -97,6 +103,7 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"mixed_port":     s.MixedPort,
 		"tun":            s.TUN,
 		"dns":            s.DNS,
+		"dns_mode":       s.DNSMode,
 		"auto_update":    s.AutoUpdateHours,
 		"openwrt":        d.cfg.IsOpenWrt(),
 		"token_required": s.Token != "",

@@ -193,6 +193,7 @@ func (m *Manager) Start() error {
 		close(m.exited)
 		m.running.Store(false)
 		m.polling.Store(false)
+		m.markCoreState(false) // 无论正常停止还是异常退出，运行记忆都清掉
 		slog.Info("mihomo 进程已退出")
 	}()
 
@@ -227,8 +228,16 @@ func (m *Manager) Start() error {
 		killCoreProcess(cmd, m.exited)
 		return fmt.Errorf("内核端口绑定失败: %w", err)
 	}
+	// 控制器能应答 + 日志无绑定错误，仍不代表服务真的可用：再模拟客户端
+	// 真实拨号，确认代理/DNS 监听已在接受连接，全部可用后才置「运行中」。
+	// 否则界面提前显示运行中，LAN 设备却连不上代理，误判成「断网」。
+	if err := waitCoreServing(ctx, s); err != nil {
+		killCoreProcess(cmd, m.exited)
+		return fmt.Errorf("内核服务未就绪: %w", err)
+	}
 	// 就绪：此刻起才算「运行中」
 	m.running.Store(true)
+	m.markCoreState(true) // 记住运行状态：服务重启/路由器重启后据此自动恢复
 	m.startPolling(ctx)
 	// DNS 劫持 + TCP 透明代理在内核就绪后异步套用
 	go m.ApplyTrafficHooks(s)
@@ -429,6 +438,35 @@ func (m *Manager) processRSSMB() float64 {
 
 // sysProcAttr 目前无需平台特化；保留钩子便于日后加 Pdeathsig 等。
 func sysProcAttr() *syscall.SysProcAttr { return &syscall.SysProcAttr{} }
+
+// ---- 内核运行状态记忆 ----
+//
+// 状态写在 <home>/core.state：Start 成功置 "running"，进程退出即清除。
+// 插件服务重启（procd respawn）或路由器重启后，autoStartCore 据此判断
+// 「重启前内核是否在运行」，是则自动恢复。不用 UCI 存储：内核启停是高频
+// 事件，避免反复写 flash 里的 /etc/config。
+
+func (m *Manager) coreStatePath() string {
+	return filepath.Join(m.cfg.Home(), "core.state")
+}
+
+func (m *Manager) markCoreState(running bool) {
+	path := m.coreStatePath()
+	if !running {
+		_ = os.Remove(path)
+		return
+	}
+	if err := os.WriteFile(path, []byte("running\n"), 0o644); err != nil {
+		slog.Warn("内核状态记忆写入失败（重启后不会自动恢复运行）", "err", err)
+	}
+}
+
+// CoreWasRunning 报告上次记录的内核是否处于运行状态（文件缺失/内容不符为 false）。
+// 供服务启动时的自动恢复逻辑调用（见 cmd/clashv autoStartCore）。
+func (m *Manager) CoreWasRunning() bool {
+	data, err := os.ReadFile(m.coreStatePath())
+	return err == nil && strings.TrimSpace(string(data)) == "running"
+}
 
 // ---- mihomo 控制接口转发 ----
 

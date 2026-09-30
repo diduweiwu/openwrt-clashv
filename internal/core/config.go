@@ -181,10 +181,10 @@ func managedOverlay(s config.Settings, proxyTarget string) map[string]any {
 			mode = "fake-ip"
 		}
 		dns := map[string]any{
-			"enable":        true,
-			"listen":        "0.0.0.0:1053",
-			"ipv6":          false,
-			"enhanced-mode": mode,
+			"enable":             true,
+			"listen":             "0.0.0.0:1053",
+			"ipv6":               false,
+			"enhanced-mode":      mode,
 			"default-nameserver": []any{"223.5.5.5", "119.29.29.29"},
 			"nameserver":         []any{"https://doh.pub/dns-query", "https://dns.alidns.com/dns-query"},
 		}

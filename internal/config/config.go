@@ -18,7 +18,6 @@ import (
 // Settings 是全部用户可配置项，字段与 UCI option 一一对应（见 uci.go）。
 type Settings struct {
 	Enabled          bool   `json:"enabled"`           // 开机启动插件服务
-	CoreAutostart    bool   `json:"core_autostart"`    // 插件服务启动时自动拉起 mihomo
 	UIPort           int    `json:"ui_port"`           // 管理界面 / API 端口
 	MixedPort        int    `json:"mixed_port"`        // mihomo 混合代理端口
 	ControllerPort   int    `json:"controller_port"`   // mihomo external-controller 端口（仅监听 127.0.0.1）
@@ -44,7 +43,6 @@ type Settings struct {
 func Defaults() Settings {
 	return Settings{
 		Enabled:          true,
-		CoreAutostart:    true,
 		UIPort:           9097,
 		MixedPort:        7890,
 		ControllerPort:   9090,
