@@ -5,13 +5,25 @@ import { store } from './store.js'
 import { api } from './api.js'
 
 let statusTimer = null
+let lastStarting = null
 
 async function refreshStatus() {
   try {
     store.status = await api.get('/api/status')
+    // 启动窗口期把轮询加密到 1s，让「启动中…→运行中」的切换即时可见
+    const starting = !!store.status?.starting
+    if (starting !== lastStarting) {
+      lastStarting = starting
+      armPolling()
+    }
   } catch (e) {
     // 静默，避免后端未启动时刷屏
   }
+}
+
+function armPolling() {
+  if (statusTimer) clearInterval(statusTimer)
+  statusTimer = setInterval(refreshStatus, store.status?.starting ? 1000 : 5000)
 }
 
 // 各类型 toast 的图标（描边风格，与侧边栏图标一致）
@@ -29,7 +41,7 @@ function iconFor(type) {
 
 onMounted(() => {
   refreshStatus()
-  statusTimer = setInterval(refreshStatus, 5000)
+  armPolling()
 })
 onUnmounted(() => {
   clearInterval(statusTimer)
@@ -40,7 +52,11 @@ onUnmounted(() => {
   <div class="layout">
     <Sidebar />
     <main class="content">
-      <router-view :key="$route.fullPath" />
+      <router-view v-slot="{ Component }">
+        <transition name="page" mode="out-in">
+          <component :is="Component" :key="$route.fullPath" />
+        </transition>
+      </router-view>
     </main>
     <div class="toasts">
       <transition-group name="toast">

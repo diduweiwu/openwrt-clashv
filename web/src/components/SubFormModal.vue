@@ -56,8 +56,9 @@ async function add() {
 </script>
 
 <template>
-  <div class="overlay" @click.self="emit('close')">
-    <div class="modal">
+  <transition name="modal">
+    <div class="overlay" @click.self="emit('close')">
+      <div class="modal modal-panel">
       <h3>添加订阅</h3>
       <input v-model="name" placeholder="备注名（可选）" @keyup.enter="add">
       <input v-model="url" placeholder="https://example.com/subscription" class="url-input" @keyup.enter="add">
@@ -82,6 +83,7 @@ async function add() {
       </div>
     </div>
   </div>
+  </transition>
 </template>
 
 <style scoped>

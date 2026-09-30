@@ -360,8 +360,9 @@ function currentOf(g) {
     <SubFormModal v-if="showAdd" @close="showAdd = false" @added="onSubAdded" />
 
     <!-- 切换订阅弹窗 -->
-    <div v-if="showSwitch" class="overlay" @click.self="showSwitch = false">
-      <div class="switch-modal">
+    <transition name="modal">
+      <div v-if="showSwitch" class="overlay" @click.self="showSwitch = false">
+      <div class="switch-modal modal-panel">
         <div class="cfg-head">
           <h3>切换订阅</h3>
           <button class="ghost sm" @click="showSwitch = false">关闭</button>
@@ -400,10 +401,12 @@ function currentOf(g) {
         </div>
       </div>
     </div>
+    </transition>
 
     <!-- 运行时配置查看 -->
+    <transition name="modal">
     <div v-if="showConfig" class="overlay" @click.self="showConfig = false">
-      <div class="cfg-modal">
+      <div class="cfg-modal modal-panel">
         <div class="cfg-head">
           <h3>运行时配置（config.yaml）</h3>
           <button class="ghost sm" @click="showConfig = false">关闭</button>
@@ -412,6 +415,7 @@ function currentOf(g) {
         <div v-else class="empty-hint" style="padding:40px">加载中…</div>
       </div>
     </div>
+    </transition>
   </div>
 </template>
 

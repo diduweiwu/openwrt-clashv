@@ -122,3 +122,16 @@ input:focus, select:focus { border-color: var(--accent); }
 /* 过场动画 */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.15s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 弹窗过渡：遮罩淡入淡出 + 面板轻缩放上滑（各弹窗共用，面板加 .modal-panel 类） */
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
+.modal-enter-active .modal-panel { transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+.modal-enter-from .modal-panel { transform: translateY(16px) scale(0.97); }
+.modal-leave-active .modal-panel { transition: transform 0.15s ease; }
+.modal-leave-to .modal-panel { transform: translateY(10px) scale(0.98); }
+
+/* 页面切换过渡（router-view，out-in） */
+.page-enter-active, .page-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.page-enter-from { opacity: 0; transform: translateY(6px); }
+.page-leave-to { opacity: 0; transform: translateY(-4px); }

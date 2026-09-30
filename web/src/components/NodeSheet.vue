@@ -1,5 +1,6 @@
 <script setup>
 // 节点选择弹窗：点击组后弹出，选中即切换
+import { onMounted, ref } from 'vue'
 import { api } from '../api.js'
 import { toast, delayColor } from '../store.js'
 
@@ -8,6 +9,15 @@ const props = defineProps({
   proxies: { type: Object, default: () => ({}) }, // 全量节点表，取延迟用
 })
 const emit = defineEmits(['close', 'selected'])
+
+// 组件由父级 v-if 挂载；可见性在内部管理，退场动画播完再通知父级卸载
+const visible = ref(false)
+onMounted(() => { visible.value = true })
+
+function close() {
+  visible.value = false
+  setTimeout(() => emit('close'), 170)
+}
 
 function delayOf(nodeName) {
   const p = props.proxies[nodeName]
@@ -21,7 +31,7 @@ async function pick(nodeName) {
     await api.put('/api/proxies/' + encodeURIComponent(props.group.name), { name: nodeName })
     toast(`「${props.group.name}」已切换到 ${nodeName}`, 'success')
     emit('selected', nodeName)
-    emit('close')
+    close()
   } catch (e) {
     toast(e.message, 'error')
   }
@@ -30,14 +40,15 @@ async function pick(nodeName) {
 
 <template>
   <teleport to="body">
-    <div class="mask" @click.self="emit('close')">
-      <div class="sheet">
+    <transition name="modal">
+      <div v-if="visible" class="mask" @click.self="close">
+        <div class="sheet modal-panel">
         <div class="head">
           <div>
             <h3>{{ group.name }}</h3>
             <span class="sub">{{ group.type }} · {{ group.all.length }} 个节点</span>
           </div>
-          <button class="ghost sm" @click="emit('close')">✕</button>
+          <button class="ghost sm" @click="close">✕</button>
         </div>
         <div class="list">
           <button
@@ -55,6 +66,7 @@ async function pick(nodeName) {
         </div>
       </div>
     </div>
+    </transition>
   </teleport>
 </template>
 
