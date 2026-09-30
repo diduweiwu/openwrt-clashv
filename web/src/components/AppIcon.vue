@@ -60,6 +60,7 @@ const ICONS = {
     'M21 4h-7', 'M10 4H3', 'M21 12h-9', 'M8 12H3', 'M21 20h-5', 'M12 20H3',
     'M14 2v4', 'M8 10v4', 'M16 18v4',
   ],
+  server: ['M4 4h16v6H4Z', 'M4 14h16v6H4Z', 'M7 7h.01', 'M7 17h.01'],
 }
 
 const props = defineProps({

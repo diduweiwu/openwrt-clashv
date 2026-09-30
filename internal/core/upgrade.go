@@ -35,12 +35,9 @@ type ghRelease struct {
 	} `json:"assets"`
 }
 
-// platformName 推导 mihomo Release 资产的平台名。
-// 用户在设置里选择/手填 CoreArch 时以设置为准（如 linux-mips-hardfloat），留空自动检测。
-func platformName(s string) string {
-	if s = strings.TrimSpace(s); s != "" {
-		return s
-	}
+// platformName 推导 mihomo Release 资产的平台名，完全自动识别；
+// 未知架构返回空字符串（视为不支持，不提供自动下载）。
+func platformName() string {
 	if runtime.GOOS != "linux" {
 		return runtime.GOOS + "-" + runtime.GOARCH
 	}
@@ -52,23 +49,16 @@ func platformName(s string) string {
 	case "arm":
 		return "linux-armv7"
 	case "mips":
-		return "linux-mips-softfloat" // 常见 24kc 为软浮点，硬浮点请手动指定
+		return "linux-mips-softfloat" // 软浮点兼容硬浮点 CPU，反向不行
 	case "mipsle":
 		return "linux-mipsle-softfloat"
 	case "riscv64":
 		return "linux-riscv64"
+	case "loong64":
+		return "linux-loong64"
 	default:
-		return "linux-" + runtime.GOARCH
-	}
-}
-
-// settingsArch 读取设置里用户指定的平台名（可能为空）。
-func (m *Manager) settingsArch() string {
-	s, err := m.cfg.Get()
-	if err != nil {
 		return ""
 	}
-	return s.CoreArch
 }
 
 // downloadCandidates 返回同一资源的候选地址：加速前缀优先，直连兜底。
@@ -415,7 +405,7 @@ type CoreStatus struct {
 // CoreStatus 探测本地内核版本（优先问运行中的控制接口，否则执行 -v）。
 func (m *Manager) CoreStatus(ctx context.Context) CoreStatus {
 	path := m.cfg.CorePath()
-	st := CoreStatus{Path: path, Platform: platformName(m.settingsArch())}
+	st := CoreStatus{Path: path, Platform: platformName()}
 	if m.Running() {
 		if v, err := m.hc.version(ctx); err == nil {
 			st.Installed = true
@@ -452,22 +442,21 @@ func (m *Manager) LatestCore(ctx context.Context) (string, error) {
 // UpgradeCore 下载最新 mihomo 并替换本地内核；下载成功后才停内核替换，失败不影响运行中的内核。
 // 返回新版本号。
 func (m *Manager) UpgradeCore(ctx context.Context) (string, error) {
-	s, err := m.cfg.Get()
-	if err != nil {
-		return "", err
-	}
 	rel, err := m.fetchRelease(ctx, coreRepo)
 	if err != nil {
 		return "", err
 	}
-	plat := platformName(s.CoreArch)
+	plat := platformName()
+	if plat == "" {
+		return "", fmt.Errorf("无法识别当前设备架构（%s/%s），不支持自动下载内核", runtime.GOOS, runtime.GOARCH)
+	}
 	re, err := regexp.Compile(`^mihomo-` + regexp.QuoteMeta(plat) + `-v[\w.\-]+\.gz$`)
 	if err != nil {
 		return "", err
 	}
 	assetURL, ok := rel.findAsset(re)
 	if !ok {
-		return "", fmt.Errorf("最新版本 %s 没有 %s 平台的内核文件（可在设置里手动指定内核平台）", rel.TagName, plat)
+		return "", fmt.Errorf("最新版本 %s 没有 %s 平台的内核文件", rel.TagName, plat)
 	}
 	slog.Info("开始下载内核", "version", rel.TagName, "platform", plat, "url", assetURL)
 	if err := m.beginUpgrade("core", "准备下载 "+rel.TagName); err != nil {

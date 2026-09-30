@@ -6,58 +6,6 @@ import { api } from '../api.js'
 import { store, toast, ask } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
 
-// mihomo Release 提供的 linux 平台名（按指令集分组），value 与资产文件名一一对应
-const CORE_PLATFORMS = [
-  {
-    group: 'x86',
-    items: [
-      ['linux-amd64-compatible', 'amd64-compatible（x86-64，兼容老 CPU）'],
-      ['linux-amd64', 'amd64（x86-64）'],
-      ['linux-amd64-v2', 'amd64-v2（需要 x86-64-v2 指令集）'],
-      ['linux-amd64-v3', 'amd64-v3（需要 x86-64-v3 指令集）'],
-      ['linux-386', '386（32 位 x86）'],
-      ['linux-386-softfloat', '386-softfloat（32 位无浮点硬件）'],
-    ],
-  },
-  {
-    group: 'ARM',
-    items: [
-      ['linux-arm64', 'arm64（aarch64，多数新设备）'],
-      ['linux-armv7', 'armv7（32 位带浮点）'],
-      ['linux-armv6', 'armv6'],
-      ['linux-armv5', 'armv5（老设备）'],
-    ],
-  },
-  {
-    group: 'MIPS',
-    items: [
-      ['linux-mips-softfloat', 'mips-softfloat（大端，常见 24K）'],
-      ['linux-mips-hardfloat', 'mips-hardfloat（大端带浮点）'],
-      ['linux-mipsle-softfloat', 'mipsle-softfloat（小端，常见 MT7621）'],
-      ['linux-mipsle-hardfloat', 'mipsle-hardfloat（小端带浮点）'],
-      ['linux-mips64', 'mips64（大端 64 位）'],
-      ['linux-mips64le', 'mips64le（小端 64 位）'],
-    ],
-  },
-  {
-    group: '其他',
-    items: [
-      ['linux-riscv64', 'riscv64'],
-      ['linux-loong64-abi1', 'loong64-abi1（旧世界）'],
-      ['linux-loong64-abi2', 'loong64-abi2（新世界）'],
-      ['linux-ppc64le', 'ppc64le'],
-      ['linux-s390x', 's390x'],
-    ],
-  },
-]
-
-const CORE_ARCH_OPTIONS = CORE_PLATFORMS.map(g => ({
-  type: 'group',
-  label: g.group,
-  key: g.group,
-  children: g.items.map(([v, l]) => ({ value: v, label: l })),
-}))
-
 function fmtMB(n) {
   return (n / 1048576).toFixed(1) + ' MB'
 }
@@ -366,15 +314,9 @@ const tab = ref('general')
           <div class="row-text">
             <span class="rt">平台</span>
             <span class="rs">
-              内核资产的平台名，自动识别不对时手动选择<template v-if="coreInfo.platform">，当前识别为 <span class="mono">{{ coreInfo.platform }}</span></template>
+              自动识别设备架构，无需配置<template v-if="coreInfo.platform">，当前为 <span class="mono">{{ coreInfo.platform }}</span></template><template v-else>，当前设备<span style="color: var(--orange)">不支持自动下载</span></template>
             </span>
           </div>
-          <n-select
-            v-model:value="form.core_arch"
-            :options="[{ value: '', label: `自动识别${coreInfo.platform ? `（${coreInfo.platform}）` : ''}` }, ...CORE_ARCH_OPTIONS]"
-            class="ctl"
-            style="width: 250px"
-          />
         </div>
         <div class="row">
           <div class="row-text">

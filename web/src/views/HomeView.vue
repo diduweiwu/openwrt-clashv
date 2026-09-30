@@ -306,6 +306,12 @@ function currentOf(g) {
               <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
             </div>
             <div class="meta-item">
+              <span class="k"><AppIcon name="server" :size="13" />平台架构</span>
+              <span class="v mono" :class="{ dim: !status?.core?.platform }">
+                {{ status?.core?.platform ? status.core.platform.replace(/^linux-/, '') : '不支持' }}
+              </span>
+            </div>
+            <div class="meta-item">
               <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
               <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
             </div>
