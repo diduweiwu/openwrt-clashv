@@ -1,7 +1,7 @@
 <script setup>
 // 设置页：基础设置、TUN/DNS、内核更新（mihomo）、插件更新
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { NButton, NCard, NInput, NInputNumber, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane } from 'naive-ui'
+import { NButton, NCard, NInput, NInputGroup, NInputNumber, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -241,24 +241,21 @@ const tab = ref('general')
               <span class="rt">界面访问令牌</span>
               <span class="rs">设置后局域网内打开界面需输入令牌，留空不启用</span>
             </div>
-            <div class="token-ctl">
+            <n-input-group class="ctl">
               <n-input
                 v-model:value="form.token"
                 type="password"
                 show-password-on="click"
                 placeholder="留空不启用"
-                class="ctl"
-                style="width: 200px"
+                style="width: 220px"
               />
-              <div class="btn-pair">
-                <n-button size="small" quaternary title="清空令牌" :disabled="!form.token" @click="form.token = ''">
-                  <template #icon><AppIcon name="trash" :size="13" /></template>
-                </n-button>
-                <n-button size="small" quaternary title="随机生成 32 位令牌" @click="genToken">
-                  <template #icon><AppIcon name="zap" :size="13" /></template>
-                </n-button>
-              </div>
-            </div>
+              <n-button title="随机生成 32 位令牌" @click="genToken">
+                <template #icon><AppIcon name="zap" :size="14" /></template>
+              </n-button>
+              <n-button title="清空令牌" :disabled="!form.token" @click="form.token = ''">
+                <template #icon><AppIcon name="trash" :size="14" /></template>
+              </n-button>
+            </n-input-group>
           </div>
         </div>
       </n-card>
@@ -467,7 +464,6 @@ const tab = ref('general')
 .num { width: 110px; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
 .btn-pair { display: flex; gap: 8px; flex: none; }
-.token-ctl { display: flex; align-items: center; gap: 8px; flex: none; }
 .prog { width: 180px; flex-shrink: 0; }
 .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; padding: 10px 0 2px; }
 </style>
