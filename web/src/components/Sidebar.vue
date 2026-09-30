@@ -97,12 +97,12 @@ function pickTheme(v) {
 
 <style scoped>
 .sidebar {
-  width: 138px;
+  width: 208px;
   flex: none;
   background: var(--sidebar);
   display: flex;
   flex-direction: column;
-  padding: 20px 12px;
+  padding: 20px 26px;
   gap: 24px;
 }
 .logo {
@@ -113,8 +113,8 @@ function pickTheme(v) {
 }
 nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
-  display: flex; align-items: center; gap: 22px;
-  padding: 10px;
+  display: flex; align-items: center; gap: 30px;
+  padding: 10px 12px;
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.62);
   text-decoration: none;

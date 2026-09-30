@@ -275,7 +275,14 @@ function currentOf(g) {
             </div>
           </n-flex>
           <n-flex :size="12">
-            <!-- 启动/停止同一个按钮：停止态主色播放，运行态红色方块；重启独立 -->
+            <n-button
+              circle title="重启内核"
+              :style="heroCtl"
+              :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
+            >
+              <template #icon><AppIcon name="restart" :size="20" /></template>
+            </n-button>
+            <!-- 启动/停止同一个按钮：停止态主色播放，运行态红色方块 -->
             <n-button
               circle
               :type="status?.running ? 'error' : 'primary'"
@@ -290,13 +297,6 @@ function currentOf(g) {
                 <AppIcon v-if="!status?.running" name="play" :size="24" />
                 <AppIcon v-else name="stop" :size="20" :stroke-width="2.4" />
               </template>
-            </n-button>
-            <n-button
-              circle title="重启内核"
-              :style="heroCtl"
-              :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
-            >
-              <template #icon><AppIcon name="restart" :size="20" /></template>
             </n-button>
           </n-flex>
         </n-flex>
