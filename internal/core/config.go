@@ -16,6 +16,7 @@ import (
 // 合成规则：以订阅内容为底，托管键覆盖其上——端口、控制器、TUN、DNS、
 // store-selected 等始终由本插件管理，订阅里的同名键会被忽略，
 // proxies / proxy-groups / rules / providers 等业务段原样保留。
+// 订阅缺 rules 段时注入一条 MATCH 兜底（否则内核把全部流量直连）。
 func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) error {
 	p, err := m.prof.Get(activeProfile)
 	if err != nil {
@@ -32,8 +33,17 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 	if doc == nil {
 		doc = map[string]any{}
 	}
+	// 丢弃订阅自带的 dns / listeners 段：DNS 监听始终由本插件管理
+	// （订阅里常见的 dns.listen 0.0.0.0:53 会和 dnsmasq 抢端口报
+	// address already in use），listeners 则可能在任意端口开监听。
+	// 关闭 DNS 设置时也不留订阅的 dns 段——mihomo 不应监听任何 DNS 端口。
+	delete(doc, "dns")
+	delete(doc, "listeners")
 	for k, v := range managedOverlay(s) {
 		doc[k] = v
+	}
+	if target := firstProxyTarget(doc); target != "" && rulesEmpty(doc) {
+		doc["rules"] = []any{"MATCH," + target}
 	}
 	out, err := yaml.Marshal(doc)
 	if err != nil {
@@ -48,6 +58,36 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// rulesEmpty 报告订阅是否没有可用的 rules 段（缺键 / 非列表 / 空列表）。
+func rulesEmpty(doc map[string]any) bool {
+	rules, ok := doc["rules"].([]any)
+	return !ok || len(rules) == 0
+}
+
+// firstProxyTarget 返回订阅里第一个代理组名（无组则第一个节点名），
+// 作为缺省规则的 MATCH 目标。
+func firstProxyTarget(doc map[string]any) string {
+	if groups, ok := doc["proxy-groups"].([]any); ok {
+		for _, g := range groups {
+			if gm, ok := g.(map[string]any); ok {
+				if name, _ := gm["name"].(string); name != "" {
+					return name
+				}
+			}
+		}
+	}
+	if proxies, ok := doc["proxies"].([]any); ok {
+		for _, p := range proxies {
+			if pm, ok := p.(map[string]any); ok {
+				if name, _ := pm["name"].(string); name != "" {
+					return name
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // managedOverlay 返回本插件托管的 mihomo 基础配置。
