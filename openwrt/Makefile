@@ -49,6 +49,11 @@ define Package/luci-app-clashv/conffiles
 /etc/clashv
 endef
 
+# Go 二进制与前端由外部预构建（scripts/build-linux.sh），SDK 只负责打包。
+# 必须显式置空：缺省时 SDK 会对 build_dir 里的源码跑默认 make 直接报错。
+define Build/Compile
+endef
+
 # 除内核二进制外的公共文件（$1 = 目标目录）；$$(call) 展开发生在打包脚本
 # 生成阶段，纯文本替换，与 SDK 元数据解析无关，可安全共享
 define ClashvCommonInstall
