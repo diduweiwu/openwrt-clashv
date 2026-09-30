@@ -20,7 +20,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-clashv
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=7
+PKG_RELEASE:=8
 PKG_MAINTAINER:=Nier
 PKG_LICENSE:=MIT
 
@@ -106,6 +106,12 @@ fi
 [ -n "$${IPKG_INSTROOT}" ] || {
 	rm -f /tmp/luci-indexcache* 2>/dev/null
 	/etc/init.d/rpcd reload 2>/dev/null || killall -HUP rpcd 2>/dev/null
+	# 前端内嵌在插件二进制里：升级后旧进程仍运行旧二进制，界面不会更新，
+	# 必须重启服务加载新 UI（内核由 clashv 自管，core.state 会让它自动拉起）
+	if [ -x /etc/init.d/clashv ] && /etc/init.d/clashv enabled; then
+		/etc/init.d/clashv restart 2>/dev/null
+		echo "clashv: 服务已重启以加载新版本"
+	fi
 }
 exit 0
 endef
