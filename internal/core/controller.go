@@ -110,6 +110,8 @@ type ConnItem struct {
 		DestinationIP   string `json:"destinationIP"`
 		DestinationPort string `json:"destinationPort"`
 		Host            string `json:"host"`
+		Process         string `json:"process"`
+		ProcessPath     string `json:"processPath"`
 	} `json:"metadata"`
 }
 

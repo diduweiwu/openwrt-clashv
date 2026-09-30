@@ -44,6 +44,8 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("GET /api/status", d.handleStatus)
 	mux.HandleFunc("GET /api/traffic", d.handleTraffic)
 	mux.HandleFunc("GET /api/connections", d.handleConnections)
+	mux.HandleFunc("DELETE /api/connections", d.handleConnectionsClose)
+	mux.HandleFunc("GET /api/rules", d.handleRules)
 
 	// 代理（转发 mihomo 控制接口）
 	mux.HandleFunc("GET /api/proxies", d.handleProxies)

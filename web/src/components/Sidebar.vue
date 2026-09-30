@@ -6,6 +6,8 @@ import { store } from '../store.js'
 const navs = [
   { to: '/', label: '首页', icon: 'home' },
   { to: '/proxies', label: '代理', icon: 'proxy' },
+  { to: '/rules', label: '规则', icon: 'rules' },
+  { to: '/connections', label: '连接', icon: 'conns' },
   { to: '/profiles', label: '订阅', icon: 'profiles' },
   { to: '/logs', label: '日志', icon: 'logs' },
   { to: '/settings', label: '设置', icon: 'settings' },
@@ -61,6 +63,13 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
           <template v-else-if="n.icon === 'proxy'">
             <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.8" />
             <rect x="3.5" y="13.5" width="7" height="7" rx="1.8" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.8" />
+          </template>
+          <template v-else-if="n.icon === 'rules'">
+            <path d="M12 3.5 18.5 6v5.2c0 4.3-2.8 7.2-6.5 8.8-3.7-1.6-6.5-4.5-6.5-8.8V6L12 3.5Z" />
+            <path d="m9.2 11.8 2 2 3.6-4" />
+          </template>
+          <template v-else-if="n.icon === 'conns'">
+            <path d="M3 12h4l2.5-6.5 4.5 13L16.5 12H21" />
           </template>
           <template v-else-if="n.icon === 'profiles'">
             <path d="M6 3.5h9l3.5 3.5v13.5H6z" /><path d="M9 12h6M9 16h6M9 8h3" />

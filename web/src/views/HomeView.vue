@@ -87,6 +87,70 @@ const subTraffic = computed(() => {
   const used = (p.upload || 0) + (p.download || 0)
   return { used, total: p.total, percent: Math.min(100, (used / p.total) * 100) }
 })
+
+// ---- 切换订阅弹窗 ----
+const showSwitch = ref(false)
+const switchList = ref([])
+const switchActive = ref('')
+const switchKeyword = ref('')
+const switchSelected = ref('')
+const switchLoading = ref(false)
+const switching = ref(false)
+
+async function openSwitch() {
+  showSwitch.value = true
+  switchLoading.value = true
+  switchKeyword.value = ''
+  switchSelected.value = ''
+  try {
+    const data = await api.get('/api/profiles')
+    switchList.value = data.profiles || []
+    switchActive.value = data.active || ''
+    switchSelected.value = switchActive.value
+  } catch (e) {
+    showSwitch.value = false
+    toast(e.message, 'error')
+  } finally {
+    switchLoading.value = false
+  }
+}
+
+// 名称模糊匹配：忽略大小写与空格的子序列匹配（如 hk 命中「香港-01」）
+function fuzzyHit(name, kw) {
+  const k = (kw || '').toLowerCase().replace(/\s+/g, '')
+  if (!k) return true
+  let i = 0
+  for (const ch of name.toLowerCase()) {
+    if (ch === k[i]) i++
+    if (i >= k.length) return true
+  }
+  return false
+}
+
+const switchFiltered = computed(() =>
+  switchList.value.filter(p => fuzzyHit(p.name, switchKeyword.value))
+)
+
+async function confirmSwitch() {
+  if (!switchSelected.value || switching.value) return
+  switching.value = true
+  try {
+    const r = await api.post(`/api/profiles/${switchSelected.value}/activate`)
+    if (r.error) {
+      toast('切换失败：' + r.error, 'error')
+    } else {
+      toast('订阅已切换' + (r.restarted ? '，内核已重载' : ''), 'success')
+      showSwitch.value = false
+      loadProfiles()
+      refreshStatus()
+      loadProxies()
+    }
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    switching.value = false
+  }
+}
 const subExpire = computed(() => {
   if (!activeProfile.value?.expire) return ''
   const d = new Date(activeProfile.value.expire * 1000)
@@ -208,7 +272,7 @@ function currentOf(g) {
             {{ subBusy ? '更新中…' : '刷新订阅' }}
           </button>
           <button v-if="status?.running" class="ghost sm" @click="viewConfig">运行时配置</button>
-          <button class="ghost sm" @click="router.push('/profiles')">切换订阅</button>
+          <button class="ghost sm" @click="openSwitch">切换订阅</button>
           <button class="ghost sm" @click="router.push('/profiles?add=1')">添加订阅</button>
         </div>
       </div>
@@ -280,6 +344,48 @@ function currentOf(g) {
       @close="showSheet = false"
       @selected="loadProxies"
     />
+
+    <!-- 切换订阅弹窗 -->
+    <div v-if="showSwitch" class="overlay" @click.self="showSwitch = false">
+      <div class="switch-modal">
+        <div class="cfg-head">
+          <h3>切换订阅</h3>
+          <button class="ghost sm" @click="showSwitch = false">关闭</button>
+        </div>
+        <input
+          v-model="switchKeyword"
+          class="switch-search"
+          type="text"
+          placeholder="按名称搜索订阅，支持关键字模糊匹配…"
+          spellcheck="false"
+        >
+        <div class="switch-list">
+          <div v-if="switchLoading" class="empty-hint">加载中…</div>
+          <div v-else-if="!switchFiltered.length" class="empty-hint">
+            {{ switchList.length ? '没有匹配的订阅' : '还没有订阅，请先到「订阅」页添加' }}
+          </div>
+          <button
+            v-for="p in switchFiltered"
+            :key="p.id"
+            class="switch-row"
+            :class="{ sel: switchSelected === p.id, cur: switchActive === p.id }"
+            @click="switchSelected = p.id"
+          >
+            <span class="s-name">{{ p.name }}</span>
+            <span v-if="switchActive === p.id" class="badge">当前</span>
+            <span v-if="switchSelected === p.id" class="s-check">✓</span>
+          </button>
+        </div>
+        <div class="switch-foot">
+          <span class="page-sub">选中后需确认才会切换并重载内核</span>
+          <button
+            class="primary"
+            :disabled="!switchSelected || switching || switchSelected === switchActive"
+            @click="confirmSwitch"
+          >{{ switching ? '切换中…' : '确认切换' }}</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 运行时配置查看 -->
     <div v-if="showConfig" class="overlay" @click.self="showConfig = false">
@@ -372,5 +478,39 @@ function currentOf(g) {
   border: 1px solid var(--border); border-radius: 10px;
   font-size: 12px; line-height: 1.6;
   white-space: pre; tab-size: 2;
+}
+.switch-modal {
+  width: 520px; max-width: 100%; max-height: 78vh;
+  display: flex; flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.switch-search { width: 100%; margin-bottom: 12px; flex: none; }
+.switch-list {
+  flex: 1; min-height: 120px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.switch-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 11px 14px; border-radius: 11px;
+  background: var(--bg-card-2);
+  border: 1.5px solid transparent;
+}
+.switch-row:hover { filter: none; background: var(--hover); }
+.switch-row.sel { border-color: var(--accent); background: var(--accent-soft); }
+.switch-row.cur .s-name { color: var(--accent); }
+.s-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; font-size: 13.5px;
+}
+.s-check { color: var(--accent); font-weight: 700; }
+.switch-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 14px; flex: none;
 }
 </style>

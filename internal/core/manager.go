@@ -433,6 +433,16 @@ func (m *Manager) ProxyDelay(ctx context.Context, name, testURL string, timeoutM
 	return m.hc.proxyDelay(ctx, name, testURL, timeoutMS)
 }
 
+// Rules 返回内核当前加载的路由规则（即运行时 config.yaml 合成后的生效结果）。
+func (m *Manager) Rules(ctx context.Context) ([]RuleItem, error) {
+	return m.hc.rules(ctx)
+}
+
+// CloseAllConnections 断开内核当前全部活动连接。
+func (m *Manager) CloseAllConnections(ctx context.Context) error {
+	return m.hc.closeAllConnections(ctx)
+}
+
 func randomSecret() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

@@ -108,6 +108,7 @@ func (d *deps) handleTraffic(w http.ResponseWriter, r *http.Request) {
 
 // handleConnections 返回当前活动连接快照（随内核每秒轮询刷新）。
 // poll_error 非空表示轮询内核失败——列表为空时应展示该错误而非「暂无连接」。
+// up/down_total 是内核本次启动以来的累计流量，与 /api/traffic 同源。
 func (d *deps) handleConnections(w http.ResponseWriter, r *http.Request) {
 	items := []core.ConnItem{}
 	var pollErr string
@@ -115,7 +116,41 @@ func (d *deps) handleConnections(w http.ResponseWriter, r *http.Request) {
 		items = d.mgr.Connections()
 		pollErr = d.mgr.PollError()
 	}
-	writeJSON(w, 200, map[string]any{"items": items, "poll_error": pollErr})
+	tr := d.mgr.Traffic()
+	writeJSON(w, 200, map[string]any{
+		"items":      items,
+		"poll_error": pollErr,
+		"up_total":   tr.UpTotal,
+		"down_total": tr.DownTotal,
+	})
+}
+
+// handleConnectionsClose 断开内核当前全部活动连接。
+func (d *deps) handleConnectionsClose(w http.ResponseWriter, r *http.Request) {
+	if !d.requireRunning(w) {
+		return
+	}
+	if err := d.mgr.CloseAllConnections(r.Context()); err != nil {
+		writeErr(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// handleRules 返回内核实际加载的路由规则列表。
+func (d *deps) handleRules(w http.ResponseWriter, r *http.Request) {
+	if !d.requireRunning(w) {
+		return
+	}
+	rules, err := d.mgr.Rules(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err)
+		return
+	}
+	if rules == nil {
+		rules = []core.RuleItem{}
+	}
+	writeJSON(w, 200, map[string]any{"rules": rules})
 }
 
 // ---- 代理 ----
