@@ -1,110 +1,134 @@
 <script setup>
-// 添加订阅弹窗（订阅页与首页共用）：名称 / 链接 / User-Agent 选择
-import { onMounted, ref } from 'vue'
+// 添加订阅弹窗（订阅页与首页共用）：由 open prop 控制显隐
+// 链接输入为 textarea：一行一条，支持粘贴多个批量添加
+import { ref, watch } from 'vue'
+import { NButton, NInput, NModal, NSelect } from 'naive-ui'
 import { api } from '../api.js'
 import { toast } from '../store.js'
 
+const props = defineProps({ open: Boolean })
 const emit = defineEmits(['close', 'added'])
 
 const name = ref('')
 const url = ref('')
 const adding = ref(false)
+const addProgress = ref('')
 
 // 内置 clash 相关 UA；很多机场按 UA 返回对应格式的配置
 const CUSTOM_UA = '__custom__'
 const UA_OPTIONS = [
-  { v: '', label: '默认（clash-verge/clashv）' },
-  { v: 'clash.meta', label: 'clash.meta（mihomo）' },
-  { v: 'ClashforWindows/0.20.39', label: 'Clash for Windows' },
-  { v: 'ClashMetaForAndroid/2.11.5', label: 'ClashMeta for Android' },
-  { v: 'Stash/2.7.3', label: 'Stash' },
-  { v: CUSTOM_UA, label: '自定义…' },
+  { value: '', label: '默认（clash-verge/clashv）' },
+  { value: 'clash.meta', label: 'clash.meta（mihomo）' },
+  { value: 'ClashforWindows/0.20.39', label: 'Clash for Windows' },
+  { value: 'ClashMetaForAndroid/2.11.5', label: 'ClashMeta for Android' },
+  { value: 'Stash/2.7.3', label: 'Stash' },
+  { value: CUSTOM_UA, label: '自定义…' },
 ]
 const uaPick = ref('')
 const customUa = ref('')
 
-onMounted(async () => {
+watch(() => props.open, (v) => {
+  if (!v) return
+  name.value = ''
+  url.value = ''
+  adding.value = false
+  addProgress.value = ''
   // 上次用的 UA 不是内置项 → 自动选中"自定义"并预填
-  try {
-    const s = await api.get('/api/settings')
+  api.get('/api/settings').then(s => {
     const last = s.custom_ua || ''
-    if (last && !UA_OPTIONS.some(o => o.v === last)) {
+    if (last && !UA_OPTIONS.some(o => o.value === last)) {
       uaPick.value = CUSTOM_UA
       customUa.value = last
     } else if (last) {
       uaPick.value = last
     }
-  } catch { /* 拿不到就保持默认 */ }
+  }).catch(() => { /* 拿不到就保持默认 */ })
 })
 
+// 多行且没填备注名时，用链接域名当名字，避免一排「订阅」分不清
+function hostOf(line) {
+  try { return new URL(line).hostname } catch { return '' }
+}
+function shortUrl(line) {
+  const s = line.replace(/^https?:\/\//, '')
+  return s.length > 46 ? s.slice(0, 46) + '…' : s
+}
+
 async function add() {
-  if (!url.value.trim()) { toast('请输入订阅链接', 'info'); return }
+  const lines = url.value.split('\n').map(s => s.trim()).filter(Boolean)
+  if (!lines.length) { toast('请输入订阅链接', 'info'); return }
   const ua = uaPick.value === CUSTOM_UA ? customUa.value.trim() : uaPick.value
   if (uaPick.value === CUSTOM_UA && !ua) { toast('请输入自定义 User-Agent', 'info'); return }
+
   adding.value = true
+  const multi = lines.length > 1
+  const added = []
+  const failed = []
   try {
-    const p = await api.post('/api/profiles', { name: name.value.trim(), url: url.value.trim(), ua })
-    toast('订阅已添加', 'success')
-    emit('added', p)
-    emit('close')
-  } catch (e) {
-    toast(e.message, 'error')
+    for (let i = 0; i < lines.length; i++) {
+      if (multi) addProgress.value = `${i + 1}/${lines.length}`
+      const n = name.value.trim()
+      const useName = multi ? (n ? `${n}-${i + 1}` : hostOf(lines[i])) : n
+      try {
+        const p = await api.post('/api/profiles', { name: useName, url: lines[i], ua })
+        added.push(p)
+      } catch (e) {
+        failed.push(`${shortUrl(lines[i])}：${e.message}`)
+      }
+    }
+    if (added.length && !failed.length) {
+      toast(multi ? `已添加 ${added.length} 个订阅` : '订阅已添加', 'success')
+    } else if (added.length) {
+      toast(`已添加 ${added.length} 个，${failed.length} 个失败：${failed[0]}`, 'error', 6000)
+    } else {
+      toast(failed[0] || '添加失败', 'error', 6000)
+    }
+    if (added.length) {
+      emit('added', added[added.length - 1])
+      emit('close')
+    }
   } finally {
     adding.value = false
+    addProgress.value = ''
   }
 }
 </script>
 
 <template>
-  <transition name="modal">
-    <div class="overlay" @click.self="emit('close')">
-      <div class="modal modal-panel">
-      <h3>添加订阅</h3>
-      <input v-model="name" placeholder="备注名（可选）" @keyup.enter="add">
-      <input v-model="url" placeholder="https://example.com/subscription" class="url-input" @keyup.enter="add">
-      <div class="ua-row">
-        <select v-model="uaPick" class="ua-select">
-          <option v-for="o in UA_OPTIONS" :key="o.v" :value="o.v">{{ o.label }}</option>
-        </select>
-      </div>
-      <input
+  <n-modal
+    preset="card"
+    title="添加订阅"
+    :show="open"
+    :style="{ width: '460px', maxWidth: '94vw' }"
+    @update:show="emit('close')"
+  >
+    <div class="form">
+      <n-input v-model:value="name" placeholder="备注名（可选）" @keyup.enter="add" />
+      <n-input
+        v-model:value="url"
+        type="textarea"
+        :rows="3"
+        placeholder="订阅链接，每行一条，可粘贴多行批量添加&#10;https://example.com/subscription"
+      />
+      <n-select v-model:value="uaPick" :options="UA_OPTIONS" />
+      <n-input
         v-if="uaPick === CUSTOM_UA"
-        v-model="customUa"
+        v-model:value="customUa"
         placeholder="自定义 User-Agent，如 clash.meta/1.19.31"
-        class="url-input"
         @keyup.enter="add"
-      >
+      />
       <p class="page-sub">部分机场按 UA 返回不同格式的配置，更新订阅时沿用添加时的 UA</p>
-      <div class="modal-actions">
-        <button class="ghost" @click="emit('close')">取消</button>
-        <button class="primary" :disabled="adding" @click="add">
-          {{ adding ? '下载中…' : '添加' }}
-        </button>
+      <div class="actions">
+        <n-button quaternary @click="emit('close')">取消</n-button>
+        <n-button type="primary" :loading="adding" @click="add">
+          {{ adding && addProgress ? `添加中 ${addProgress}…` : '添加' }}
+        </n-button>
       </div>
     </div>
-  </div>
-  </transition>
+  </n-modal>
 </template>
 
 <style scoped>
-.overlay {
-  position: fixed; inset: 0; z-index: 200;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-}
-.modal {
-  width: 460px; max-width: 100%;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-  padding: 20px;
-  display: flex; flex-direction: column; gap: 12px;
-}
-.modal h3 { font-size: 15px; }
-.modal input { width: 100%; box-sizing: border-box; }
-.ua-row { display: flex; }
-.ua-select { width: 100%; box-sizing: border-box; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.form { display: flex; flex-direction: column; gap: 12px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 </style>

@@ -2,8 +2,9 @@
 // 订阅页：添加（弹窗，共用 SubFormModal）/ 更新 / 激活 / 删除
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { NButton, NCard, NEmpty, NProgress, NTag } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, fmtBytes, fmtTime } from '../store.js'
+import { store, toast, ask, fmtBytes, fmtTime } from '../store.js'
 import SubFormModal from '../components/SubFormModal.vue'
 
 const route = useRoute()
@@ -56,7 +57,7 @@ async function activate(p) {
 }
 
 async function remove(p) {
-  if (!confirm(`确定删除订阅「${p.name}」？`)) return
+  if (!(await ask('删除订阅', `确定删除订阅「${p.name}」？`))) return
   busyId.value = p.id
   try {
     await api.del('/api/profiles/' + p.id)
@@ -93,54 +94,54 @@ onMounted(() => {
         <h1 class="page-title">订阅</h1>
         <span class="page-sub">{{ profiles.length ? profiles.length + ' 个订阅' : '管理订阅源' }}</span>
       </div>
-      <button class="primary" @click="openAdd">＋ 添加订阅</button>
+      <n-button type="primary" @click="showModal = true">＋ 添加订阅</n-button>
     </div>
 
-    <div v-if="profiles.length === 0" class="card empty-hint">
-      还没有订阅，点击右上角「添加订阅」粘贴机场订阅链接
-    </div>
+    <n-card v-if="profiles.length === 0" class="pad">
+      <n-empty description="还没有订阅，点击右上角「添加订阅」粘贴机场订阅链接" />
+    </n-card>
 
-    <div v-for="p in profiles" :key="p.id" class="card profile-card" :class="{ active: p.id === active }">
+    <n-card v-for="p in profiles" :key="p.id" class="profile-card" :class="{ active: p.id === active }">
       <div class="p-main">
         <div class="p-title">
           <h3>{{ p.name }}</h3>
-          <span v-if="p.id === active" class="badge">✓ 使用中</span>
+          <n-tag v-if="p.id === active" size="small" round :bordered="false">✓ 使用中</n-tag>
         </div>
         <p class="p-url">{{ p.url }}</p>
         <p class="page-sub">更新于 {{ fmtTime(p.updated_at) }} · {{ fmtBytes(p.size) }}<template v-if="p.ua"> · UA <span class="mono">{{ p.ua }}</span></template></p>
         <div v-if="trafficOf(p)" class="p-traffic">
-          <div class="bar"><div class="bar-fill" :style="{ width: trafficOf(p).percent + '%' }"></div></div>
-          <span class="mono p-traffic-text">
+          <n-progress
+            class="bar"
+            type="line"
+            :percentage="trafficOf(p).percent"
+            :show-indicator="false"
+            :height="5"
+            border-radius="3px"
+          />
+          <span class="mono page-sub">
             {{ fmtBytes(trafficOf(p).used) }} / {{ fmtBytes(trafficOf(p).total) }}（{{ Math.round(trafficOf(p).percent) }}%）
           </span>
         </div>
         <p v-if="p.expire" class="page-sub">到期时间 {{ fmtExpire(p.expire) }}</p>
       </div>
       <div class="p-actions">
-        <button class="ghost sm" :disabled="busyId === p.id" @click="update(p)">
-          {{ busyId === p.id ? '处理中…' : '更新' }}
-        </button>
-        <button
-          v-if="p.id !== active"
-          class="primary sm"
-          :disabled="busyId === p.id"
-          @click="activate(p)"
-        >启用</button>
-        <button class="danger sm" :disabled="busyId === p.id" @click="remove(p)">删除</button>
+        <n-button size="small" :loading="busyId === p.id" @click="update(p)">更新</n-button>
+        <n-button v-if="p.id !== active" type="primary" size="small" :disabled="busyId === p.id" @click="activate(p)">
+          启用
+        </n-button>
+        <n-button size="small" type="error" ghost :disabled="busyId === p.id" @click="remove(p)">删除</n-button>
       </div>
-    </div>
+    </n-card>
 
     <!-- 添加订阅弹窗（共用组件） -->
-    <SubFormModal v-if="showModal" @close="showModal = false" @added="load" />
+    <SubFormModal :open="showModal" @close="showModal = false" @added="load" />
   </div>
 </template>
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; }
-.profile-card {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  flex-wrap: wrap;
-}
+.pad :deep(.n-empty) { padding: 34px 0; }
+.profile-card :deep(.n-card__content) { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .profile-card.active { border-color: var(--accent); }
 .p-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
 .p-main > * { margin: 0; }
@@ -148,9 +149,6 @@ onMounted(() => {
 .p-title h3 { font-size: 15px; }
 .p-url { color: var(--text-dim); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px; }
 .p-traffic { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
-.bar { width: 220px; max-width: 45%; height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 3px; background: var(--accent); }
-.p-traffic-text { color: var(--text-dim); font-size: 12px; }
+.bar { width: 220px; max-width: 45%; }
 .p-actions { display: flex; gap: 8px; flex: none; }
-.empty-hint { color: var(--text-dim); text-align: center; padding: 34px 0; }
 </style>

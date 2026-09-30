@@ -1,6 +1,7 @@
 <script setup>
 // 首页：运行状态、当前订阅、流量概览、快速切换节点
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { NButton, NCard, NEmpty, NInput, NModal, NProgress, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
@@ -226,85 +227,90 @@ function currentOf(g) {
 <template>
   <div class="page">
     <!-- 运行状态 -->
-    <div class="card hero">
-      <div class="hero-main">
-        <div class="run-badge" :class="{ on: status?.running, starting: !status?.running && status?.starting }">
-          <span class="pulse"></span>
-          <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
+    <n-card>
+      <div class="hero">
+        <div class="hero-main">
+          <div class="run-badge" :class="{ on: status?.running, starting: !status?.running && status?.starting }">
+            <span class="pulse"></span>
+            <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
+          </div>
+          <div class="meta">
+            <div class="meta-item">
+              <span class="k">当前订阅</span>
+              <span class="v">{{ status?.profile || '未设置' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="k">内核版本</span>
+              <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="k">运行时长</span>
+              <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="k">混合端口</span>
+              <span class="v mono">{{ status?.mixed_port || '—' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="k">模式</span>
+              <span class="v">
+                <n-tag v-if="status?.tun" size="small" round :bordered="false">TUN</n-tag>
+                <n-tag v-else-if="status?.openwrt" size="small" round :bordered="false">透明代理</n-tag>
+                <span v-else>标准</span>
+              </span>
+            </div>
+          </div>
         </div>
-        <div class="meta">
-          <div class="meta-item">
-            <span class="k">当前订阅</span>
-            <span class="v">{{ status?.profile || '未设置' }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k">内核版本</span>
-            <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k">运行时长</span>
-            <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k">混合端口</span>
-            <span class="v mono">{{ status?.mixed_port || '—' }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k">模式</span>
-            <span class="v">
-              <span v-if="status?.tun" class="badge">TUN</span>
-              <span v-else-if="status?.openwrt" class="badge">透明代理</span>
-              <span v-else class="v">标准</span>
-            </span>
-          </div>
+        <div class="actions">
+          <n-button v-if="!status?.running" type="primary" :loading="busy === 'start'" :disabled="busy !== ''" @click="coreAction('start')">
+            ▶ 启动内核
+          </n-button>
+          <template v-else>
+            <n-button :loading="busy === 'restart'" :disabled="busy !== ''" @click="coreAction('restart')">重启</n-button>
+            <n-button type="error" ghost :loading="busy === 'stop'" :disabled="busy !== ''" @click="coreAction('stop')">
+              ■ 停止
+            </n-button>
+          </template>
         </div>
       </div>
-      <div class="actions">
-        <button v-if="!status?.running" class="primary" :disabled="busy !== ''" @click="coreAction('start')">
-          {{ busy === 'start' ? '启动中…' : '▶ 启动内核' }}
-        </button>
-        <template v-else>
-          <button class="ghost" :disabled="busy !== ''" @click="coreAction('restart')">
-            {{ busy === 'restart' ? '重启中…' : '重启' }}
-          </button>
-          <button class="danger" :disabled="busy !== ''" @click="coreAction('stop')">
-            {{ busy === 'stop' ? '停止中…' : '■ 停止' }}
-          </button>
-        </template>
-      </div>
-    </div>
+    </n-card>
 
     <!-- 当前订阅 -->
-    <div class="card">
+    <n-card>
       <div class="sec-head">
         <h3>当前订阅</h3>
         <div class="sub-actions">
-          <button class="ghost sm" :disabled="subBusy || !activeProfile" @click="refreshProfile">
-            {{ subBusy ? '更新中…' : '刷新订阅' }}
-          </button>
-          <button v-if="status?.running" class="ghost sm" @click="viewConfig">运行时配置</button>
-          <button class="ghost sm" @click="openSwitch">切换订阅</button>
-          <button class="ghost sm" @click="showAdd = true">添加订阅</button>
+          <n-button size="small" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">刷新订阅</n-button>
+          <n-button v-if="status?.running" size="small" @click="viewConfig">运行时配置</n-button>
+          <n-button size="small" @click="openSwitch">切换订阅</n-button>
+          <n-button size="small" @click="showAdd = true">添加订阅</n-button>
         </div>
       </div>
-      <div v-if="!status?.profile" class="empty-hint">未设置订阅，请先添加并启用</div>
+      <n-empty v-if="!status?.profile" description="未设置订阅，请先添加并启用" />
       <template v-else>
         <div class="sub-row">
           <span class="sub-name">{{ status.profile }}</span>
           <span v-if="subExpire" class="page-sub">到期 {{ subExpire }}</span>
         </div>
         <div v-if="subTraffic" class="sub-traffic">
-          <div class="sub-bar"><div class="sub-bar-fill" :style="{ width: subTraffic.percent + '%' }"></div></div>
-          <span class="mono sub-traffic-text">
+          <n-progress
+            class="sub-bar"
+            type="line"
+            :percentage="subTraffic.percent"
+            :show-indicator="false"
+            :height="6"
+            border-radius="3px"
+          />
+          <span class="mono page-sub">
             已用 {{ fmtBytes(subTraffic.used) }} / {{ fmtBytes(subTraffic.total) }}（{{ Math.round(subTraffic.percent) }}%）
           </span>
         </div>
         <div v-else class="page-sub" style="margin-top:4px">机场未提供流量信息</div>
       </template>
-    </div>
+    </n-card>
 
     <!-- 流量 -->
-    <div class="card">
+    <n-card>
       <div class="traffic-head">
         <h3>实时流量</h3>
         <div class="traffic-nums">
@@ -327,17 +333,17 @@ function currentOf(g) {
         </div>
       </div>
       <Sparkline v-if="status?.running" :series="store.history" :height="130" />
-      <div v-else class="traffic-empty">内核未运行</div>
-    </div>
+      <n-empty v-else description="内核未运行" style="padding: 40px 0" />
+    </n-card>
 
     <!-- 快速切换 -->
-    <div class="card">
+    <n-card>
       <div class="sec-head">
         <h3>快速切换节点</h3>
         <span class="page-sub">点击分组选择节点 · 仅显示可手动选择分组</span>
       </div>
-      <div v-if="!status?.running" class="empty-hint">内核未运行，启动后可切换节点</div>
-      <div v-else-if="selectableGroups.length === 0" class="empty-hint">订阅中没有可手动选择的代理组</div>
+      <n-empty v-if="!status?.running" description="内核未运行，启动后可切换节点" />
+      <n-empty v-else-if="selectableGroups.length === 0" description="订阅中没有可手动选择的代理组" />
       <div v-else class="group-list">
         <button v-for="g in selectableGroups" :key="g.name" class="group-row" @click="openGroup(g)">
           <span class="g-name">{{ g.name }}</span>
@@ -346,7 +352,7 @@ function currentOf(g) {
           <span class="g-arrow">›</span>
         </button>
       </div>
-    </div>
+    </n-card>
 
     <NodeSheet
       v-if="showSheet"
@@ -357,65 +363,63 @@ function currentOf(g) {
     />
 
     <!-- 添加订阅弹窗（首页原地弹出） -->
-    <SubFormModal v-if="showAdd" @close="showAdd = false" @added="onSubAdded" />
+    <SubFormModal :open="showAdd" @close="showAdd = false" @added="onSubAdded" />
 
     <!-- 切换订阅弹窗 -->
-    <transition name="modal">
-      <div v-if="showSwitch" class="overlay" @click.self="showSwitch = false">
-      <div class="switch-modal modal-panel">
-        <div class="cfg-head">
-          <h3>切换订阅</h3>
-          <button class="ghost sm" @click="showSwitch = false">关闭</button>
-        </div>
-        <input
-          v-model="switchKeyword"
-          class="switch-search"
-          type="text"
-          placeholder="按名称搜索订阅，支持关键字模糊匹配…"
-          spellcheck="false"
-        >
-        <div class="switch-list">
-          <div v-if="switchLoading" class="empty-hint">加载中…</div>
-          <div v-else-if="!switchFiltered.length" class="empty-hint">
-            {{ switchList.length ? '没有匹配的订阅' : '还没有订阅，请先到「订阅」页添加' }}
-          </div>
+    <n-modal
+      preset="card"
+      title="切换订阅"
+      :show="showSwitch"
+      :style="{ width: '520px', maxWidth: '94vw' }"
+      @update:show="showSwitch = false"
+    >
+      <div class="switch-body">
+        <n-input v-model:value="switchKeyword" placeholder="按名称搜索订阅，支持关键字模糊匹配…" clearable />
+        <n-empty
+          v-if="switchLoading"
+          description="加载中…"
+          style="padding: 40px 0"
+        />
+        <n-empty
+          v-else-if="!switchFiltered.length"
+          :description="switchList.length ? '没有匹配的订阅' : '还没有订阅，请先到「订阅」页添加'"
+          style="padding: 40px 0"
+        />
+        <div v-else class="switch-list">
           <button
             v-for="p in switchFiltered"
             :key="p.id"
             class="switch-row"
-            :class="{ sel: switchSelected === p.id, cur: switchActive === p.id }"
+            :class="{ sel: switchSelected === p.id }"
             @click="switchSelected = p.id"
           >
             <span class="s-name">{{ p.name }}</span>
-            <span v-if="switchActive === p.id" class="badge">当前</span>
-            <span v-if="switchSelected === p.id" class="s-check">✓</span>
+            <n-tag v-if="switchActive === p.id" size="small" round :bordered="false">当前</n-tag>
           </button>
         </div>
         <div class="switch-foot">
           <span class="page-sub">选中后需确认才会切换并重载内核</span>
-          <button
-            class="primary"
-            :disabled="!switchSelected || switching || switchSelected === switchActive"
+          <n-button
+            type="primary"
+            :loading="switching"
+            :disabled="!switchSelected || switchSelected === switchActive"
             @click="confirmSwitch"
-          >{{ switching ? '切换中…' : '确认切换' }}</button>
+          >确认切换</n-button>
         </div>
       </div>
-    </div>
-    </transition>
+    </n-modal>
 
     <!-- 运行时配置查看 -->
-    <transition name="modal">
-    <div v-if="showConfig" class="overlay" @click.self="showConfig = false">
-      <div class="cfg-modal modal-panel">
-        <div class="cfg-head">
-          <h3>运行时配置（config.yaml）</h3>
-          <button class="ghost sm" @click="showConfig = false">关闭</button>
-        </div>
-        <pre v-if="!cfgLoading" class="cfg-view mono">{{ cfgContent }}</pre>
-        <div v-else class="empty-hint" style="padding:40px">加载中…</div>
-      </div>
-    </div>
-    </transition>
+    <n-modal
+      preset="card"
+      title="运行时配置（config.yaml）"
+      :show="showConfig"
+      :style="{ width: '760px', maxWidth: '94vw' }"
+      @update:show="showConfig = false"
+    >
+      <pre v-if="!cfgLoading" class="cfg-view mono">{{ cfgContent }}</pre>
+      <n-empty v-else description="加载中…" style="padding: 40px 0" />
+    </n-modal>
   </div>
 </template>
 
@@ -445,25 +449,22 @@ function currentOf(g) {
 .tn { display: flex; flex-direction: column; gap: 2px; }
 .tn .k { color: var(--text-dim); font-size: 12px; }
 .tn .v { font-size: 16px; font-weight: 600; }
-.traffic-empty {
-  height: 130px; display: flex; align-items: center; justify-content: center;
-  color: var(--text-dim); border: 1px dashed var(--border); border-radius: 10px;
-}
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.sec-head h3 { font-size: 15px; }
 .sub-actions { display: flex; gap: 8px; }
 .sub-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .sub-name { font-size: 15px; font-weight: 600; }
 .sub-traffic { display: flex; align-items: center; gap: 12px; margin-top: 9px; }
-.sub-bar { width: 260px; max-width: 50%; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
-.sub-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.4s ease; }
-.sub-traffic-text { color: var(--text-dim); font-size: 12.5px; }
+.sub-bar { width: 260px; max-width: 50%; }
 .group-list { display: flex; flex-direction: column; gap: 6px; }
 .group-row {
   display: flex; align-items: center; gap: 12px;
   width: 100%; text-align: left;
   padding: 12px 14px; border-radius: 11px;
   background: var(--bg-card-2);
+  border: none; cursor: pointer;
+  font: inherit; color: inherit;
 }
 .g-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-count { color: var(--text-dim); font-size: 12px; flex: none; }
@@ -472,65 +473,33 @@ function currentOf(g) {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .g-arrow { color: var(--text-dim); font-size: 18px; flex: none; }
-.empty-hint { color: var(--text-dim); text-align: center; padding: 22px 0; }
 
-.overlay {
-  position: fixed; inset: 0; z-index: 200;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-}
-.cfg-modal {
-  width: 760px; max-width: 100%; height: 80vh;
-  display: flex; flex-direction: column;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-  padding: 18px;
-}
-.cfg-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.cfg-head h3 { font-size: 14.5px; }
-.cfg-view {
-  flex: 1; margin: 0; padding: 14px;
-  overflow: auto;
-  background: var(--bg-card-2);
-  border: 1px solid var(--border); border-radius: 10px;
-  font-size: 12px; line-height: 1.6;
-  white-space: pre; tab-size: 2;
-}
-.switch-modal {
-  width: 520px; max-width: 100%; max-height: 78vh;
-  display: flex; flex-direction: column;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-  padding: 18px;
-}
-.switch-search { width: 100%; margin-bottom: 12px; flex: none; }
-.switch-list {
-  flex: 1; min-height: 120px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 6px;
-}
+.switch-body { display: flex; flex-direction: column; gap: 12px; }
+.switch-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
 .switch-row {
   display: flex; align-items: center; gap: 10px;
   width: 100%; text-align: left;
   padding: 11px 14px; border-radius: 11px;
   background: var(--bg-card-2);
   border: 1.5px solid transparent;
+  cursor: pointer; font: inherit; color: inherit;
 }
-.switch-row:hover { filter: none; background: var(--hover); }
+.switch-row:hover { background: var(--hover); }
 .switch-row.sel { border-color: var(--accent); background: var(--accent-soft); }
-.switch-row.cur .s-name { color: var(--accent); }
 .s-name {
   flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-weight: 600; font-size: 13.5px;
 }
-.s-check { color: var(--accent); font-weight: 700; }
 .switch-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  margin-top: 14px; flex: none;
+}
+.cfg-view {
+  margin: 0; padding: 14px;
+  overflow: auto; max-height: 70vh;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border); border-radius: 10px;
+  font-size: 12px; line-height: 1.6;
+  white-space: pre; tab-size: 2;
 }
 </style>

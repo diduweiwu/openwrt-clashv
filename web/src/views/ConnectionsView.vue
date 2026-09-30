@@ -2,14 +2,10 @@
 // 连接页：内核当前活动连接的完整明细（字段对齐 Clash Verge 连接页）。
 // 活跃列表来自 /api/connections（后端每秒轮询内核）；「已关闭」在本页前端追踪——
 // 上一秒还在、这一秒消失的连接带最后流量快照移入已关闭列表。
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
+import { NButton, NCard, NCheckbox, NDataTable, NEmpty, NInput, NTag, NTabs, NTabPane } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, fmtBytes, fmtRate } from '../store.js'
-
-const SUBS = [
-  { key: 'active', label: '活跃' },
-  { key: 'closed', label: '已关闭' },
-]
 
 const sub = ref('active')
 const items = ref([])
@@ -44,6 +40,28 @@ const shown = computed(() => {
 
 const activeCount = computed(() => items.value.length)
 const closedCount = computed(() => closed.value.length)
+
+const columns = [
+  { title: '主机', key: 'host', className: 'mono', minWidth: 150, ellipsis: { tooltip: true }, render: hostText },
+  { title: '下载量', key: 'download', width: 90, className: 'mono', render: c => fmtBytes(c.download) },
+  { title: '上传量', key: 'upload', width: 90, className: 'mono', render: c => fmtBytes(c.upload) },
+  { title: '下载速度', key: 'downSpeed', width: 100, className: 'mono dl', render: c => (c.downSpeed ? fmtRate(c.downSpeed) : '—') },
+  { title: '上传速度', key: 'upSpeed', width: 100, className: 'mono ul', render: c => (c.upSpeed ? fmtRate(c.upSpeed) : '—') },
+  { title: '链路', key: 'chains', minWidth: 140, className: 'mono', ellipsis: { tooltip: true }, render: chainText },
+  { title: '规则', key: 'rule', minWidth: 110, className: 'mono', ellipsis: { tooltip: true }, render: ruleText },
+  { title: '进程', key: 'process', minWidth: 110, className: 'mono', ellipsis: { tooltip: true }, render: processText },
+  { title: '连接时间', key: 'start', width: 90, className: 'mono', render: fmtDuration },
+  { title: '源地址', key: 'src', width: 150, className: 'mono addr', ellipsis: { tooltip: true }, render: srcText },
+  { title: '目标地址', key: 'dst', width: 150, className: 'mono addr', ellipsis: { tooltip: true }, render: dstText },
+  {
+    title: '类型', key: 'network', width: 90,
+    render: (c) => h('span', { class: 'net-cell' }, [
+      h(NTag, { size: 'tiny', bordered: false, type: c.metadata?.network === 'udp' ? 'warning' : 'primary' },
+        { default: () => (c.metadata?.network || '—').toUpperCase() }),
+      c.metadata?.type ? h('span', { class: 'inbound' }, c.metadata.type) : null,
+    ]),
+  },
+]
 
 async function poll(silent = true) {
   if (!store.status?.running) {
@@ -174,135 +192,70 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         </p>
       </div>
       <div class="actions">
-        <label class="opt"><input v-model="auto" type="checkbox" @change="setAuto(auto)"> 自动刷新</label>
-        <button class="ghost sm" :disabled="loading" @click="poll(false)">刷新</button>
-        <button class="danger sm" :disabled="!store.status?.running || !activeCount" @click="closeAll">关闭全部</button>
+        <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
+        <n-button size="small" :loading="loading" @click="poll(false)">刷新</n-button>
+        <n-button size="small" type="error" ghost :disabled="!store.status?.running || !activeCount" @click="closeAll">
+          关闭全部
+        </n-button>
       </div>
     </div>
 
-    <div class="toolbar card">
-      <div class="subs">
-        <button
-          v-for="s in SUBS" :key="s.key"
-          class="sub-tab" :class="{ on: sub === s.key }"
-          @click="sub = s.key"
-        >{{ s.label }}<span class="cnt">{{ s.key === 'active' ? activeCount : closedCount }}</span></button>
+    <n-card class="toolbar">
+      <div class="toolbar-row">
+        <n-tabs v-model:value="sub" type="segment" size="small" class="subs">
+          <n-tab-pane name="active"><template #tab>活跃 {{ activeCount }}</template></n-tab-pane>
+          <n-tab-pane name="closed"><template #tab>已关闭 {{ closedCount }}</template></n-tab-pane>
+        </n-tabs>
+        <n-input v-model:value="keyword" size="small" placeholder="过滤：主机 / 规则 / 进程 / 地址…" clearable class="search" />
+        <n-button v-if="sub === 'closed' && closedCount" size="small" @click="clearClosed">清空已关闭</n-button>
       </div>
-      <div class="search">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" />
-        </svg>
-        <input v-model="keyword" type="text" placeholder="过滤：主机 / 规则 / 进程 / 地址…" spellcheck="false">
-        <button v-if="sub === 'closed' && closedCount" class="ghost sm" @click="clearClosed">清空已关闭</button>
-      </div>
-    </div>
+    </n-card>
 
-    <div v-if="!store.status?.running" class="card">
-      <div class="empty-hint">内核未运行，启动后这里会显示连接明细</div>
-    </div>
-    <div v-else class="card conn-card">
-      <div v-if="shown.length" class="conn-scroll">
-        <table class="conn-table">
-          <thead>
-            <tr>
-              <th>主机</th><th>下载量</th><th>上传量</th><th>下载速度</th><th>上传速度</th>
-              <th>链路</th><th>规则</th><th>进程</th><th>连接时间</th>
-              <th>源地址</th><th>目标地址</th><th>类型</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in shown" :key="c.id" :class="{ gone: sub === 'closed' }">
-              <td class="mono host" :title="hostText(c)">{{ hostText(c) }}</td>
-              <td class="mono">{{ fmtBytes(c.download) }}</td>
-              <td class="mono">{{ fmtBytes(c.upload) }}</td>
-              <td class="mono dl">{{ c.downSpeed ? fmtRate(c.downSpeed) : '—' }}</td>
-              <td class="mono ul">{{ c.upSpeed ? fmtRate(c.upSpeed) : '—' }}</td>
-              <td class="mono chain" :title="chainText(c)">{{ chainText(c) }}</td>
-              <td class="mono rule" :title="ruleText(c)">{{ ruleText(c) }}</td>
-              <td class="mono proc" :title="processText(c)">{{ processText(c) }}</td>
-              <td class="mono">{{ fmtDuration(c.start) }}</td>
-              <td class="mono addr">{{ srcText(c) }}</td>
-              <td class="mono addr">{{ dstText(c) }}</td>
-              <td>
-                <span class="net" :class="((c.metadata?.network) || '').toLowerCase()">
-                  {{ (c.metadata?.network || '—').toUpperCase() }}
-                </span>
-                <span v-if="c.metadata?.type" class="inbound">{{ c.metadata.type }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-if="pollError" class="empty-hint poll-err">⚠ {{ pollError }}</div>
-      <div v-else-if="!shown.length && sub === 'active'" class="empty-hint">
-        {{ keyword ? '没有匹配的连接' : '暂无活动连接，内核运行且有设备访问后这里会出现记录' }}
-      </div>
-      <div v-else-if="!shown.length && sub === 'closed'" class="empty-hint">
-        {{ keyword ? '没有匹配的连接' : '页面打开期间关闭的连接会出现在这里' }}
-      </div>
-    </div>
+    <n-card v-if="!store.status?.running" class="pad">
+      <n-empty description="内核未运行，启动后这里会显示连接明细" />
+    </n-card>
+    <n-card v-else class="conn-card">
+      <n-data-table
+        v-if="shown.length"
+        size="small"
+        :columns="columns"
+        :data="shown"
+        :row-key="c => c.id"
+        :row-class-name="c => (c.closedAt ? 'gone' : '')"
+        :max-height="'calc(100vh - 300px)'"
+        :scroll-x="1370"
+      />
+      <n-empty
+        v-else-if="sub === 'active'"
+        :description="keyword ? '没有匹配的连接' : '暂无活动连接，内核运行且有设备访问后这里会出现记录'"
+        style="padding: 60px 0"
+      />
+      <n-empty
+        v-else
+        :description="keyword ? '没有匹配的连接' : '页面打开期间关闭的连接会出现在这里'"
+        style="padding: 60px 0"
+      />
+      <div v-if="pollError" class="poll-err">⚠ {{ pollError }}</div>
+    </n-card>
   </div>
 </template>
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .page-title { margin-bottom: 2px; }
-.page-sub { margin: 0; }
-.actions { display: flex; align-items: center; gap: 10px; }
-.opt { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
-
-.toolbar {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 10px 14px; flex-wrap: wrap;
-}
-.subs { display: flex; gap: 4px; }
-.sub-tab {
-  padding: 6px 14px; border-radius: 8px; font-size: 13px;
-  background: transparent; border: 1.5px solid transparent;
-  color: var(--text-dim);
-  display: flex; align-items: center; gap: 6px;
-}
-.sub-tab.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.sub-tab .cnt {
-  font-size: 11px; padding: 0 6px; border-radius: 99px;
-  background: var(--bg-card-2); color: var(--text-dim);
-}
-.sub-tab.on .cnt { background: rgba(91, 107, 240, 0.18); color: var(--accent); }
-.search { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 420px; color: var(--text-dim); }
-.search input {
-  flex: 1; padding: 6px 11px; font-size: 13px; min-width: 160px;
-}
-.conn-card { padding: 0; overflow: hidden; }
-.conn-scroll {
-  max-height: calc(100vh - 250px); min-height: 240px;
-  overflow: auto;
-}
-.conn-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.conn-table th, .conn-table td {
-  padding: 7px 10px; text-align: left; white-space: nowrap;
-  border-bottom: 1px solid var(--border);
-}
-.conn-table th {
-  position: sticky; top: 0; z-index: 1;
-  background: var(--bg-card); color: var(--text-dim); font-weight: 500;
-}
-.conn-table tbody tr:hover { background: var(--hover); }
-.conn-table tbody tr.gone { opacity: 0.55; }
-.conn-table .host, .conn-table .chain, .conn-table .rule, .conn-table .proc {
-  max-width: 220px; overflow: hidden; text-overflow: ellipsis;
-}
-.conn-table .addr { color: var(--text-dim); }
-.conn-table .dl { color: var(--accent); }
-.conn-table .ul { color: var(--green); }
-.net {
-  display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 600;
-  background: var(--accent-soft); color: var(--accent);
-}
-.net.udp { background: rgba(232, 161, 60, 0.15); color: var(--orange); }
-.inbound { margin-left: 6px; font-size: 10.5px; color: var(--text-dim); }
-.empty-hint { color: var(--text-dim); text-align: center; padding: 60px 0; }
-.empty-hint.poll-err {
-  color: var(--orange); font-size: 13px; padding: 34px 16px;
+.actions { display: flex; align-items: center; gap: 14px; }
+.toolbar :deep(.n-card__content) { padding: 8px 14px; }
+.toolbar-row { display: flex; align-items: center; gap: 12px; }
+.subs { width: 220px; flex: none; }
+.search { flex: 1; max-width: 420px; min-width: 160px; }
+.conn-card :deep(.n-card__content) { padding: 0 2px 2px; }
+.poll-err {
+  color: var(--orange); font-size: 13px; padding: 20px 16px;
   white-space: pre-wrap; word-break: break-all;
 }
+:deep(.gone) { opacity: 0.55; }
+:deep(.dl) { color: var(--accent); }
+:deep(.ul) { color: var(--green); }
+:deep(.addr) { color: var(--text-dim); }
+.inbound { margin-left: 6px; font-size: 10.5px; color: var(--text-dim); }
 </style>

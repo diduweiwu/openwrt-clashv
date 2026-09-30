@@ -13,8 +13,29 @@ return L.view.extend({
 		var host = window.location.hostname;
 		var frame = E('iframe', {
 			src: 'http://' + host + ':' + port + '/',
-			style: 'width:100%;border:0;border-radius:8px;min-height:calc(100vh - 70px);background:#14161c',
+			style: 'width:100%;border:0;border-radius:8px;background:#14161c;display:block'
 		});
+
+		/*
+		 * 让 iframe 恰好撑满视口剩余高度：LuCI 页面本身不再溢出滚动，
+		 * 左侧菜单保持固定，滚动只发生在界面内部
+		 * （界面内容不满一屏时内部也不出滚动条，由界面自身的 overflow-y:auto 保证）。
+		 */
+		var fit = function () {
+			var top = frame.getBoundingClientRect().top;
+			var h = Math.max(360, window.innerHeight - top - 8);
+			frame.style.height = h + 'px';
+			/* 主题页脚/边距等额外高度导致外层仍溢出时，按实际溢出量收敛一次 */
+			var over = document.documentElement.scrollHeight - window.innerHeight;
+			if (over > 0)
+				frame.style.height = Math.max(360, h - over) + 'px';
+		};
+
+		requestAnimationFrame(fit);
+		setTimeout(fit, 50);
+		frame.addEventListener('load', fit);
+		window.addEventListener('resize', fit);
+
 		return E('div', { 'class': 'cbi-map' }, [frame]);
 	},
 	handleSave: null,

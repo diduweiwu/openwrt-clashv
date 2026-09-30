@@ -1,6 +1,7 @@
 <script setup>
 // 日志页：内核日志 + 插件日志（连接明细已独立为「连接」页）
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { NButton, NCard, NCheckbox, NEmpty, NTabs, NTabPane } from 'naive-ui'
 import { api } from '../api.js'
 import { toast } from '../store.js'
 
@@ -87,19 +88,15 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 <template>
   <div class="page">
     <div class="head-row">
-      <div class="tabs">
-        <button
-          v-for="k in TABS"
-          :key="k.key"
-          class="tab"
-          :class="{ on: tab === k.key }"
-          @click="pick(k.key)"
-        >{{ k.label }}</button>
-      </div>
+      <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
+        <n-tab-pane v-for="k in TABS" :key="k.key" :name="k.key">
+          <template #tab>{{ k.label }}</template>
+        </n-tab-pane>
+      </n-tabs>
       <div class="opts">
-        <label class="opt"><input v-model="auto" type="checkbox" @change="setAuto(auto)"> 自动刷新</label>
-        <label class="opt"><input v-model="follow" type="checkbox"> 跟随滚动</label>
-        <button class="ghost sm" :disabled="loading" @click="load(false)">刷新</button>
+        <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
+        <n-checkbox v-model:checked="follow">跟随滚动</n-checkbox>
+        <n-button size="small" :loading="loading" @click="load(false)">刷新</n-button>
       </div>
     </div>
 
@@ -108,26 +105,20 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template>
     </p>
 
-    <div class="card log-card">
+    <n-card class="log-card">
       <pre v-if="exists && content" ref="preRef" class="log-view">{{ content }}</pre>
-      <div v-else-if="exists" class="empty-hint">日志为空，启动内核后这里会有输出</div>
-      <div v-else class="empty-hint">暂无日志文件</div>
-    </div>
+      <n-empty v-else-if="exists" description="日志为空，启动内核后这里会有输出" style="padding: 60px 0" />
+      <n-empty v-else description="暂无日志文件" style="padding: 60px 0" />
+    </n-card>
   </div>
 </template>
 
 <style scoped>
 .head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.tabs { display: flex; gap: 6px; }
-.tab {
-  padding: 7px 16px; border-radius: 9px; font-size: 13.5px; font-weight: 500;
-  background: var(--bg-card-2); border: 1.5px solid transparent;
-}
-.tab.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.tabs { width: 260px; flex: none; }
 .opts { display: flex; align-items: center; gap: 14px; }
-.opt { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
 .meta-line { margin: 8px 2px 10px; }
-.log-card { padding: 0; overflow: hidden; }
+.log-card :deep(.n-card__content) { padding: 0; }
 .log-view {
   margin: 0; padding: 14px 16px;
   font-family: var(--mono, ui-monospace, monospace);
@@ -136,5 +127,4 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   max-height: calc(100vh - 210px); min-height: 300px;
   overflow-y: auto;
 }
-.empty-hint { color: var(--text-dim); text-align: center; padding: 60px 0; }
 </style>

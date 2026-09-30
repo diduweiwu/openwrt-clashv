@@ -1,8 +1,9 @@
 <script setup>
 // 设置页：基础设置、TUN/DNS、内核更新（mihomo）、插件更新
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { NButton, NCard, NInput, NInputNumber, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast } from '../store.js'
+import { store, toast, ask } from '../store.js'
 
 // mihomo Release 提供的 linux 平台名（按指令集分组），value 与资产文件名一一对应
 const CORE_PLATFORMS = [
@@ -48,6 +49,13 @@ const CORE_PLATFORMS = [
     ],
   },
 ]
+
+const CORE_ARCH_OPTIONS = CORE_PLATFORMS.map(g => ({
+  type: 'group',
+  label: g.group,
+  key: g.group,
+  children: g.items.map(([v, l]) => ({ value: v, label: l })),
+}))
 
 function fmtMB(n) {
   return (n / 1048576).toFixed(1) + ' MB'
@@ -130,9 +138,15 @@ async function load() {
 async function save() {
   saving.value = true
   try {
-    // 合并回完整设置（保留后端管理的字段）
+    // 合并回完整设置（保留后端管理的字段）；数字输入清空时兜底默认值
     const cur = await api.get('/api/settings')
-    const payload = { ...cur, ...form }
+    const payload = {
+      ...cur,
+      ...form,
+      mixed_port: Number(form.mixed_port) || 7890,
+      ui_port: Number(form.ui_port) || 9097,
+      auto_update: Number(form.auto_update) || 0,
+    }
     const r = await api.put('/api/settings', payload)
     Object.assign(form, {
       mixed_port: r.settings.mixed_port,
@@ -167,7 +181,7 @@ async function checkCore() {
 }
 
 async function upgradeCore() {
-  if (!confirm(`确认下载并安装 mihomo ${coreLatest.value.latest}？视网络情况可能需要几分钟`)) return
+  if (!(await ask('升级内核', `确认下载并安装 mihomo ${coreLatest.value.latest}？视网络情况可能需要几分钟`))) return
   coreUpgrading.value = true
   startProgPoll()
   try {
@@ -193,13 +207,13 @@ async function checkPlugin() {
 }
 
 async function upgradePlugin() {
-  if (!confirm(`确认下载并安装插件 ${pluginLatest.value.latest}？安装后需要重启服务`)) return
+  if (!(await ask('更新插件', '确认下载并安装插件最新版本？安装后需要重启服务'))) return
   pluginUpgrading.value = true
   startProgPoll()
   try {
     const r = await api.post('/api/plugin/upgrade')
     if (r.need_restart && store.status?.openwrt) {
-      if (confirm('插件已下载，立即重启服务生效？')) {
+      if (await ask('重启服务', '插件已下载，立即重启服务生效？')) {
         await api.post('/api/service/restart')
         toast('服务重启中，请稍后刷新页面', 'success')
       }
@@ -215,7 +229,7 @@ async function upgradePlugin() {
 }
 
 async function restartService() {
-  if (!confirm('确认重启 ClashV 服务？')) return
+  if (!(await ask('重启服务', '确认重启 ClashV 服务？'))) return
   try {
     await api.post('/api/service/restart')
     toast('服务重启中，请稍后刷新页面', 'success')
@@ -228,118 +242,125 @@ onMounted(load)
 onBeforeUnmount(stopProgPoll)
 
 // 设置分区 tab：通用（代理基础+访问控制）/ 网络 / 内核 / 插件
-const TABS = [
-  { key: 'general', label: '通用' },
-  { key: 'network', label: '网络' },
-  { key: 'core', label: '内核' },
-  { key: 'plugin', label: '插件' },
-]
 const tab = ref('general')
 </script>
 
 <template>
   <div class="page">
-    <div class="head-row">
-      <h1 class="page-title">设置</h1>
-      <div class="tabs">
-        <button
-          v-for="t in TABS"
-          :key="t.key"
-          class="tab"
-          :class="{ on: tab === t.key }"
-          @click="tab = t.key"
-        >{{ t.label }}</button>
-      </div>
-    </div>
+    <n-card class="head-card">
+      <n-tabs v-model:value="tab" type="segment" size="small" class="tabs">
+        <template #prefix><span class="head-title">设置</span></template>
+        <n-tab-pane name="general"><template #tab>通用</template></n-tab-pane>
+        <n-tab-pane name="network"><template #tab>网络</template></n-tab-pane>
+        <n-tab-pane name="core"><template #tab>内核</template></n-tab-pane>
+        <n-tab-pane name="plugin"><template #tab>插件</template></n-tab-pane>
+      </n-tabs>
+    </n-card>
 
-    <transition name="fade" mode="out-in">
-    <div :key="tab" class="tab-body">
     <!-- 通用 -->
-    <div class="card" v-if="tab === 'general'">
-      <h3 class="sec">代理基础</h3>
-      <div class="rows">
-        <div class="row">
-          <div class="row-text">
-            <span class="rt">混合代理端口</span>
-            <span class="rs">HTTP + SOCKS5 共用端口</span>
+    <template v-if="tab === 'general'">
+      <n-card title="代理基础">
+        <div class="rows">
+          <div class="row">
+            <div class="row-text">
+              <span class="rt">混合代理端口</span>
+              <span class="rs">HTTP + SOCKS5 共用端口</span>
+            </div>
+            <n-input-number v-model:value="form.mixed_port" :show-button="false" :min="1" :max="65535" class="num" />
           </div>
-          <input v-model.number="form.mixed_port" type="number" class="num">
+          <div class="row">
+            <div class="row-text">
+              <span class="rt">订阅自动更新</span>
+              <span class="rs">每 N 小时自动更新一次，0 为关闭</span>
+            </div>
+            <n-input-number v-model:value="form.auto_update" :show-button="false" :min="0" :max="720" class="num">
+              <template #suffix><span class="unit">小时</span></template>
+            </n-input-number>
+          </div>
         </div>
-        <div class="row">
-          <div class="row-text">
-            <span class="rt">订阅自动更新</span>
-            <span class="rs">每 N 小时自动更新一次，0 为关闭</span>
+      </n-card>
+
+      <!-- 访问控制 -->
+      <n-card title="访问控制">
+        <div class="rows">
+          <div class="row">
+            <div class="row-text">
+              <span class="rt">界面访问令牌</span>
+              <span class="rs">设置后局域网内打开界面需输入令牌，留空不启用</span>
+            </div>
+            <n-input
+              v-model:value="form.token"
+              type="password"
+              show-password-on="click"
+              placeholder="留空不启用"
+              class="ctl"
+              style="width: 200px"
+            />
           </div>
-          <div class="with-unit">
-            <input v-model.number="form.auto_update" type="number" class="num" style="width:76px">
-            <span class="unit">小时</span>
+          <div class="row">
+            <div class="row-text">
+              <span class="rt">界面端口</span>
+              <span class="rs">修改后需重启服务生效</span>
+            </div>
+            <n-input-number v-model:value="form.ui_port" :show-button="false" :min="1" :max="65535" class="num" />
           </div>
         </div>
-      </div>
-    </div>
+      </n-card>
+    </template>
 
     <!-- 网络 -->
-    <div class="card" v-if="tab === 'network'">
-      <h3 class="sec">TUN 与 DNS</h3>
+    <n-card v-if="tab === 'network'" title="TUN 与 DNS">
       <div class="rows">
         <div class="row">
           <div class="row-text">
             <span class="rt">TUN 模式</span>
             <span class="rs">接管全局流量（需内核 tun 模块）；关闭时自动用防火墙接管局域网 TCP（透明代理），无需手动配置</span>
           </div>
-          <label class="switch">
-            <input v-model="form.tun" type="checkbox">
-            <span class="track"></span><span class="thumb"></span>
-          </label>
+          <n-switch v-model:value="form.tun" />
         </div>
         <div class="row" v-if="form.tun">
           <div class="row-text">
             <span class="rt">TUN 协议栈</span>
             <span class="rs">mixed 兼顾性能与兼容性</span>
           </div>
-          <select v-model="form.tun_stack" style="width:130px">
-            <option value="mixed">mixed</option>
-            <option value="system">system</option>
-            <option value="gvisor">gvisor</option>
-          </select>
+          <n-select v-model:value="form.tun_stack" :options="[{ value: 'mixed', label: 'mixed' }, { value: 'system', label: 'system' }, { value: 'gvisor', label: 'gvisor' }]" class="ctl" style="width: 130px" />
         </div>
         <div class="row">
           <div class="row-text">
             <span class="rt">接管 DNS</span>
             <span class="rs">由 mihomo 处理局域网域名解析，透明代理/TUN 模式建议开启</span>
           </div>
-          <label class="switch">
-            <input v-model="form.dns" type="checkbox">
-            <span class="track"></span><span class="thumb"></span>
-          </label>
+          <n-switch v-model:value="form.dns" />
         </div>
         <div class="row" v-if="form.dns">
           <div class="row-text">
             <span class="rt">DNS 解析模式</span>
             <span class="rs">fake-ip 返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（国外域名已自动经代理用国外 DNS 防污染复核）</span>
           </div>
-          <select v-model="form.dns_mode" style="width:160px">
-            <option value="fake-ip">fake-ip（推荐）</option>
-            <option value="redir-host">redir-host</option>
-          </select>
+          <n-select
+            v-model:value="form.dns_mode"
+            :options="[{ value: 'fake-ip', label: 'fake-ip（推荐）' }, { value: 'redir-host', label: 'redir-host' }]"
+            class="ctl"
+            style="width: 160px"
+          />
         </div>
         <div class="row" v-if="form.dns && store.status?.openwrt">
           <div class="row-text">
             <span class="rt">DNS 劫持模式</span>
             <span class="rs">推荐防火墙转发：强制接管所有设备的 DNS（包括手动改过 DNS 的设备）。dnsmasq 转发只对使用路由器 DNS 的设备有效，设备自行配了 DNS 就会绕过内核（redir-host 下表现为部分网站打不开）</span>
           </div>
-          <select v-model="form.dns_hijack" style="width:160px">
-            <option value="firewall">防火墙转发（推荐）</option>
-            <option value="dnsmasq">dnsmasq 转发</option>
-            <option value="off">禁用</option>
-          </select>
+          <n-select
+            v-model:value="form.dns_hijack"
+            :options="[{ value: 'firewall', label: '防火墙转发（推荐）' }, { value: 'dnsmasq', label: 'dnsmasq 转发' }, { value: 'off', label: '禁用' }]"
+            class="ctl"
+            style="width: 160px"
+          />
         </div>
       </div>
-    </div>
+    </n-card>
 
     <!-- 内核 -->
-    <div class="card" v-if="tab === 'core'">
-      <h3 class="sec">内核（mihomo）</h3>
+    <n-card v-if="tab === 'core'" title="内核（mihomo）">
       <div class="rows">
         <div class="row">
           <div class="row-text">
@@ -357,19 +378,19 @@ const tab = ref('general')
               内核资产的平台名，自动识别不对时手动选择<template v-if="coreInfo.platform">，当前识别为 <span class="mono">{{ coreInfo.platform }}</span></template>
             </span>
           </div>
-          <select v-model="form.core_arch" style="width:250px">
-            <option value="">自动识别{{ coreInfo.platform ? `（${coreInfo.platform}）` : '' }}</option>
-            <optgroup v-for="g in CORE_PLATFORMS" :key="g.group" :label="g.group">
-              <option v-for="p in g.items" :key="p[0]" :value="p[0]">{{ p[1] }}</option>
-            </optgroup>
-          </select>
+          <n-select
+            v-model:value="form.core_arch"
+            :options="[{ value: '', label: `自动识别${coreInfo.platform ? `（${coreInfo.platform}）` : ''}` }, ...CORE_ARCH_OPTIONS]"
+            class="ctl"
+            style="width: 250px"
+          />
         </div>
         <div class="row">
           <div class="row-text">
             <span class="rt">下载加速前缀</span>
             <span class="rs">内核/插件从 GitHub 下载时套用此前缀（如 gh-proxy.com），留空直连</span>
           </div>
-          <input v-model="form.download_proxy" placeholder="https://gh-proxy.com" style="width:210px">
+          <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.com" style="width: 210px" />
         </div>
         <div class="row">
           <div class="row-text">
@@ -384,13 +405,10 @@ const tab = ref('general')
             </span>
           </div>
           <div class="btn-pair">
-            <button class="ghost sm" :disabled="coreUpgrading" @click="checkCore">检查更新</button>
-            <button
-              v-if="coreLatest?.has_update"
-              class="primary sm"
-              :disabled="coreUpgrading"
-              @click="upgradeCore"
-            >{{ coreBtnText }}</button>
+            <n-button size="small" :disabled="coreUpgrading" @click="checkCore">检查更新</n-button>
+            <n-button v-if="coreLatest?.has_update" type="primary" size="small" :loading="coreUpgrading" @click="upgradeCore">
+              {{ coreBtnText }}
+            </n-button>
           </div>
         </div>
         <div class="row" v-if="coreUpgrading">
@@ -398,16 +416,22 @@ const tab = ref('general')
             <span class="rt">升级进度</span>
             <span class="rs mono">{{ progText || '正在连接…' }}</span>
           </div>
-          <div class="prog-bar" :class="{ indeterminate: !prog || prog.percent <= 0 }">
-            <div class="prog-fill" :style="{ width: prog?.percent > 0 ? prog.percent + '%' : '100%' }"></div>
-          </div>
+          <n-progress
+            v-if="prog?.percent > 0"
+            type="line"
+            :percentage="prog.percent"
+            :show-indicator="false"
+            :height="6"
+            border-radius="3px"
+            class="prog"
+          />
+          <n-spin v-else :size="16" />
         </div>
       </div>
-    </div>
+    </n-card>
 
     <!-- 插件 -->
-    <div class="card" v-if="tab === 'plugin'">
-      <h3 class="sec">ClashV 插件</h3>
+    <n-card v-if="tab === 'plugin'" title="ClashV 插件">
       <div class="rows">
         <div class="row">
           <div class="row-text">
@@ -422,13 +446,10 @@ const tab = ref('general')
             </span>
           </div>
           <div class="btn-pair">
-            <button class="ghost sm" :disabled="pluginUpgrading" @click="checkPlugin">检查更新</button>
-            <button
-              v-if="pluginLatest?.has_update"
-              class="primary sm"
-              :disabled="pluginUpgrading"
-              @click="upgradePlugin"
-            >{{ pluginBtnText }}</button>
+            <n-button size="small" :disabled="pluginUpgrading" @click="checkPlugin">检查更新</n-button>
+            <n-button v-if="pluginLatest?.has_update" type="primary" size="small" :loading="pluginUpgrading" @click="upgradePlugin">
+              {{ pluginBtnText }}
+            </n-button>
           </div>
         </div>
         <div class="row" v-if="pluginUpgrading">
@@ -436,61 +457,37 @@ const tab = ref('general')
             <span class="rt">升级进度</span>
             <span class="rs mono">{{ progText || '正在连接…' }}</span>
           </div>
-          <div class="prog-bar" :class="{ indeterminate: !prog || prog.percent <= 0 }">
-            <div class="prog-fill" :style="{ width: prog?.percent > 0 ? prog.percent + '%' : '100%' }"></div>
-          </div>
+          <n-progress
+            v-if="prog?.percent > 0"
+            type="line"
+            :percentage="prog.percent"
+            :show-indicator="false"
+            :height="6"
+            border-radius="3px"
+            class="prog"
+          />
+          <n-spin v-else :size="16" />
         </div>
         <div class="row" v-if="store.status?.openwrt">
           <div class="row-text">
             <span class="rt">重启服务</span>
             <span class="rs">修改界面端口或令牌后需重启</span>
           </div>
-          <button class="ghost sm" @click="restartService">重启</button>
+          <n-button size="small" @click="restartService">重启</n-button>
         </div>
       </div>
-    </div>
-
-    <!-- 访问控制（通用 tab） -->
-    <div class="card" v-if="tab === 'general'">
-      <h3 class="sec">访问控制</h3>
-      <div class="rows">
-        <div class="row">
-          <div class="row-text">
-            <span class="rt">界面访问令牌</span>
-            <span class="rs">设置后局域网内打开界面需输入令牌，留空不启用</span>
-          </div>
-          <input v-model="form.token" placeholder="留空不启用" type="password" style="width:190px">
-        </div>
-        <div class="row">
-          <div class="row-text">
-            <span class="rt">界面端口</span>
-            <span class="rs">修改后需重启服务生效</span>
-          </div>
-          <input v-model.number="form.ui_port" type="number" class="num">
-        </div>
-      </div>
-    </div>
-    </div>
-    </transition>
+    </n-card>
 
     <div class="save-bar" v-if="tab !== 'plugin'">
-      <button class="primary" :disabled="saving || !loaded" @click="save">
-        {{ saving ? '保存中…' : '保存设置' }}
-      </button>
+      <n-button type="primary" :loading="saving" :disabled="!loaded" @click="save">保存设置</n-button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.tabs { display: flex; gap: 6px; }
-.tab {
-  padding: 7px 16px; border-radius: 9px; font-size: 13.5px; font-weight: 500;
-  background: var(--bg-card-2); border: 1.5px solid transparent;
-}
-.tab.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.tab-body { display: flex; flex-direction: column; gap: 16px; }
-.sec { font-size: 15px; margin-bottom: 14px; }
+.head-card :deep(.n-card__content) { padding: 10px 16px; }
+.head-title { font-size: 17px; font-weight: 600; white-space: nowrap; }
+.tabs { min-width: 0; }
 .rows { display: flex; flex-direction: column; }
 .row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -501,26 +498,9 @@ const tab = ref('general')
 .row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .rt { font-size: 13.5px; font-weight: 500; }
 .rs { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-.num { width: 100px; }
-.with-unit { display: flex; align-items: center; gap: 8px; }
+.num { width: 110px; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
-.btn-pair { display: flex; gap: 8px; }
-.prog-bar {
-  width: 180px; height: 6px; border-radius: 3px;
-  background: var(--border); overflow: hidden; flex-shrink: 0;
-}
-.prog-fill {
-  height: 100%; border-radius: 3px;
-  background: var(--green, #4caf7d);
-  transition: width 0.4s ease;
-}
-.prog-bar.indeterminate .prog-fill {
-  width: 100% !important;
-  animation: prog-slide 1.1s ease-in-out infinite;
-}
-@keyframes prog-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
+.btn-pair { display: flex; gap: 8px; flex: none; }
+.prog { width: 180px; flex-shrink: 0; }
 .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; padding: 10px 0 2px; }
 </style>

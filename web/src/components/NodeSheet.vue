@@ -1,6 +1,7 @@
 <script setup>
 // 节点选择弹窗：点击组后弹出，选中即切换
 import { onMounted, ref } from 'vue'
+import { NModal } from 'naive-ui'
 import { api } from '../api.js'
 import { toast, delayColor } from '../store.js'
 
@@ -10,13 +11,12 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'selected'])
 
-// 组件由父级 v-if 挂载；可见性在内部管理，退场动画播完再通知父级卸载
+// 组件由父级 v-if 挂载；显隐在内部管理，退场动画播完（after-leave）再通知父级卸载
 const visible = ref(false)
 onMounted(() => { visible.value = true })
 
 function close() {
   visible.value = false
-  setTimeout(() => emit('close'), 170)
 }
 
 function delayOf(nodeName) {
@@ -39,64 +39,44 @@ async function pick(nodeName) {
 </script>
 
 <template>
-  <teleport to="body">
-    <transition name="modal">
-      <div v-if="visible" class="mask" @click.self="close">
-        <div class="sheet modal-panel">
-        <div class="head">
-          <div>
-            <h3>{{ group.name }}</h3>
-            <span class="sub">{{ group.type }} · {{ group.all.length }} 个节点</span>
-          </div>
-          <button class="ghost sm" @click="close">✕</button>
-        </div>
-        <div class="list">
-          <button
-            v-for="node in group.all"
-            :key="node"
-            class="node"
-            :class="{ current: node === group.now }"
-            @click="pick(node)"
-          >
-            <span class="name">{{ node }}</span>
-            <span class="delay mono" :style="{ color: delayColor(delayOf(node)) }">
-              {{ delayOf(node) > 0 ? delayOf(node) + ' ms' : node === group.now ? '当前' : '' }}
-            </span>
-          </button>
-        </div>
-      </div>
+  <n-modal
+    preset="card"
+    :show="visible"
+    :style="{ width: '480px', maxWidth: '94vw' }"
+    @update:show="close"
+    @after-leave="emit('close')"
+  >
+    <template #header>
+      <span class="title">{{ group.name }}</span>
+      <span class="sub">{{ group.type }} · {{ group.all.length }} 个节点</span>
+    </template>
+    <div class="list">
+      <button
+        v-for="node in group.all"
+        :key="node"
+        class="node"
+        :class="{ current: node === group.now }"
+        @click="pick(node)"
+      >
+        <span class="name">{{ node }}</span>
+        <span class="delay mono" :style="{ color: delayColor(delayOf(node)) }">
+          {{ delayOf(node) > 0 ? delayOf(node) + ' ms' : node === group.now ? '当前' : '' }}
+        </span>
+      </button>
     </div>
-    </transition>
-  </teleport>
+  </n-modal>
 </template>
 
 <style scoped>
-.mask {
-  position: fixed; inset: 0; z-index: 100;
-  background: rgba(8, 10, 16, 0.55);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-}
-.sheet {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  width: 480px; max-width: 94vw; max-height: 76vh;
-  display: flex; flex-direction: column;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
-}
-.head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 18px 12px;
-  border-bottom: 1px solid var(--border);
-}
-.sub { color: var(--text-dim); font-size: 12px; }
-.list { overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+.title { font-size: 15px; }
+.sub { color: var(--text-dim); font-size: 12px; font-weight: 400; margin-left: 8px; }
+.list { display: flex; flex-direction: column; gap: 4px; max-height: 60vh; overflow-y: auto; }
 .node {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; text-align: left;
   padding: 10px 13px; border-radius: 10px;
-  background: transparent;
+  background: transparent; border: none; cursor: pointer;
+  font: inherit; color: inherit;
 }
 .node:hover { background: var(--hover); }
 .node.current { background: var(--accent-soft); }

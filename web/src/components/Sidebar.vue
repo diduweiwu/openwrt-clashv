@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed } from 'vue'
+import { NButton, NDropdown } from 'naive-ui'
 import { themeMode, resolvedTheme, applyTheme } from '../theme.js'
 import { store } from '../store.js'
 
@@ -14,13 +15,10 @@ const navs = [
 ]
 
 // ---- 主题下拉 ----
-const themeOpen = ref(false)
-const themePicker = ref(null)
-
 const themeOptions = [
-  { value: 'dark', label: '深色', icon: '☾' },
-  { value: 'light', label: '浅色', icon: '☀' },
-  { value: 'system', label: '跟随系统', icon: '◐' },
+  { label: '☾ 深色', key: 'dark' },
+  { label: '☀ 浅色', key: 'light' },
+  { label: '◐ 跟随系统', key: 'system' },
 ]
 
 // 触发按钮上显示当前实际配色：跟随系统时展示解析结果
@@ -28,28 +26,27 @@ const themeLabel = computed(() => {
   if (themeMode.value === 'system') {
     return `◐ 跟随系统 · ${resolvedTheme.value === 'dark' ? '深色' : '浅色'}`
   }
-  const opt = themeOptions.find(o => o.value === themeMode.value)
-  return `${opt.icon} ${opt.label}`
+  return themeOptions.find(o => o.key === themeMode.value).label
 })
 
 function pickTheme(v) {
   themeMode.value = v
   applyTheme()
-  themeOpen.value = false
 }
-
-function onDocClick(e) {
-  if (themePicker.value && !themePicker.value.contains(e.target)) themeOpen.value = false
-}
-onMounted(() => document.addEventListener('click', onDocClick))
-onUnmounted(() => document.removeEventListener('click', onDocClick))
 </script>
 
 <template>
   <aside class="sidebar">
     <div class="logo">
-      <svg viewBox="0 0 24 24" width="26" height="26" fill="none">
-        <path d="M13 2 4.5 13.5H11L9.5 22 19 10h-6.5L13 2Z" fill="var(--accent)" stroke="var(--accent)" stroke-width="1.4" stroke-linejoin="round"/>
+      <!-- ClashV logo：Clash 猫（线条用 currentColor 继承侧栏白色，粗细按小尺寸展示微调） -->
+      <svg viewBox="0 0 48 48" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <path stroke-linejoin="round" d="M27.19,42.5a89.0444,89.0444,0,0,1-14.6813-1.5725S13.94,12.3721,17.9209,5.5357c-.13-.297,2.9919,1.2125,4.4218,6.2665a25.5569,25.5569,0,0,1,4.8471-.47"/>
+        <ellipse cx="21.2404" cy="20.3089" rx="1.6708" ry="2.1301"/>
+        <path stroke-linejoin="round" d="M27.19,42.5a89.0444,89.0444,0,0,0,14.6813-1.5725S40.44,12.3721,36.4583,5.5357c.03-.2006-3.59,1.7549-4.4218,6.2665a25.5582,25.5582,0,0,0-4.8471-.47"/>
+        <ellipse cx="33.1398" cy="20.3089" rx="1.6708" ry="2.1301"/>
+        <path stroke-miterlimit="5.7143" d="M12.5083,40.927C10.5777,40.6,7.56,40.6178,6.4685,37.44c-1.0674-3.107.4377-6.6708,3.7411-7.0453"/>
+        <path stroke-miterlimit="5.7143" d="M25.4634,26.3872a1.4666,1.4666,0,0,0,1.4726-1.4725"/>
+        <path stroke-miterlimit="5.7143" d="M28.4091,26.3872a1.4666,1.4666,0,0,1-1.4726-1.4725"/>
       </svg>
       <span>ClashV</span>
     </div>
@@ -91,26 +88,9 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
         <span class="dot" :class="{ on: store.status?.running, wait: !store.status?.running && store.status?.starting }"></span>
         <span class="status-text">{{ store.status?.running ? '运行中' : store.status?.starting ? '启动中…' : '已停止' }}</span>
       </div>
-      <div ref="themePicker" class="theme-picker">
-        <button class="ghost sm theme-btn" @click="themeOpen = !themeOpen" @keydown.escape="themeOpen = false">
-          {{ themeLabel }}
-        </button>
-        <transition name="fade">
-          <div v-if="themeOpen" class="theme-menu">
-            <button
-              v-for="o in themeOptions"
-              :key="o.value"
-              class="theme-opt"
-              :class="{ current: o.value === themeMode }"
-              @click="pickTheme(o.value)"
-            >
-              <span class="opt-icon">{{ o.icon }}</span>
-              <span>{{ o.label }}</span>
-              <span v-if="o.value === themeMode" class="opt-check">✓</span>
-            </button>
-          </div>
-        </transition>
-      </div>
+      <n-dropdown trigger="click" placement="top-start" :options="themeOptions" @select="pickTheme">
+        <n-button quaternary size="small" class="theme-btn">{{ themeLabel }}</n-button>
+      </n-dropdown>
     </div>
   </aside>
 </template>
@@ -156,37 +136,14 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .dot.wait { background: var(--orange); box-shadow: 0 0 6px var(--orange); animation: blink 1s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: 0.35; } }
 .theme-btn {
-  color: rgba(255, 255, 255, 0.55);
-  border-color: rgba(255, 255, 255, 0.12);
-  font-size: 12px;
+  /* 与上方 .status-line 的 0 8px 内边距对齐：图标落在状态点同一垂直线上 */
   width: 100%;
+  justify-content: flex-start;
+  padding-left: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
   white-space: nowrap;
 }
-.theme-picker { position: relative; }
-.theme-menu {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0; right: 0;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-  padding: 4px;
-  display: flex; flex-direction: column; gap: 2px;
-  z-index: 60;
-}
-.theme-opt {
-  display: flex; align-items: center; gap: 8px;
-  background: transparent;
-  border: none; border-radius: 7px;
-  padding: 7px 10px;
-  font-size: 12.5px;
-  color: var(--text);
-  text-align: left;
-}
-.theme-opt:hover { background: var(--hover); }
-.theme-opt.current { color: var(--accent); background: var(--accent-soft); }
-.opt-check { margin-left: auto; font-size: 11px; }
 @media (max-width: 760px) {
   .sidebar {
     width: 100%; flex-direction: row; align-items: center;
@@ -198,8 +155,6 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .nav-item span { display: none; }
   .bottom { flex-direction: row; align-items: center; }
   .status-text { display: none; }
-  .theme-btn { width: auto; }
-  /* 顶栏场景下拉改为向下展开 */
-  .theme-menu { bottom: auto; top: calc(100% + 8px); }
+  .theme-btn { width: auto; justify-content: center; padding-left: 0; }
 }
 </style>

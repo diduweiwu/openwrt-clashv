@@ -1,6 +1,7 @@
 <script setup>
 // 代理页：全部代理组 + 节点卡片，点击切换、整组测速
 import { computed, onMounted, ref, watch } from 'vue'
+import { NButton, NCard, NEmpty, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, delayColor } from '../store.js'
 
@@ -115,30 +116,38 @@ onMounted(load)
         <h1 class="page-title">代理</h1>
         <span class="page-sub">点击节点切换 · {{ groups.length }} 个代理组</span>
       </div>
-      <button class="ghost" :disabled="loading" @click="load">
-        <svg class="btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
-          <polyline points="21 3 21 9 15 9"/>
-        </svg>
+      <n-button :loading="loading" @click="load">
+        <template #icon>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+            <polyline points="21 3 21 9 15 9"/>
+          </svg>
+        </template>
         刷新
-      </button>
+      </n-button>
     </div>
 
-    <div v-if="!store.status?.running" class="card empty-hint">内核未运行，启动后此处显示代理列表</div>
-    <div v-else-if="loading" class="card empty-hint">加载中…</div>
-    <div v-else-if="groups.length === 0" class="card empty-hint">订阅中没有代理组</div>
+    <n-card v-if="!store.status?.running" class="pad">
+      <n-empty description="内核未运行，启动后此处显示代理列表" />
+    </n-card>
+    <n-card v-else-if="loading" class="pad">
+      <n-empty description="加载中…" />
+    </n-card>
+    <n-card v-else-if="groups.length === 0" class="pad">
+      <n-empty description="订阅中没有代理组" />
+    </n-card>
 
-    <div v-for="g in groups" :key="g.name" class="card">
+    <n-card v-for="g in groups" :key="g.name">
       <div class="g-head">
         <div class="g-title">
           <h3>{{ g.name }}</h3>
-          <span class="badge">{{ g.type }}</span>
+          <n-tag size="small" :bordered="false">{{ g.type }}</n-tag>
           <span v-if="g.now" class="page-sub">当前 {{ g.now }}</span>
         </div>
-        <button class="ghost sm" :disabled="testing !== ''" @click="testGroup(g)">
+        <n-button size="small" :loading="testing === g.name" :disabled="testing !== ''" @click="testGroup(g)">
           {{ testing === g.name ? `测速中 ${testProg}` : '⚡ 整组测速' }}
-        </button>
+        </n-button>
       </div>
       <div class="nodes">
         <button
@@ -157,13 +166,13 @@ onMounted(load)
           </span>
         </button>
       </div>
-    </div>
+    </n-card>
   </div>
 </template>
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; }
-.btn-ic { width: 15px; height: 15px; vertical-align: -2.5px; margin-right: 5px; }
+.pad :deep(.n-empty) { padding: 34px 0; }
 .g-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 13px; flex-wrap: wrap; }
 .g-title { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; }
 .g-title h3 { font-size: 15px; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -180,6 +189,7 @@ onMounted(load)
   background: var(--bg-card-2);
   border: 1.5px solid transparent;
   min-width: 0;
+  cursor: pointer; font: inherit; color: inherit;
 }
 .node-card:hover { border-color: var(--accent); }
 .node-card.current {
@@ -193,5 +203,4 @@ onMounted(load)
 .n-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .n-type { color: var(--text-dim); font-size: 11px; text-transform: uppercase; }
 .n-delay { font-size: 12px; }
-.empty-hint { color: var(--text-dim); text-align: center; padding: 34px 0; }
 </style>

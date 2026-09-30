@@ -2,6 +2,7 @@
 // 规则页：展示内核实际加载的路由规则（mihomo GET /rules），
 // 可用来核对订阅里的规则是否真的生效（对照「连接页」的命中规则列）。
 import { computed, onMounted, ref } from 'vue'
+import { NButton, NCard, NEmpty, NInput } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast } from '../store.js'
 
@@ -57,23 +58,21 @@ onMounted(() => load(false))
           · 规则在订阅配置中定义，此处只读
         </p>
       </div>
-      <button class="ghost sm" :disabled="loading || !store.status?.running" @click="load(false)">
-        {{ loading ? '加载中…' : '刷新' }}
-      </button>
+      <n-button size="small" :loading="loading" :disabled="!store.status?.running" @click="load(false)">刷新</n-button>
     </div>
 
-    <div class="search card">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" />
-      </svg>
-      <input v-model="keyword" type="text" placeholder="搜索规则内容、类型或目标…" spellcheck="false">
-      <button v-if="keyword" class="clear" @click="keyword = ''">✕</button>
-    </div>
+    <n-input v-model:value="keyword" placeholder="搜索规则内容、类型或目标…" clearable>
+      <template #prefix>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" />
+        </svg>
+      </template>
+    </n-input>
 
-    <div v-if="!store.status?.running" class="card">
-      <div class="empty-hint">内核未运行，启动后可查看规则</div>
-    </div>
-    <div v-else-if="filtered.length" class="card rule-card">
+    <n-card v-if="!store.status?.running" class="pad">
+      <n-empty description="内核未运行，启动后可查看规则" />
+    </n-card>
+    <n-card v-else-if="filtered.length" class="rule-card">
       <div class="rule-scroll">
         <div v-for="r in filtered" :key="r.idx" class="rule-row">
           <span class="no mono">{{ r.idx }}</span>
@@ -86,35 +85,18 @@ onMounted(() => load(false))
           <span class="proxy" :class="proxyClass(r.proxy || '')">{{ r.proxy || '—' }}</span>
         </div>
       </div>
-    </div>
-    <div v-else class="card">
-      <div class="empty-hint">
-        {{ rules.length ? '没有匹配的规则' : '内核未加载任何规则——请在订阅配置中添加' }}
-      </div>
-    </div>
+    </n-card>
+    <n-card v-else class="pad">
+      <n-empty :description="rules.length ? '没有匹配的规则' : '内核未加载任何规则——请在订阅配置中添加'" />
+    </n-card>
   </div>
 </template>
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .page-title { margin: 0 0 2px; font-size: 17px; }
-.page-sub { margin: 0 0 12px; }
-.search {
-  display: flex; align-items: center; gap: 9px;
-  padding: 10px 14px; margin-bottom: 12px;
-  color: var(--text-dim);
-}
-.search input {
-  flex: 1; border: none; outline: none; background: transparent;
-  color: var(--text); font-size: 13.5px;
-}
-.search input::placeholder { color: var(--text-dim); }
-.clear {
-  border: none; background: var(--hover); color: var(--text-dim);
-  width: 20px; height: 20px; border-radius: 50%;
-  font-size: 11px; line-height: 1; flex: none;
-}
-.rule-card { padding: 0; overflow: hidden; }
+.pad :deep(.n-empty) { padding: 60px 0; }
+.rule-card :deep(.n-card__content) { padding: 0; }
 .rule-scroll { max-height: calc(100vh - 240px); min-height: 200px; overflow-y: auto; }
 .rule-row {
   display: flex; align-items: center; gap: 14px;
@@ -138,5 +120,4 @@ onMounted(() => load(false))
 .proxy.group { color: var(--orange); }
 .proxy.direct { color: var(--green); }
 .proxy.reject { color: var(--red); }
-.empty-hint { color: var(--text-dim); text-align: center; padding: 60px 0; }
 </style>

@@ -1,4 +1,5 @@
-/* clashv 全局样式 — 参考 Clash Verge 的深色卡片风格 */
+/* clashv 全局样式 — 组件样式由 Naive UI 主题（store.js naiveOverrides）提供，
+   这里只保留主题变量（供残留的自定义区块与 delayColor 等取色）与少量布局工具类 */
 
 :root {
   --accent: #5b6bf0;
@@ -49,87 +50,16 @@ body {
 h1, h2, h3, h4 { margin: 0; font-weight: 600; }
 p { margin: 0; }
 
-button {
-  font: inherit;
-  border: none;
-  cursor: pointer;
-  border-radius: 9px;
-  padding: 7px 14px;
-  background: var(--bg-card-2);
-  color: var(--text);
-  transition: filter 0.15s, opacity 0.15s;
-}
-button:hover { filter: brightness(1.12); }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
-button.primary { background: var(--accent); color: #fff; }
-button.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
-button.ghost { background: transparent; border: 1px solid var(--border); }
-button.sm { padding: 4px 10px; font-size: 12.5px; border-radius: 7px; }
-
-input, select {
-  font: inherit;
-  background: var(--bg-card-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 7px 11px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-input:focus, select:focus { border-color: var(--accent); }
-
-.card {
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  padding: 18px 20px;
-}
-
 .page { display: flex; flex-direction: column; gap: 16px; max-width: 1080px; margin: 0 auto; }
-
 .page-title { font-size: 19px; margin-bottom: 2px; }
 .page-sub { color: var(--text-dim); font-size: 13px; }
 
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 12px; padding: 3px 10px; border-radius: 99px;
-  background: var(--accent-soft); color: var(--accent);
-}
-
 .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-
-/* 开关 */
-.switch { position: relative; width: 40px; height: 22px; flex: none; cursor: pointer; }
-.switch input { display: none; }
-.switch .track {
-  position: absolute; inset: 0; border-radius: 99px;
-  background: var(--bg-card-2); border: 1px solid var(--border);
-  transition: background 0.18s;
-}
-.switch .thumb {
-  position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
-  border-radius: 50%; background: var(--text-dim); transition: all 0.18s;
-}
-.switch input:checked ~ .track { background: var(--accent); border-color: var(--accent); }
-.switch input:checked ~ .thumb { left: 21px; background: #fff; }
 
 /* 滚动条 */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--text-dim); opacity: 0.4; border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-
-/* 过场动画 */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.15s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-
-/* 弹窗过渡：遮罩淡入淡出 + 面板轻缩放上滑（各弹窗共用，面板加 .modal-panel 类） */
-.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
-.modal-enter-from, .modal-leave-to { opacity: 0; }
-.modal-enter-active .modal-panel { transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
-.modal-enter-from .modal-panel { transform: translateY(16px) scale(0.97); }
-.modal-leave-active .modal-panel { transition: transform 0.15s ease; }
-.modal-leave-to .modal-panel { transform: translateY(10px) scale(0.98); }
 
 /* 页面切换过渡（router-view，out-in） */
 .page-enter-active, .page-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
