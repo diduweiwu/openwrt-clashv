@@ -46,6 +46,10 @@ type Manager struct {
 	exited    chan struct{} // 内核进程退出时关闭
 
 	running atomic.Bool
+	// starting 表示内核进程已拉起但控制接口尚未就绪（启动窗口最长 15s）。
+	// 期间 Running() 仍为 false：没就绪就不能算「运行中」，否则界面在
+	// 重启窗口里显示运行中、启动失败时还会跳回已停止，误导用户。
+	starting atomic.Bool
 
 	hc *controllerClient
 
@@ -74,8 +78,11 @@ func NewManager(cfg *config.Manager, prof *profiles.Manager, pluginVersion strin
 	}
 }
 
-// Running 报告内核是否在运行。
+// Running 报告内核是否在运行（进程存活且控制接口已就绪）。
 func (m *Manager) Running() bool { return m.running.Load() }
+
+// Starting 报告内核是否处于启动中（进程已拉起、控制接口未就绪）。
+func (m *Manager) Starting() bool { return m.starting.Load() }
 
 // PID 返回内核进程号，未运行为 0。
 func (m *Manager) PID() int {
@@ -91,9 +98,11 @@ func (m *Manager) PID() int {
 func (m *Manager) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.running.Load() {
+	if m.running.Load() || m.starting.Load() {
 		return nil
 	}
+	// 任意返回路径都要清掉启动中标记
+	defer m.starting.Store(false)
 	s, err := m.cfg.Get()
 	if err != nil {
 		return err
@@ -161,6 +170,7 @@ func (m *Manager) Start() error {
 		cmd.Env = append(os.Environ(), "TZ="+tzVal)
 	}
 	cmd.SysProcAttr = sysProcAttr()
+	m.starting.Store(true)
 	if err := cmd.Start(); err != nil {
 		cancel()
 		return fmt.Errorf("启动内核失败: %w", err)
@@ -169,7 +179,6 @@ func (m *Manager) Start() error {
 	m.cancel = cancel
 	m.startedAt = time.Now()
 	m.exited = make(chan struct{})
-	m.running.Store(true)
 	m.resetTraffic()
 
 	// 进程退出回收
@@ -181,16 +190,18 @@ func (m *Manager) Start() error {
 		slog.Info("mihomo 进程已退出")
 	}()
 
-	// 等待控制接口就绪
+	// 等待控制接口就绪（此时 running 仍为 false，就绪后才置位）
 	m.hc.setEndpoint(s.ControllerPort, s.ControllerSecret)
 	deadline := time.Now().Add(15 * time.Second)
 	for {
+		select {
+		case <-m.exited:
+			return errors.New("内核启动后立即退出，请查看日志（工作目录 logs/core.log）")
+		default:
+		}
 		if ctx.Err() != nil {
 			killCoreProcess(cmd, m.exited)
 			return errors.New("内核启动中止")
-		}
-		if !m.running.Load() {
-			return errors.New("内核启动后立即退出，请查看日志（工作目录 logs/core.log）")
 		}
 		if _, err := m.hc.version(ctx); err == nil {
 			break
@@ -210,6 +221,8 @@ func (m *Manager) Start() error {
 		killCoreProcess(cmd, m.exited)
 		return fmt.Errorf("内核端口绑定失败: %w", err)
 	}
+	// 就绪：此刻起才算「运行中」
+	m.running.Store(true)
 	m.startPolling(ctx)
 	// DNS 劫持 + TCP 透明代理在内核就绪后异步套用
 	go m.ApplyTrafficHooks(s)

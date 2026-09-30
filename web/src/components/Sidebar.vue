@@ -88,8 +88,8 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
 
     <div class="bottom">
       <div class="status-line">
-        <span class="dot" :class="{ on: store.status?.running }"></span>
-        <span class="status-text">{{ store.status?.running ? '运行中' : '已停止' }}</span>
+        <span class="dot" :class="{ on: store.status?.running, wait: !store.status?.running && store.status?.starting }"></span>
+        <span class="status-text">{{ store.status?.running ? '运行中' : store.status?.starting ? '启动中…' : '已停止' }}</span>
       </div>
       <div ref="themePicker" class="theme-picker">
         <button class="ghost sm theme-btn" @click="themeOpen = !themeOpen" @keydown.escape="themeOpen = false">
@@ -153,6 +153,8 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   background: #5a5f6d;
 }
 .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot.wait { background: var(--orange); box-shadow: 0 0 6px var(--orange); animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: 0.35; } }
 .theme-btn {
   color: rgba(255, 255, 255, 0.55);
   border-color: rgba(255, 255, 255, 0.12);

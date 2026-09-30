@@ -86,6 +86,7 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{
 		"running":        d.mgr.Running(),
+		"starting":       d.mgr.Starting(),
 		"pid":            d.mgr.PID(),
 		"uptime":         uptime,
 		"started_at":     startedAt.Unix(),

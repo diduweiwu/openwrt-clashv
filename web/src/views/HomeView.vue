@@ -228,9 +228,9 @@ function currentOf(g) {
     <!-- 运行状态 -->
     <div class="card hero">
       <div class="hero-main">
-        <div class="run-badge" :class="{ on: status?.running }">
+        <div class="run-badge" :class="{ on: status?.running, starting: !status?.running && status?.starting }">
           <span class="pulse"></span>
-          <span class="run-text">{{ status?.running ? '运行中' : '已停止' }}</span>
+          <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
         </div>
         <div class="meta">
           <div class="meta-item">
@@ -424,6 +424,8 @@ function currentOf(g) {
 .pulse::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid transparent; }
 .run-badge.on .pulse { background: var(--green); }
 .run-badge.on .pulse::after { border-color: var(--green); animation: ring 1.8s ease-out infinite; }
+.run-badge.starting .pulse { background: var(--orange); }
+.run-badge.starting .pulse::after { border-color: var(--orange); animation: ring 1.4s ease-out infinite; }
 @keyframes ring {
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(1.5); opacity: 0; }
