@@ -226,14 +226,36 @@ async function restartService() {
 
 onMounted(load)
 onBeforeUnmount(stopProgPoll)
+
+// 设置分区 tab：通用（代理基础+访问控制）/ 网络 / 内核 / 插件
+const TABS = [
+  { key: 'general', label: '通用' },
+  { key: 'network', label: '网络' },
+  { key: 'core', label: '内核' },
+  { key: 'plugin', label: '插件' },
+]
+const tab = ref('general')
 </script>
 
 <template>
   <div class="page">
-    <h1 class="page-title">设置</h1>
+    <div class="head-row">
+      <h1 class="page-title">设置</h1>
+      <div class="tabs">
+        <button
+          v-for="t in TABS"
+          :key="t.key"
+          class="tab"
+          :class="{ on: tab === t.key }"
+          @click="tab = t.key"
+        >{{ t.label }}</button>
+      </div>
+    </div>
 
-    <!-- 代理基础 -->
-    <div class="card">
+    <transition name="fade" mode="out-in">
+    <div :key="tab" class="tab-body">
+    <!-- 通用 -->
+    <div class="card" v-if="tab === 'general'">
       <h3 class="sec">代理基础</h3>
       <div class="rows">
         <div class="row">
@@ -256,8 +278,8 @@ onBeforeUnmount(stopProgPoll)
       </div>
     </div>
 
-    <!-- TUN 与 DNS -->
-    <div class="card">
+    <!-- 网络 -->
+    <div class="card" v-if="tab === 'network'">
       <h3 class="sec">TUN 与 DNS</h3>
       <div class="rows">
         <div class="row">
@@ -316,7 +338,7 @@ onBeforeUnmount(stopProgPoll)
     </div>
 
     <!-- 内核 -->
-    <div class="card">
+    <div class="card" v-if="tab === 'core'">
       <h3 class="sec">内核（mihomo）</h3>
       <div class="rows">
         <div class="row">
@@ -384,7 +406,7 @@ onBeforeUnmount(stopProgPoll)
     </div>
 
     <!-- 插件 -->
-    <div class="card">
+    <div class="card" v-if="tab === 'plugin'">
       <h3 class="sec">ClashV 插件</h3>
       <div class="rows">
         <div class="row">
@@ -428,8 +450,8 @@ onBeforeUnmount(stopProgPoll)
       </div>
     </div>
 
-    <!-- 访问控制 -->
-    <div class="card">
+    <!-- 访问控制（通用 tab） -->
+    <div class="card" v-if="tab === 'general'">
       <h3 class="sec">访问控制</h3>
       <div class="rows">
         <div class="row">
@@ -448,8 +470,10 @@ onBeforeUnmount(stopProgPoll)
         </div>
       </div>
     </div>
+    </div>
+    </transition>
 
-    <div class="save-bar">
+    <div class="save-bar" v-if="tab !== 'plugin'">
       <button class="primary" :disabled="saving || !loaded" @click="save">
         {{ saving ? '保存中…' : '保存设置' }}
       </button>
@@ -458,6 +482,14 @@ onBeforeUnmount(stopProgPoll)
 </template>
 
 <style scoped>
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tabs { display: flex; gap: 6px; }
+.tab {
+  padding: 7px 16px; border-radius: 9px; font-size: 13.5px; font-weight: 500;
+  background: var(--bg-card-2); border: 1.5px solid transparent;
+}
+.tab.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.tab-body { display: flex; flex-direction: column; gap: 16px; }
 .sec { font-size: 15px; margin-bottom: 14px; }
 .rows { display: flex; flex-direction: column; }
 .row {
