@@ -1,7 +1,7 @@
 <script setup>
 // 首页：运行状态、当前订阅、流量概览、快速切换节点
 import { computed, onMounted, ref, watch } from 'vue'
-import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag } from 'naive-ui'
+import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag, NSwitch } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
@@ -217,6 +217,59 @@ function onTripReset() {
   toast('累计流量已清零，重新开始统计', 'success')
 }
 
+// ---- 出站模式 / DNS 快捷切换（瓦片齿轮 → 弹窗） ----
+const MODE_LABEL = { rule: '规则', global: '全局', direct: '直连' }
+const MODES = [
+  { value: 'rule', label: '规则', desc: '按订阅规则分流：国内直连、代理流量按规则匹配（推荐）' },
+  { value: 'global', label: '全局', desc: '所有连接都走代理节点，不按规则分流' },
+  { value: 'direct', label: '直连', desc: '所有连接都直连，临时完全不经过代理' },
+]
+const showMode = ref(false)
+const modeBusy = ref('')
+
+async function applyMode(mode) {
+  if (modeBusy.value || (status.value?.mode || 'rule') === mode) return
+  modeBusy.value = mode
+  try {
+    const r = await api.put('/api/core/mode', { mode })
+    if (store.status) store.status = { ...store.status, mode: r.mode }
+    toast('出站模式已切换为「' + (MODE_LABEL[r.mode] || r.mode) + '」', 'success')
+    showMode.value = false
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    modeBusy.value = ''
+  }
+}
+
+const showDns = ref(false)
+const dnsDraft = ref({ dns: true, dns_mode: 'fake-ip' })
+const dnsBusy = ref(false)
+
+function openDns() {
+  dnsDraft.value = { dns: !!status.value?.dns, dns_mode: status.value?.dns_mode || 'fake-ip' }
+  showDns.value = true
+}
+
+// DNS 走完整设置接口：先取全量再改两个字段回写（PUT 是整体替换）
+async function applyDns() {
+  if (dnsBusy.value) return
+  dnsBusy.value = true
+  try {
+    const s = await api.get('/api/settings')
+    s.dns = dnsDraft.value.dns
+    s.dns_mode = dnsDraft.value.dns_mode
+    const r = await api.put('/api/settings', s)
+    toast('DNS 设置已保存' + (r.restarted ? '，内核已重启生效' : ''), 'success')
+    showDns.value = false
+    refreshStatus()
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    dnsBusy.value = false
+  }
+}
+
 // status 晚于挂载到达时，运行起来后补一次代理列表
 watch(
   () => store.status?.running,
@@ -261,17 +314,23 @@ function currentOf(g) {
               <span class="v mono">{{ status?.mixed_port || '—' }}</span>
             </div>
             <div class="meta-item">
-              <span class="k"><AppIcon name="globe" :size="13" />DNS</span>
+              <span class="k"><AppIcon name="globe" :size="13" />DNS
+                <button class="tile-gear" title="DNS 设置" @click="openDns">
+                  <AppIcon name="gear" :size="12" />
+                </button>
+              </span>
               <span class="v mono" :class="{ dim: !status?.dns }">
                 {{ status?.dns ? (status.dns_mode || 'fake-ip') : '未接管' }}
               </span>
             </div>
             <div class="meta-item">
-              <span class="k"><AppIcon name="layers" :size="13" />模式</span>
+              <span class="k"><AppIcon name="layers" :size="13" />出站模式
+                <button class="tile-gear" title="切换出站模式" @click="showMode = true">
+                  <AppIcon name="gear" :size="12" />
+                </button>
+              </span>
               <span class="v">
-                <n-tag v-if="status?.tun" size="small" round :bordered="false">TUN</n-tag>
-                <n-tag v-else-if="status?.openwrt" size="small" round :bordered="false">透明代理</n-tag>
-                <span v-else>标准</span>
+                <n-tag size="small" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
               </span>
             </div>
           </n-flex>
@@ -463,6 +522,75 @@ function currentOf(g) {
       </div>
     </n-modal>
 
+    <!-- 出站模式切换弹窗：点选项立即生效 -->
+    <n-modal
+      preset="card"
+      title="出站模式"
+      :show="showMode"
+      :style="{ width: '440px', maxWidth: '94vw' }"
+      @update:show="showMode = false"
+    >
+      <div class="mode-body">
+        <button
+          v-for="m in MODES"
+          :key="m.value"
+          class="mode-row"
+          :class="{ sel: (status?.mode || 'rule') === m.value }"
+          :disabled="!!modeBusy"
+          @click="applyMode(m.value)"
+        >
+          <span class="m-name">
+            {{ m.label }}
+            <n-tag v-if="(status?.mode || 'rule') === m.value" size="small" round :bordered="false">当前</n-tag>
+            <span v-if="modeBusy === m.value" class="m-busy">切换中…</span>
+          </span>
+          <span class="m-desc">{{ m.desc }}</span>
+        </button>
+        <div class="page-sub" style="margin-top:2px">运行中的内核立即生效，选择会记住，重启后仍生效</div>
+      </div>
+    </n-modal>
+
+    <!-- DNS 设置弹窗：接管开关 + 解析模式 -->
+    <n-modal
+      preset="card"
+      title="DNS 设置"
+      :show="showDns"
+      :style="{ width: '440px', maxWidth: '94vw' }"
+      @update:show="showDns = false"
+    >
+      <div class="mode-body">
+        <div class="dns-row">
+          <div class="dns-text">
+            <span class="m-name">DNS 接管</span>
+            <span class="m-desc">由内核接管局域网 DNS 解析</span>
+          </div>
+          <n-switch v-model:value="dnsDraft.dns" size="small" />
+        </div>
+        <button
+          class="mode-row"
+          :class="{ sel: dnsDraft.dns_mode === 'fake-ip' }"
+          :disabled="!dnsDraft.dns || dnsBusy"
+          @click="dnsDraft.dns_mode = 'fake-ip'"
+        >
+          <span class="m-name">fake-ip</span>
+          <span class="m-desc">返回假 IP，命中快、兼容性最好（推荐）</span>
+        </button>
+        <button
+          class="mode-row"
+          :class="{ sel: dnsDraft.dns_mode === 'redir-host' }"
+          :disabled="!dnsDraft.dns || dnsBusy"
+          @click="dnsDraft.dns_mode = 'redir-host'"
+        >
+          <span class="m-name">redir-host</span>
+          <span class="m-desc">返回真实 IP，个别不支持假 IP 的设备更稳</span>
+        </button>
+        <div class="mode-foot">
+          <span class="page-sub">保存后内核自动重启生效</span>
+          <n-button type="primary" size="small" :loading="dnsBusy" @click="applyDns">保存</n-button>
+        </div>
+      </div>
+    </n-modal>
+
     <!-- 运行时配置查看 -->
     <n-modal
       preset="card"
@@ -500,6 +628,40 @@ function currentOf(g) {
   min-width: 104px;
 }
 .meta-item .k { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
+/* 瓦片标题行尾的小齿轮：默认很淡，悬停亮起 */
+.tile-gear {
+  margin-left: auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0;
+  border: none; border-radius: 5px;
+  background: transparent; cursor: pointer;
+  color: currentColor; opacity: 0.55;
+}
+.tile-gear:hover { opacity: 1; color: var(--accent); background: var(--hover); }
+
+/* 出站模式 / DNS 弹窗的选项卡片 */
+.mode-body { display: flex; flex-direction: column; gap: 8px; }
+.mode-row {
+  display: flex; flex-direction: column; gap: 3px;
+  text-align: left;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--bg-card-2);
+  border: 1.5px solid var(--border);
+  cursor: pointer; font: inherit; color: inherit;
+}
+.mode-row:disabled { opacity: 0.55; cursor: default; }
+.mode-row.sel { border-color: var(--accent); background: var(--accent-soft); }
+.mode-row .m-name { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; }
+.mode-row .m-desc { color: var(--text-dim); font-size: 12px; }
+.m-busy { color: var(--text-dim); font-size: 11.5px; font-weight: 400; }
+.dns-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--bg-card-2);
+  border: 1.5px solid var(--border);
+}
+.dns-row .dns-text { display: flex; flex-direction: column; gap: 3px; }
+.mode-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 

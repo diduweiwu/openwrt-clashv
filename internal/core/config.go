@@ -146,7 +146,8 @@ func managedOverlay(s config.Settings, proxyTarget string) map[string]any {
 		// 以及局域网设备直连混合端口，都要求监听 0.0.0.0（127.0.0.1 会拒收）
 		"allow-lan":           true,
 		"bind-address":        "*",
-		"mode":                "rule",
+		// 出站模式跟随设置（首页出站模式卡片可切，运行时 PATCH + 持久化）
+		"mode":                config.NormalizeCoreMode(s.CoreMode),
 		"log-level":           "info",
 		"unified-delay":       true,
 		"tcp-concurrent":      true,

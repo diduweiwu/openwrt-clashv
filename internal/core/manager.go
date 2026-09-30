@@ -499,6 +499,16 @@ func (m *Manager) CloseAllConnections(ctx context.Context) error {
 	return m.hc.closeAllConnections(ctx)
 }
 
+// Mode 返回内核当前出站模式（rule / global / direct）。
+func (m *Manager) Mode(ctx context.Context) (string, error) {
+	return m.hc.mode(ctx)
+}
+
+// SetMode 运行时切换出站模式；持久化由 API 层负责写入设置。
+func (m *Manager) SetMode(ctx context.Context, mode string) error {
+	return m.hc.setMode(ctx, mode)
+}
+
 func randomSecret() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

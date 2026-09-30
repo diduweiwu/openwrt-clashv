@@ -31,6 +31,7 @@ type Settings struct {
 	CorePath         string `json:"core_path"`         // mihomo 二进制路径
 	CoreArch         string `json:"core_arch"`         // 内核下载平台名，留空自动检测（如 linux-arm64）
 	CoreMemLimit     int    `json:"core_mem_limit"`    // 内核内存软上限（GOMEMLIMIT，MB），0 为不限制
+	CoreMode         string `json:"core_mode"`         // 出站模式: rule / global / direct（卡片切换后持久化，重启仍生效）
 	DNSHijack        string `json:"dns_hijack"`        // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
 	CustomUA         string `json:"custom_ua"`         // 上次使用的自定义订阅 User-Agent（记住，下次预填）
 	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
@@ -56,6 +57,7 @@ func Defaults() Settings {
 		CorePath:         "",
 		CoreArch:         "",
 		CoreMemLimit:     0,
+		CoreMode:         "rule",
 		DNSHijack:        "firewall", // 与 OpenClash 一致：默认防火墙转发 DNS
 		CustomUA:         "",
 		WorkDir:          "",
@@ -221,6 +223,22 @@ func (s *Settings) normalize() {
 	default:
 		s.DNSMode = "fake-ip"
 	}
+	// 出站模式白名单；历史配置为空时视为规则模式
+	switch strings.TrimSpace(s.CoreMode) {
+	case "global", "direct":
+	case "rule":
+	default:
+		s.CoreMode = "rule"
+	}
+}
+
+// NormalizeCoreMode 归一出站模式，非法值回退规则模式（供状态展示与合成配置用）。
+func NormalizeCoreMode(m string) string {
+	switch m {
+	case "global", "direct":
+		return m
+	}
+	return "rule"
 }
 
 // EnsureDirs 创建运行所需目录结构。

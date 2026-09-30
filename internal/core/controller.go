@@ -156,6 +156,20 @@ func (c *controllerClient) closeAllConnections(ctx context.Context) error {
 	return c.do(ctx, http.MethodDelete, "/connections", nil, nil)
 }
 
+// mode 读取内核当前出站模式（rule / global / direct，来自 /configs）。
+func (c *controllerClient) mode(ctx context.Context) (string, error) {
+	var out struct {
+		Mode string `json:"mode"`
+	}
+	err := c.do(ctx, http.MethodGet, "/configs", nil, &out)
+	return out.Mode, err
+}
+
+// setMode 运行时切换出站模式（PATCH /configs，内核立即生效不重启）。
+func (c *controllerClient) setMode(ctx context.Context, mode string) error {
+	return c.do(ctx, http.MethodPatch, "/configs", map[string]string{"mode": mode}, nil)
+}
+
 // proxies 返回 /proxies 的完整数据（mihomo 会把 map 键按字典序输出，组内节点
 // 顺序由 all 数组保留，即订阅中的真实顺序）。
 func (c *controllerClient) proxies(ctx context.Context) (map[string]any, error) {

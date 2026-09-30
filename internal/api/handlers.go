@@ -104,6 +104,7 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"tun":            s.TUN,
 		"dns":            s.DNS,
 		"dns_mode":       s.DNSMode,
+		"mode":           config.NormalizeCoreMode(s.CoreMode),
 		"auto_update":    s.AutoUpdateHours,
 		"openwrt":        d.cfg.IsOpenWrt(),
 		"token_required": s.Token != "",
@@ -112,6 +113,42 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 func (d *deps) handleTraffic(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, d.mgr.Traffic())
+}
+
+// handleCoreModeGet 返回出站模式（持久化值，与运行中内核保持一致）。
+func (d *deps) handleCoreModeGet(w http.ResponseWriter, r *http.Request) {
+	s, err := d.cfg.Get()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"mode": config.NormalizeCoreMode(s.CoreMode)})
+}
+
+// handleCoreModePut 切换出站模式：运行中的内核立即 PATCH 生效，并持久化到
+// 设置（下次启动的合成配置沿用该模式，不因重启回退到 rule）。
+func (d *deps) handleCoreModePut(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, errStr("请求体不是合法 JSON"))
+		return
+	}
+	mode := config.NormalizeCoreMode(body.Mode)
+	if d.mgr.Running() {
+		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+		defer cancel()
+		if err := d.mgr.SetMode(ctx, mode); err != nil {
+			writeErr(w, http.StatusBadGateway, err)
+			return
+		}
+	}
+	if err := d.cfg.Update(func(u *config.Settings) { u.CoreMode = mode }); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"mode": mode})
 }
 
 // handleConnections 返回当前活动连接快照（随内核每秒轮询刷新）。
