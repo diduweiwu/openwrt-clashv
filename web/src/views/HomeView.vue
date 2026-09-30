@@ -1,13 +1,12 @@
 <script setup>
 // 首页：运行状态、当前订阅、流量概览、快速切换节点
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { api } from '../api.js'
 import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
 import NodeSheet from '../components/NodeSheet.vue'
+import SubFormModal from '../components/SubFormModal.vue'
 
-const router = useRouter()
 const busy = ref('')
 const proxies = ref({})
 const showSheet = ref(false)
@@ -64,6 +63,18 @@ async function loadProfiles() {
     const list = data.profiles || []
     activeProfile.value = list.find(p => p.id === data.active) || null
   } catch { /* 忽略 */ }
+}
+
+// ---- 添加订阅弹窗（首页原地弹出，不跳转订阅页） ----
+const showAdd = ref(false)
+
+async function onSubAdded(p) {
+  await loadProfiles()
+  await refreshStatus()
+  // 机场后加的订阅不会自动启用（首个订阅除外），提示去哪启用
+  if (p?.id && activeProfile.value?.id && p.id !== activeProfile.value.id) {
+    toast('新订阅未启用，可用首页「切换订阅」或订阅页「启用」', 'info', 5000)
+  }
 }
 
 async function refreshProfile() {
@@ -273,7 +284,7 @@ function currentOf(g) {
           </button>
           <button v-if="status?.running" class="ghost sm" @click="viewConfig">运行时配置</button>
           <button class="ghost sm" @click="openSwitch">切换订阅</button>
-          <button class="ghost sm" @click="router.push('/profiles?add=1')">添加订阅</button>
+          <button class="ghost sm" @click="showAdd = true">添加订阅</button>
         </div>
       </div>
       <div v-if="!status?.profile" class="empty-hint">未设置订阅，请先添加并启用</div>
@@ -344,6 +355,9 @@ function currentOf(g) {
       @close="showSheet = false"
       @selected="loadProxies"
     />
+
+    <!-- 添加订阅弹窗（首页原地弹出） -->
+    <SubFormModal v-if="showAdd" @close="showAdd = false" @added="onSubAdded" />
 
     <!-- 切换订阅弹窗 -->
     <div v-if="showSwitch" class="overlay" @click.self="showSwitch = false">
