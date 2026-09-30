@@ -141,7 +141,7 @@ onMounted(() => {
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; }
 .pad :deep(.n-empty) { padding: 34px 0; }
-.profile-card :deep(.n-card__content) { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.profile-card :deep(.n-card-content) { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .profile-card.active { border-color: var(--accent); }
 .p-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
 .p-main > * { margin: 0; }

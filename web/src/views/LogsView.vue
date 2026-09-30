@@ -123,7 +123,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
    日志组件内部 */
 .logs-page { height: 100%; }
 .log-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.log-card :deep(.n-card__content) { padding: 0; flex: 1; min-height: 0; display: flex; }
+.log-card :deep(.n-card-content) { padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .log-view {
   flex: 1; min-height: 0; box-sizing: border-box;
   margin: 0; padding: 14px 16px;

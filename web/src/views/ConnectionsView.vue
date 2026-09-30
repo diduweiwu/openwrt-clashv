@@ -246,12 +246,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
    滚动两根竖条并存）：卡片吃掉剩余高度，滚动只发生在表格内部（flex-height） */
 .conn-page { height: 100%; }
 .conn-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.conn-card :deep(.n-card__content) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 2px 2px; }
+.conn-card :deep(.n-card-content) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 2px 2px; }
 .conn-table { flex: 1; min-height: 0; }
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .page-title { margin-bottom: 2px; }
 .actions { display: flex; align-items: center; gap: 14px; }
-.toolbar :deep(.n-card__content) { padding: 8px 14px; }
+.toolbar :deep(.n-card-content) { padding: 8px 14px; }
 .toolbar-row { display: flex; align-items: center; gap: 12px; }
 .subs { width: 220px; flex: none; }
 .search { flex: 1; max-width: 420px; min-width: 160px; }

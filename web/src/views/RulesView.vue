@@ -96,7 +96,7 @@ onMounted(() => load(false))
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .page-title { margin: 0 0 2px; font-size: 17px; }
 .pad :deep(.n-empty) { padding: 60px 0; }
-.rule-card :deep(.n-card__content) { padding: 0; }
+.rule-card :deep(.n-card-content) { padding: 0; }
 .rule-scroll { max-height: calc(100vh - 240px); min-height: 200px; overflow-y: auto; }
 .rule-row {
   display: flex; align-items: center; gap: 14px;
