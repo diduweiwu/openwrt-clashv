@@ -368,42 +368,43 @@ function currentOf(g) {
     <n-card>
       <div class="traffic-head">
         <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时流量</h3>
+        <!-- 指标做成与顶部一致的小卡片瓦片：图标 + 标签在上、数值在下 -->
         <div class="traffic-nums">
-          <div class="tn">
-            <span class="k">↑ 上传</span>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="upload" :size="13" />上传</span>
             <span class="v mono" style="color: var(--green)">{{ fmtRate(traffic.up) }}</span>
           </div>
-          <div class="tn">
-            <span class="k">↓ 下载</span>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="download" :size="13" />下载</span>
             <span class="v mono" style="color: var(--accent)">{{ fmtRate(traffic.down) }}</span>
           </div>
-          <div class="tn">
-            <span class="k">连接</span>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="link" :size="13" />连接</span>
             <span class="v mono">{{ traffic.connections }}</span>
           </div>
-          <div class="tn">
-            <span class="k">CPU</span>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="cpu" :size="13" />CPU</span>
             <span class="v mono" :style="cpuHigh ? 'color: var(--orange)' : ''">
               {{ status?.cpu != null ? Math.round(status.cpu) + '%' : '—' }}
             </span>
           </div>
-          <div class="tn">
-            <span class="k">内核内存</span>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="database" :size="13" />内核内存</span>
             <span class="v mono">{{ traffic.memory_mb ? traffic.memory_mb.toFixed(1) + ' MB' : '—' }}</span>
           </div>
-          <div class="tn">
-            <span class="k">累计上传</span>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="history" :size="13" />累计上传</span>
             <span class="v mono" style="color: var(--green)">{{ fmtBytes(trip.up) }}</span>
           </div>
-          <div class="tn">
-            <span class="k">累计下载</span>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="history" :size="13" />累计下载</span>
             <span class="v mono" style="color: var(--accent)">{{ fmtBytes(trip.down) }}</span>
           </div>
           <n-button
-            class="trip-reset" size="tiny" quaternary
+            class="trip-reset" quaternary :style="{ height: '69px' }"
             title="里程清零：丢弃当前累计，从零重新统计" @click="onTripReset"
           >
-            <template #icon><AppIcon name="restart" :size="12" /></template>清零
+            <template #icon><AppIcon name="restart" :size="15" /></template>清零
           </n-button>
         </div>
       </div>
@@ -536,10 +537,11 @@ function currentOf(g) {
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 
 .traffic-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
-.traffic-nums { display: flex; gap: 26px; flex-wrap: wrap; }
-.tn { display: flex; flex-direction: column; gap: 2px; }
-.tn .k { color: var(--text-dim); font-size: 12px; }
-.tn .v { font-size: 16px; font-weight: 600; }
+/* 瓦片与清零钮显式等高（69px），换行后也不参差 */
+.traffic-nums { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+.traffic-nums .meta-item { min-width: 100px; height: 69px; }
+.traffic-nums .meta-item .v { font-size: 16px; }
+.trip-reset { flex: none; }
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .sec-head h3 { font-size: 15px; }
