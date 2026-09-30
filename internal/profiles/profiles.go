@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,11 @@ type Profile struct {
 	URL       string `json:"url"`
 	UpdatedAt int64  `json:"updated_at"`
 	Size      int64  `json:"size"`
+	// 订阅流量信息（来自 subscription-userinfo 响应头），0 表示机场未提供
+	Upload  int64 `json:"upload,omitempty"`
+	Download int64 `json:"download,omitempty"`
+	Total   int64 `json:"total,omitempty"`
+	Expire  int64 `json:"expire,omitempty"` // 到期时间 unix 秒
 }
 
 type metaFile struct {
@@ -126,12 +132,13 @@ func (m *Manager) Add(name, url string) (Profile, error) {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return Profile{}, fmt.Errorf("订阅地址必须以 http(s):// 开头")
 	}
-	data, err := m.download(url)
+	data, info, err := m.download(url)
 	if err != nil {
 		return Profile{}, err
 	}
 	id := newID(name, url)
 	p := Profile{ID: id, Name: name, URL: url, UpdatedAt: time.Now().Unix(), Size: int64(len(data))}
+	p.Upload, p.Download, p.Total, p.Expire = info.upload, info.download, info.total, info.expire
 	if err := m.write(p, data); err != nil {
 		return Profile{}, err
 	}
@@ -144,12 +151,13 @@ func (m *Manager) Update(id string) (Profile, error) {
 	if err != nil {
 		return p, err
 	}
-	data, err := m.download(p.URL)
+	data, info, err := m.download(p.URL)
 	if err != nil {
 		return p, err
 	}
 	p.UpdatedAt = time.Now().Unix()
 	p.Size = int64(len(data))
+	p.Upload, p.Download, p.Total, p.Expire = info.upload, info.download, info.total, info.expire
 	if err := m.write(p, data); err != nil {
 		return p, err
 	}
@@ -187,33 +195,68 @@ func (m *Manager) write(p Profile, data []byte) error {
 	return os.WriteFile(m.metaPath(p.ID), meta, 0o644)
 }
 
+// subInfo 是机场返回的订阅流量信息（subscription-userinfo 头）。
+type subInfo struct {
+	upload   int64
+	download int64
+	total    int64
+	expire   int64
+}
+
+// parseSubInfo 解析 "upload=123; download=456; total=789; expire=1750000000"。
+func parseSubInfo(header string) subInfo {
+	var info subInfo
+	for _, part := range strings.Split(header, ";") {
+		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		n, err := strconv.ParseInt(strings.TrimSpace(kv[1]), 10, 64)
+		if err != nil {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(kv[0])) {
+		case "upload":
+			info.upload = n
+		case "download":
+			info.download = n
+		case "total":
+			info.total = n
+		case "expire":
+			info.expire = n
+		}
+	}
+	return info
+}
+
 // download 拉取订阅内容并做最低限度校验（必须是 clash/mihomo 配置）。
-func (m *Manager) download(url string) ([]byte, error) {
+func (m *Manager) download(url string) ([]byte, subInfo, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("订阅地址无效: %w", err)
+		return nil, subInfo{}, fmt.Errorf("订阅地址无效: %w", err)
 	}
 	req.Header.Set("User-Agent", "clash-verge/clashv")
 	resp, err := m.hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("下载订阅失败: %w", err)
+		return nil, subInfo{}, fmt.Errorf("下载订阅失败: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("下载订阅失败: HTTP %d", resp.StatusCode)
+		return nil, subInfo{}, fmt.Errorf("下载订阅失败: HTTP %d", resp.StatusCode)
 	}
+	info := parseSubInfo(resp.Header.Get("subscription-userinfo"))
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 20<<20))
 	if err != nil {
-		return nil, fmt.Errorf("读取订阅失败: %w", err)
+		return nil, subInfo{}, fmt.Errorf("读取订阅失败: %w", err)
 	}
 	if len(data) == 0 {
-		return nil, fmt.Errorf("订阅内容为空")
+		return nil, subInfo{}, fmt.Errorf("订阅内容为空")
 	}
 	head := string(data[:min(len(data), 4096)])
 	if !strings.Contains(head, "proxies:") && !strings.Contains(head, "proxy-providers:") {
-		return nil, fmt.Errorf("订阅内容不是有效的 clash/mihomo 配置（缺少 proxies 段），请检查链接是否为订阅地址")
+		return nil, subInfo{}, fmt.Errorf("订阅内容不是有效的 clash/mihomo 配置（缺少 proxies 段），请检查链接是否为订阅地址")
 	}
-	return data, nil
+	return data, info, nil
 }
 
 func validID(id string) bool {

@@ -14,14 +14,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libncurses-dev libssl-dev zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Node 20（对齐 setup-node@v4 的 node-version: '20'）
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+# Node 20（对齐 setup-node@v4 的 node-version: '20'）。
+# deb.nodesource.com 国内不可达，改用 npmmirror 的 node 官方二进制镜像
+RUN curl -fsSL "https://registry.npmmirror.com/-/binary/node/v20.18.1/node-v20.18.1-linux-x64.tar.xz" \
+      | tar -C /usr/local --strip-components=1 -xJ
 
-# Go（对齐 setup-go@v5 按 go.mod 解析到的 1.22.x）
+# Go（对齐 setup-go@v5 按 go.mod 解析到的 1.22.x）。
+# go.dev 国内不可达，改用阿里云镜像
 ARG GO_VERSION=1.22.12
-RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -C /usr/local -xz
+RUN curl -fsSL "https://mirrors.aliyun.com/golang/go${GO_VERSION}.linux-amd64.tar.gz" | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # 非 root 用户（对齐 Actions runner）；-o 允许 uid 1000 与镜像自带 ubuntu 用户重复

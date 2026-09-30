@@ -3,7 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -313,6 +316,14 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			restarted = true
 		}
 	}
+	// 仅 DNS 劫持模式变化 → 不必重启内核，立即切换
+	if old.DNSHijack != s.DNSHijack && !coreChanged {
+		if d.mgr.Running() && s.DNS && s.DNSHijack != "off" {
+			go d.mgr.ApplyDNSHijack(s)
+		} else {
+			go d.mgr.RemoveDNSHijack()
+		}
+	}
 	writeJSON(w, 200, map[string]any{
 		"settings":    s,
 		"restarted":   restarted,
@@ -375,6 +386,48 @@ func (d *deps) handleCoreUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"version": version})
+}
+
+// handleUpgradeProgress 查询当前升级任务（内核/插件）的下载进度。
+func (d *deps) handleUpgradeProgress(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, d.mgr.Progress())
+}
+
+// handleLogs 返回日志文件尾部内容。kind=core|plugin，bytes 限制返回大小。
+func (d *deps) handleLogs(w http.ResponseWriter, r *http.Request) {
+	kind := r.URL.Query().Get("kind")
+	name := "core.log"
+	if kind == "plugin" {
+		name = "clashv.log"
+	}
+	maxBytes := int64(128 << 10)
+	if n, err := strconv.ParseInt(r.URL.Query().Get("bytes"), 10, 64); err == nil && n > 0 && n <= 512<<10 {
+		maxBytes = n
+	}
+	path := filepath.Join(d.cfg.LogDir(), name)
+	f, err := os.Open(path)
+	if err != nil {
+		writeJSON(w, 200, map[string]any{"content": "", "size": 0, "exists": false})
+		return
+	}
+	defer f.Close()
+	st, _ := f.Stat()
+	size := st.Size()
+	// 只读尾部 maxBytes，避免大文件全量进内存
+	if size > maxBytes {
+		_, _ = f.Seek(size-maxBytes, io.SeekStart)
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maxBytes))
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"content":   string(data),
+		"size":      size,
+		"exists":    true,
+		"truncated": size > maxBytes,
+	})
 }
 
 // normalizeVer 去掉版本号前缀 v，便于比较。

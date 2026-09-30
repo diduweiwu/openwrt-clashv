@@ -57,6 +57,9 @@ func main() {
 	}
 
 	cfg := config.New(dev)
+	// 尽早建目录并接文件日志，后续 slog 才能落盘
+	_ = cfg.EnsureDirs()
+	setupLogger(cfg)
 	prof := profiles.New(cfg)
 	mgr := core.NewManager(cfg, prof, Version)
 

@@ -13,19 +13,9 @@ return L.view.extend({
 		var host = window.location.hostname;
 		var frame = E('iframe', {
 			src: 'http://' + host + ':' + port + '/',
-			style: 'width:100%;border:0;border-radius:8px;min-height:calc(100vh - 130px);background:#14161c',
+			style: 'width:100%;border:0;border-radius:8px;min-height:calc(100vh - 70px);background:#14161c',
 		});
-		return E('div', { 'class': 'cbi-map' }, [
-			E('h2', {}, ['clashv']),
-			E('div', { 'class': 'cbi-map-descr' }, [
-				'Clash/mihomo 管理界面。如页面空白，请确认 clashv 服务已启动。',
-				E('br'),
-				'也可以直接访问 ',
-				E('a', { href: 'http://' + host + ':' + port + '/', target: '_blank' },
-					['http://' + host + ':' + port + '/']),
-			]),
-			frame,
-		]);
+		return E('div', { 'class': 'cbi-map' }, [frame]);
 	},
 	handleSave: null,
 	handleSaveApply: null,

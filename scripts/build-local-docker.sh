@@ -46,6 +46,7 @@ run_build_env() {
     -v clashv-gocache:/home/builder/.cache/go-build \
     -v clashv-gomodcache:/home/builder/go/pkg/mod \
     -e "SDK_CACHE_DIR=/sdkcache" \
+    -e "SDK_URL=${SDK_URL:-}" \
     -e "GOPROXY=${GOPROXY:-}" \
     -e "NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}" \
     "$@"

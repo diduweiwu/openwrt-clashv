@@ -29,6 +29,8 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	if err := cfg.EnsureDirs(); err != nil {
 		return err
 	}
+	// 上次运行可能残留 dnsmasq 转发（持久化），内核未起时会把 LAN DNS 指向死端口
+	go mgr.RemoveDNSHijack()
 	s, err := cfg.Get()
 	if err != nil {
 		return err
@@ -70,6 +72,12 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("GET /api/plugin/latest", d.handlePluginLatest)
 	mux.HandleFunc("POST /api/plugin/upgrade", d.handlePluginUpgrade)
 	mux.HandleFunc("POST /api/service/restart", d.handleServiceRestart)
+
+	// 升级进度（内核/插件共用）
+	mux.HandleFunc("GET /api/upgrade/progress", d.handleUpgradeProgress)
+
+	// 日志（内核/插件）
+	mux.HandleFunc("GET /api/logs", d.handleLogs)
 
 	// 前端静态资源（SPA 回退到 index.html）
 	dist := web.Dist()

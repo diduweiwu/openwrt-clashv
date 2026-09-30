@@ -7,6 +7,7 @@ const navs = [
   { to: '/', label: '首页', icon: 'home' },
   { to: '/proxies', label: '代理', icon: 'proxy' },
   { to: '/profiles', label: '订阅', icon: 'profiles' },
+  { to: '/logs', label: '日志', icon: 'logs' },
   { to: '/settings', label: '设置', icon: 'settings' },
 ]
 
@@ -48,7 +49,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none">
         <path d="M13 2 4.5 13.5H11L9.5 22 19 10h-6.5L13 2Z" fill="var(--accent)" stroke="var(--accent)" stroke-width="1.4" stroke-linejoin="round"/>
       </svg>
-      <span>clashv</span>
+      <span>ClashV</span>
     </div>
 
     <nav>
@@ -63,6 +64,9 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
           </template>
           <template v-else-if="n.icon === 'profiles'">
             <path d="M6 3.5h9l3.5 3.5v13.5H6z" /><path d="M9 12h6M9 16h6M9 8h3" />
+          </template>
+          <template v-else-if="n.icon === 'logs'">
+            <path d="M5 4h14v16H5z" /><path d="M8.5 9h7M8.5 13h7M8.5 17h4" />
           </template>
           <template v-else>
             <circle cx="12" cy="12" r="3.2" />

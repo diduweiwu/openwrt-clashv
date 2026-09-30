@@ -1,6 +1,6 @@
 {
 	"admin/services/clashv": {
-		"title": "clashv",
+		"title": "ClashV",
 		"order": 65,
 		"action": { "type": "view", "path": "clashv/app" },
 		"depends": {

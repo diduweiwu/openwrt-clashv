@@ -1,15 +1,19 @@
 <script setup>
-// 首页：运行状态、流量概览、快速切换节点
+// 首页：运行状态、当前订阅、流量概览、快速切换节点
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '../api.js'
 import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
 import NodeSheet from '../components/NodeSheet.vue'
 
+const router = useRouter()
 const busy = ref('')
 const proxies = ref({})
 const showSheet = ref(false)
 const sheetGroup = ref(null)
+const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
+const subBusy = ref(false)
 let trafficTimer = null
 
 const GROUP_TYPES = ['Selector', 'URLTest', 'Fallback', 'LoadBalance', 'Relay']
@@ -53,6 +57,43 @@ async function refreshStatus() {
   try { store.status = await api.get('/api/status') } catch { /* 忽略 */ }
 }
 
+// ---- 当前订阅 ----
+async function loadProfiles() {
+  try {
+    const data = await api.get('/api/profiles')
+    const list = data.profiles || []
+    activeProfile.value = list.find(p => p.id === data.active) || null
+  } catch { /* 忽略 */ }
+}
+
+async function refreshProfile() {
+  if (!activeProfile.value) return
+  subBusy.value = true
+  try {
+    const r = await api.post(`/api/profiles/${activeProfile.value.id}/update`)
+    toast('订阅已更新' + (r.restarted ? '，内核已重载' : ''), 'success')
+    loadProfiles()
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    subBusy.value = false
+  }
+}
+
+// 订阅流量：已用/总量（机场未提供 total 时不显示）
+const subTraffic = computed(() => {
+  const p = activeProfile.value
+  if (!p?.total) return null
+  const used = (p.upload || 0) + (p.download || 0)
+  return { used, total: p.total, percent: Math.min(100, (used / p.total) * 100) }
+})
+const subExpire = computed(() => {
+  if (!activeProfile.value?.expire) return ''
+  const d = new Date(activeProfile.value.expire * 1000)
+  const p2 = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
+})
+
 function openGroup(g) {
   sheetGroup.value = g
   showSheet.value = true
@@ -76,6 +117,7 @@ async function refreshTraffic() {
 
 onMounted(() => {
   loadProxies()
+  loadProfiles()
   refreshTraffic()
   trafficTimer = setInterval(refreshTraffic, 1000)
 })
@@ -136,6 +178,34 @@ function currentOf(g) {
           </button>
         </template>
       </div>
+    </div>
+
+    <!-- 当前订阅 -->
+    <div class="card">
+      <div class="sec-head">
+        <h3>当前订阅</h3>
+        <div class="sub-actions">
+          <button class="ghost sm" :disabled="subBusy || !activeProfile" @click="refreshProfile">
+            {{ subBusy ? '更新中…' : '刷新订阅' }}
+          </button>
+          <button class="ghost sm" @click="router.push('/profiles')">切换订阅</button>
+          <button class="ghost sm" @click="router.push('/profiles?add=1')">添加订阅</button>
+        </div>
+      </div>
+      <div v-if="!status?.profile" class="empty-hint">未设置订阅，请先添加并启用</div>
+      <template v-else>
+        <div class="sub-row">
+          <span class="sub-name">{{ status.profile }}</span>
+          <span v-if="subExpire" class="page-sub">到期 {{ subExpire }}</span>
+        </div>
+        <div v-if="subTraffic" class="sub-traffic">
+          <div class="sub-bar"><div class="sub-bar-fill" :style="{ width: subTraffic.percent + '%' }"></div></div>
+          <span class="mono sub-traffic-text">
+            已用 {{ fmtBytes(subTraffic.used) }} / {{ fmtBytes(subTraffic.total) }}（{{ Math.round(subTraffic.percent) }}%）
+          </span>
+        </div>
+        <div v-else class="page-sub" style="margin-top:4px">机场未提供流量信息</div>
+      </template>
     </div>
 
     <!-- 流量 -->
@@ -223,6 +293,13 @@ function currentOf(g) {
 }
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.sub-actions { display: flex; gap: 8px; }
+.sub-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sub-name { font-size: 15px; font-weight: 600; }
+.sub-traffic { display: flex; align-items: center; gap: 12px; margin-top: 9px; }
+.sub-bar { width: 260px; max-width: 50%; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.sub-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.4s ease; }
+.sub-traffic-text { color: var(--text-dim); font-size: 12.5px; }
 .group-list { display: flex; flex-direction: column; gap: 6px; }
 .group-row {
   display: flex; align-items: center; gap: 12px;

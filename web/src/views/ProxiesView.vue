@@ -7,6 +7,7 @@ import { store, toast, delayColor } from '../store.js'
 const proxies = ref({})
 const loading = ref(true)
 const testing = ref('') // 正在测速的组名
+const testProg = ref('') // 测速进度 "已完成/总数"
 const switching = ref('') // 正在切换的 节点@组
 
 const GROUP_TYPES = ['Selector', 'URLTest', 'Fallback', 'LoadBalance', 'Relay']
@@ -56,24 +57,42 @@ async function select(groupName, nodeName) {
 
 async function testGroup(g) {
   testing.value = g.name
-  try {
-    const delays = await api.get(
-      `/api/proxies/${encodeURIComponent(g.name)}/delay?timeout=5000`
-    )
-    // 把结果写回各节点 history，让 UI 即时变色
-    for (const [node, delay] of Object.entries(delays || {})) {
-      const p = proxies.value[node]
-      if (p) {
-        const history = Array.isArray(p.history) ? p.history : []
-        history.push({ time: new Date().toISOString(), delay })
-        p.history = history.slice(-10)
-      }
+  // 路由器 CPU 弱，内核的整组测速接口会瞬间并发测所有节点导致全部超时，
+  // 这里改为逐节点测速、限制并发，结果实时回填到卡片上。
+  const nodes = g.all.filter(n => {
+    const t = proxies.value[n]?.type
+    return t && !GROUP_TYPES.includes(t)
+  })
+  const total = nodes.length
+  let done = 0
+  let ok = 0
+  const CONCURRENCY = 5
+  const workers = Array.from({ length: Math.min(CONCURRENCY, nodes.length) }, async () => {
+    while (nodes.length) {
+      const node = nodes.shift()
+      try {
+        const r = await api.get(
+          `/api/proxies/${encodeURIComponent(node)}/delay?timeout=5000`
+        )
+        const delay = r?.delay || 0
+        if (delay > 0) ok++
+        const p = proxies.value[node]
+        if (p && delay > 0) {
+          const history = Array.isArray(p.history) ? p.history : []
+          history.push({ time: new Date().toISOString(), delay })
+          p.history = history.slice(-10)
+        }
+      } catch { /* 单节点失败按超时处理，不打断整体 */ }
+      done++
+      testProg.value = `${done}/${total}`
     }
-    toast(`「${g.name}」测速完成`, 'success')
-  } catch (e) {
-    toast(e.message, 'error')
+  })
+  try {
+    await Promise.all(workers)
+    toast(`「${g.name}」测速完成：${ok}/${total} 个节点可用`, ok > 0 ? 'success' : 'error', 5000)
   } finally {
     testing.value = ''
+    testProg.value = ''
   }
 }
 
@@ -95,7 +114,14 @@ onMounted(load)
         <h1 class="page-title">代理</h1>
         <span class="page-sub">点击节点切换 · {{ groups.length }} 个代理组</span>
       </div>
-      <button class="ghost" :disabled="loading" @click="load">⟳ 刷新</button>
+      <button class="ghost" :disabled="loading" @click="load">
+        <svg class="btn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+          <polyline points="21 3 21 9 15 9"/>
+        </svg>
+        刷新
+      </button>
     </div>
 
     <div v-if="!store.status?.running" class="card empty-hint">内核未运行，启动后此处显示代理列表</div>
@@ -110,7 +136,7 @@ onMounted(load)
           <span v-if="g.now" class="page-sub">当前 {{ g.now }}</span>
         </div>
         <button class="ghost sm" :disabled="testing !== ''" @click="testGroup(g)">
-          {{ testing === g.name ? '测速中…' : '⚡ 整组测速' }}
+          {{ testing === g.name ? `测速中 ${testProg}` : '⚡ 整组测速' }}
         </button>
       </div>
       <div class="nodes">
@@ -136,6 +162,7 @@ onMounted(load)
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; }
+.btn-ic { width: 15px; height: 15px; vertical-align: -2.5px; margin-right: 5px; }
 .g-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 13px; flex-wrap: wrap; }
 .g-title { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; }
 .g-title h3 { font-size: 15px; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

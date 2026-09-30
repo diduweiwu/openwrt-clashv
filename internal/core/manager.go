@@ -48,6 +48,9 @@ type Manager struct {
 
 	hc *controllerClient
 
+	progMu sync.Mutex
+	prog   UpgradeProgress // 当前升级任务进度（同一时间至多一个）
+
 	tmu      sync.Mutex
 	traffic  Traffic
 	lastTot  [2]int64
@@ -123,6 +126,7 @@ func (m *Manager) Start() error {
 		return err
 	}
 
+	rotateLog(m.cfg.LogDir()+"/core.log", 8<<20)
 	logFile, err := os.OpenFile(m.cfg.LogDir()+"/core.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
@@ -173,12 +177,16 @@ func (m *Manager) Start() error {
 		time.Sleep(300 * time.Millisecond)
 	}
 	m.startPolling(ctx)
+	// DNS 劫持（防火墙/dnsmasq 转发）在内核就绪后异步套用
+	go m.ApplyDNSHijack(s)
 	slog.Info("mihomo 已启动", "pid", cmd.Process.Pid, "profile", active)
 	return nil
 }
 
 // Stop 停止 mihomo 进程。
 func (m *Manager) Stop() error {
+	// 先撤 DNS 劫持，让 LAN 解析立刻回退 dnsmasq/上游，再停内核
+	m.RemoveDNSHijack()
 	m.mu.Lock()
 	cmd, cancel := m.cmd, m.cancel
 	m.mu.Unlock()
