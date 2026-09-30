@@ -325,7 +325,7 @@ function currentOf(g) {
     <!-- 当前订阅 -->
     <n-card>
       <div class="sec-head">
-        <h3>当前订阅</h3>
+        <h3><AppIcon class="sec-ico" name="file-text" :size="15" />当前订阅</h3>
         <div class="sub-actions">
           <n-button size="small" title="刷新当前订阅" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
             <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
@@ -367,7 +367,7 @@ function currentOf(g) {
     <!-- 流量 -->
     <n-card>
       <div class="traffic-head">
-        <h3>实时流量</h3>
+        <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时流量</h3>
         <div class="traffic-nums">
           <div class="tn">
             <span class="k">↑ 上传</span>
@@ -414,7 +414,7 @@ function currentOf(g) {
     <!-- 切换节点：分组手风琴，默认全展开；容器限高，超出出现竖向滚动 -->
     <n-card>
       <div class="sec-head">
-        <h3>切换节点</h3>
+        <h3><AppIcon class="sec-ico" name="shuffle" :size="15" />切换节点</h3>
         <span class="page-sub">点击节点名直接切换 · 点击分组标题可折叠</span>
       </div>
       <n-empty v-if="!status?.running" description="内核未运行，启动后可切换节点" />
@@ -543,6 +543,8 @@ function currentOf(g) {
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .sec-head h3 { font-size: 15px; }
+/* 大卡片标题图标：主题色，行内基线微调对齐文字（sec-head / traffic-head 通用） */
+.sec-ico { color: var(--accent); margin-right: 7px; vertical-align: -2px; }
 .sub-actions { display: flex; gap: 8px; }
 .sub-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .sub-name { font-size: 15px; font-weight: 600; }
