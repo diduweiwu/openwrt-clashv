@@ -275,12 +275,21 @@ function currentOf(g) {
             </div>
           </n-flex>
           <n-flex :size="12">
+            <!-- 启动/停止同一个按钮：停止态主色播放，运行态红色方块；重启独立 -->
             <n-button
-              circle type="primary" title="启动内核"
+              circle
+              :type="status?.running ? 'error' : 'primary'"
+              :ghost="!!status?.running"
+              :title="status?.running ? '停止内核' : '启动内核'"
               :style="heroCtl"
-              :loading="busy === 'start'" :disabled="status?.running || busy !== ''" @click="coreAction('start')"
+              :loading="busy === 'start' || busy === 'stop'"
+              :disabled="busy === 'restart'"
+              @click="coreAction(status?.running ? 'stop' : 'start')"
             >
-              <template #icon><AppIcon name="play" :size="24" /></template>
+              <template #icon>
+                <AppIcon v-if="!status?.running" name="play" :size="24" />
+                <AppIcon v-else name="stop" :size="20" :stroke-width="2.4" />
+              </template>
             </n-button>
             <n-button
               circle title="重启内核"
@@ -288,13 +297,6 @@ function currentOf(g) {
               :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
             >
               <template #icon><AppIcon name="restart" :size="20" /></template>
-            </n-button>
-            <n-button
-              circle type="error" ghost title="停止内核"
-              :style="heroCtl"
-              :loading="busy === 'stop'" :disabled="!status?.running || busy !== ''" @click="coreAction('stop')"
-            >
-              <template #icon><AppIcon name="stop" :size="20" :stroke-width="2.4" /></template>
             </n-button>
           </n-flex>
         </n-flex>
