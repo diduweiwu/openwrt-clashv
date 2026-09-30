@@ -665,9 +665,9 @@ function currentOf(g) {
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 
-.traffic-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
-/* 瓦片与清零钮显式等高（69px），换行后也不参差 */
-.traffic-nums { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+/* 标题独占一行，指标瓦片与清零按钮在标题下方独立成行 */
+.traffic-head { margin-bottom: 0; }
+.traffic-nums { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; margin: 12px 0 8px; }
 .traffic-nums .meta-item { height: 69px; }
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; }
