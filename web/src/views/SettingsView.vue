@@ -168,7 +168,7 @@ async function save() {
     })
     if (r.error) toast('已保存，但内核重启失败：' + r.error, 'error')
     else if (r.restarted) toast('已保存，内核已重载生效', 'success')
-    else toast('已保存' + (r.need_reload ? '（界面端口/令牌需重启服务后生效）' : ''), 'success')
+    else toast('已保存' + (r.need_reload ? '（令牌需重启服务后生效）' : ''), 'success')
     store.status = await api.get('/api/status')
   } catch (e) {
     toast(e.message, 'error')
@@ -281,12 +281,6 @@ const tab = ref('general')
               <template #suffix><span class="unit">小时</span></template>
             </n-input-number>
           </div>
-        </div>
-      </n-card>
-
-      <!-- 访问控制 -->
-      <n-card title="访问控制">
-        <div class="rows">
           <div class="row">
             <div class="row-text">
               <span class="rt">界面访问令牌</span>
@@ -300,13 +294,6 @@ const tab = ref('general')
               class="ctl"
               style="width: 200px"
             />
-          </div>
-          <div class="row">
-            <div class="row-text">
-              <span class="rt">界面端口</span>
-              <span class="rs">修改后需重启服务生效</span>
-            </div>
-            <n-input-number v-model:value="form.ui_port" :show-button="false" :min="1" :max="65535" class="num" />
           </div>
         </div>
       </n-card>
@@ -488,7 +475,7 @@ const tab = ref('general')
         <div class="row" v-if="store.status?.openwrt">
           <div class="row-text">
             <span class="rt">重启服务</span>
-            <span class="rs">修改界面端口或令牌后需重启</span>
+            <span class="rs">修改令牌后需重启</span>
           </div>
           <n-button size="small" @click="restartService">
             <template #icon><AppIcon name="restart" :size="13" /></template>重启
