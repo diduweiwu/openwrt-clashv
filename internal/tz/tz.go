@@ -3,14 +3,17 @@
 // OpenWrt 不装 zoneinfo 时，Go 只认 TZ 环境变量与 /etc/localtime，而 OpenWrt
 // 把时区存成 POSIX TZ 字符串（/etc/TZ，如 "CST-8"）和 uci 的 zonename
 // （如 "Asia/Shanghai"），Go 都读不到，日志时间会退回 UTC。这里按
-// zonename → /etc/TZ(POSIX) → TZ 环境变量的顺序兜底。
+// zonename → /etc/TZ(POSIX) → TZ 环境变量的顺序兜底。内嵌 tzdata 让
+// zonename 在没有系统 zoneinfo 的设备上也能加载。
 package tz
 
 import (
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // 内嵌 IANA 时区库（约 +450KB），OpenWrt 无 zoneinfo 时可用
 )
 
 // Resolve 返回最优的本地时区；解析不出时返回 time.Local（可能就是 UTC）。
@@ -41,15 +44,43 @@ func Resolve() *time.Location {
 	return time.Local
 }
 
-// EnvValue 返回适合传给子进程的 TZ 值：优先 zoneinfo 名（子进程装了
-// zoneinfo 就能精确到 DST），否则 /etc/TZ 原文（busybox 工具能识别）。
+// EnvValue 返回适合传给 mihomo 子进程的 TZ 值。
+//
+// 必须传 IANA 名：Go 的 time 包不解析 POSIX TZ 串（"CST-8" 会被当成
+// 无效值静默退回 UTC），这曾是内核日志时间戳停在 UTC 的原因。uci
+// zonename 优先（mihomo 同样内嵌 tzdata，能精确解析 IANA 名）；没有
+// zonename 时把 /etc/TZ 的 POSIX 偏移映射成等价的 Etc/GMT±N 固定区。
 func EnvValue() string {
 	if name := uciZoneName(); name != "" {
-		if _, err := time.LoadLocation(name); err == nil {
-			return name
-		}
+		return name
 	}
-	return etcTZ()
+	if v := etcTZ(); v != "" {
+		return ianaFromPOSIX(v)
+	}
+	return ""
+}
+
+// ianaFromPOSIX 把 POSIX TZ 串映射成等价的 Etc/GMT±N 固定时区名
+// （POSIX "CST-8" = UTC+8 = "Etc/GMT-8"）。含夏令时规则或非整小时
+// 偏移时返回空（调用方放弃传 TZ，宁缺毋滥——Go 不认 POSIX 串）。
+func ianaFromPOSIX(s string) string {
+	loc, ok := parsePOSIXTZ(s)
+	if !ok {
+		return ""
+	}
+	_, off := time.Now().In(loc).Zone()
+	if off%3600 != 0 {
+		return ""
+	}
+	h := off / 3600
+	switch {
+	case h == 0:
+		return "UTC"
+	case h > 0:
+		return "Etc/GMT-" + strconv.Itoa(h)
+	default:
+		return "Etc/GMT+" + strconv.Itoa(-h)
+	}
 }
 
 func uciZoneName() string {

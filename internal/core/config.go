@@ -2,8 +2,10 @@ package core
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -42,8 +44,13 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 	for k, v := range managedOverlay(s) {
 		doc[k] = v
 	}
-	if target := firstProxyTarget(doc); target != "" && rulesEmpty(doc) {
+	if target := firstProxyTarget(doc); target != "" && !rulesRouteAnyProxy(doc) {
+		reason := "订阅未提供规则"
+		if !rulesEmpty(doc) {
+			reason = "订阅规则未将任何流量导向代理（目标全是 DIRECT/REJECT）"
+		}
 		doc["rules"] = []any{"MATCH," + target}
+		slog.Info("已注入兜底规则，保证默认流量走代理", "reason", reason, "rule", "MATCH,"+target)
 	}
 	out, err := yaml.Marshal(doc)
 	if err != nil {
@@ -64,6 +71,44 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 func rulesEmpty(doc map[string]any) bool {
 	rules, ok := doc["rules"].([]any)
 	return !ok || len(rules) == 0
+}
+
+// rulesRouteAnyProxy 报告规则中是否存在把流量导向代理（目标不是
+// DIRECT/REJECT 族）的条目。只有 MATCH,DIRECT 之类「全直连」规则的
+// 订阅视同无规则——面板常发这种配置，期望客户端自己补规则。
+func rulesRouteAnyProxy(doc map[string]any) bool {
+	rules, ok := doc["rules"].([]any)
+	if !ok {
+		return false
+	}
+	for _, r := range rules {
+		s, ok := r.(string)
+		if !ok {
+			continue
+		}
+		if ruleTarget(s) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// ruleTarget 提取规则的目标代理（最后一个逗号段；跳过 no-resolve/src
+// 等尾随选项）。目标是 DIRECT/REJECT 族时返回空串。
+func ruleTarget(rule string) string {
+	parts := strings.Split(rule, ",")
+	if len(parts) < 2 {
+		return ""
+	}
+	target := parts[len(parts)-1]
+	if (target == "no-resolve" || target == "src") && len(parts) >= 3 {
+		target = parts[len(parts)-2]
+	}
+	switch strings.ToUpper(target) {
+	case "DIRECT", "REJECT", "REJECT-DROP", "PASS":
+		return ""
+	}
+	return target
 }
 
 // firstProxyTarget 返回订阅里第一个代理组名（无组则第一个节点名），
@@ -108,7 +153,13 @@ func managedOverlay(s config.Settings) map[string]any {
 		// 透明代理（redirect 模式）监听端口：防火墙把 LAN 的 TCP 重定向到这里，
 		// 与 hijack.go 的 redirPort 保持一致
 		"redir-port": 7892,
-		"profile":    map[string]any{"store-selected": true},
+		"profile": map[string]any{
+			"store-selected": true,
+			// 持久化 fake-ip 映射：内核重启后客户端缓存的 198.18.x.x 仍能
+			// 映射回域名，否则重启后所有持旧假 IP 的连接都 dial timeout，
+			// 要等客户端 DNS 缓存过期才恢复
+			"store-fake-ip": true,
+		},
 		"tun": map[string]any{
 			"enable":                s.TUN,
 			"stack":                 s.TUNStack,
