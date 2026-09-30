@@ -432,7 +432,7 @@ function currentOf(g) {
             <button
               v-for="node in g.all"
               :key="node"
-              class="node-row"
+              class="node-card"
               :class="{ on: node === currentOf(g) }"
               @click="pick(g, node)"
             >
@@ -440,7 +440,6 @@ function currentOf(g) {
               <span class="n-delay mono" :style="{ color: delayColor(delayOf(node)) }">
                 {{ delayOf(node) > 0 ? delayOf(node) + ' ms' : '' }}
               </span>
-              <AppIcon v-if="node === currentOf(g)" name="check" :size="13" style="color: var(--accent)" />
             </button>
           </div>
         </div>
@@ -573,18 +572,25 @@ function currentOf(g) {
 }
 .g-arrow { color: var(--text-dim); font-size: 18px; flex: none; transition: transform 0.15s; }
 .g-arrow.open { transform: rotate(90deg); }
-.grp-body { display: flex; flex-direction: column; gap: 2px; padding: 6px 0 2px 14px; }
-.node-row {
-  display: flex; align-items: center; gap: 10px;
-  width: 100%; text-align: left;
-  padding: 8px 12px; border-radius: 9px;
-  background: transparent; border: none; cursor: pointer;
-  font: inherit; color: inherit;
+/* 节点卡片网格：随宽度自适应列数，卡片即点击目标 */
+.grp-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+  padding: 8px 0 2px;
 }
-.node-row:hover { background: var(--hover); }
-.node-row.on { background: var(--accent-soft); }
-.n-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.node-row.on .n-name { color: var(--accent); font-weight: 600; }
+.node-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  text-align: left;
+  padding: 9px 11px; border-radius: 10px;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  cursor: pointer; font: inherit; color: inherit;
+}
+.node-card:hover { background: var(--hover); }
+.node-card.on { border-color: var(--accent); background: var(--accent-soft); }
+.n-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.node-card.on .n-name { color: var(--accent); font-weight: 600; }
 .n-delay { font-size: 12px; flex: none; }
 .trip-reset { align-self: center; flex: none; }
 
