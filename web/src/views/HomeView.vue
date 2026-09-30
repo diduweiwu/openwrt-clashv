@@ -1,7 +1,7 @@
 <script setup>
 // 首页：运行状态、当前订阅、流量概览、快速切换节点
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { NButton, NCard, NEmpty, NInput, NModal, NProgress, NTag } from 'naive-ui'
+import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
@@ -11,10 +11,9 @@ import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
 
-// hero 控制按钮与左侧状态瓦片同高；启动/停止为圆形图标钮
+// hero 控制按钮与左侧状态瓦片同高；启动/重启/停止常驻三个圆形图标钮（同 Verge）
 const HERO_H = 62
 const heroCtl = { width: HERO_H + 'px', height: HERO_H + 'px' }
-const heroCtlPill = { height: HERO_H + 'px', padding: '0 24px', fontSize: '14.5px' }
 const proxies = ref({})
 const showSheet = ref(false)
 const sheetGroup = ref(null)
@@ -236,13 +235,14 @@ function currentOf(g) {
   <div class="page">
     <!-- 运行状态 -->
     <n-card>
-      <div class="hero">
-        <div class="hero-main">
-          <div class="run-badge" :class="{ on: status?.running, starting: !status?.running && status?.starting }">
-            <span class="pulse"></span>
-            <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
-          </div>
-          <div class="meta">
+      <n-flex vertical :size="16">
+        <div class="run-badge" :class="{ on: status?.running, starting: !status?.running && status?.starting }">
+          <span class="pulse"></span>
+          <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
+        </div>
+        <!-- 第二行放瓦片与按钮，align 居中让按钮与瓦片严格水平对齐 -->
+        <n-flex justify="space-between" align="center" :size="18">
+          <n-flex :size="10">
             <div class="meta-item">
               <span class="k">当前订阅</span>
               <span class="v">{{ status?.profile || '未设置' }}</span>
@@ -273,32 +273,32 @@ function currentOf(g) {
                 <span v-else>标准</span>
               </span>
             </div>
-          </div>
-        </div>
-        <div class="actions">
-          <n-button
-            v-if="!status?.running"
-            circle type="primary" title="启动内核"
-            :style="heroCtl"
-            :loading="busy === 'start'" :disabled="busy !== ''" @click="coreAction('start')"
-          >
-            <template #icon><AppIcon name="play" :size="24" /></template>
-          </n-button>
-          <template v-else>
-            <n-button :style="heroCtlPill" :loading="busy === 'restart'" :disabled="busy !== ''" @click="coreAction('restart')">
-              <template #icon><AppIcon name="restart" :size="17" /></template>
-              重启
+          </n-flex>
+          <n-flex :size="12">
+            <n-button
+              circle type="primary" title="启动内核"
+              :style="heroCtl"
+              :loading="busy === 'start'" :disabled="status?.running || busy !== ''" @click="coreAction('start')"
+            >
+              <template #icon><AppIcon name="play" :size="24" /></template>
+            </n-button>
+            <n-button
+              circle title="重启内核"
+              :style="heroCtl"
+              :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
+            >
+              <template #icon><AppIcon name="restart" :size="20" /></template>
             </n-button>
             <n-button
               circle type="error" ghost title="停止内核"
               :style="heroCtl"
-              :loading="busy === 'stop'" :disabled="busy !== ''" @click="coreAction('stop')"
+              :loading="busy === 'stop'" :disabled="!status?.running || busy !== ''" @click="coreAction('stop')"
             >
               <template #icon><AppIcon name="stop" :size="20" :stroke-width="2.4" /></template>
             </n-button>
-          </template>
-        </div>
-      </div>
+          </n-flex>
+        </n-flex>
+      </n-flex>
     </n-card>
 
     <!-- 当前订阅 -->
@@ -466,8 +466,6 @@ function currentOf(g) {
 </template>
 
 <style scoped>
-.hero { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
-.hero-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .run-badge { display: flex; align-items: center; gap: 10px; }
 .run-text { font-size: 21px; font-weight: 700; }
 .pulse { width: 12px; height: 12px; border-radius: 50%; background: #5a5f6d; position: relative; }
@@ -480,7 +478,6 @@ function currentOf(g) {
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(1.5); opacity: 0; }
 }
-.meta { display: flex; gap: 10px; flex-wrap: wrap; }
 /* 状态项做成小卡片瓦片：浅底圆角，标签在上、值在下 */
 .meta-item {
   display: flex; flex-direction: column; gap: 4px;
@@ -493,7 +490,6 @@ function currentOf(g) {
 .meta-item .k { color: var(--text-dim); font-size: 11.5px; }
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
-.actions { display: flex; gap: 10px; }
 
 .traffic-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
 .traffic-nums { display: flex; gap: 26px; flex-wrap: wrap; }

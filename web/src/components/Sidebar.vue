@@ -21,10 +21,10 @@ const themeOptions = [
   { label: '◐ 跟随系统', key: 'system' },
 ]
 
-// 触发按钮上显示当前实际配色：跟随系统时展示解析结果
+// 触发按钮上显示当前实际配色：跟随系统时展示解析结果（窄侧栏用短文案）
 const themeLabel = computed(() => {
   if (themeMode.value === 'system') {
-    return `◐ 跟随系统 · ${resolvedTheme.value === 'dark' ? '深色' : '浅色'}`
+    return `◐ 系统 · ${resolvedTheme.value === 'dark' ? '深色' : '浅色'}`
   }
   return themeOptions.find(o => o.key === themeMode.value).label
 })
@@ -97,12 +97,12 @@ function pickTheme(v) {
 
 <style scoped>
 .sidebar {
-  width: 208px;
+  width: 138px;
   flex: none;
   background: var(--sidebar);
   display: flex;
   flex-direction: column;
-  padding: 20px 14px;
+  padding: 20px 12px;
   gap: 24px;
 }
 .logo {
@@ -113,8 +113,8 @@ function pickTheme(v) {
 }
 nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
-  display: flex; align-items: center; gap: 26px;
-  padding: 10px 12px;
+  display: flex; align-items: center; gap: 22px;
+  padding: 10px;
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.62);
   text-decoration: none;
