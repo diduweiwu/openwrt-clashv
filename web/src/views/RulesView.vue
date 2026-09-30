@@ -5,6 +5,7 @@ import { computed, onMounted, ref } from 'vue'
 import { NButton, NCard, NEmpty, NInput } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast } from '../store.js'
+import AppIcon from '../components/AppIcon.vue'
 
 const rules = ref([])
 const loading = ref(false)
@@ -58,7 +59,7 @@ onMounted(() => load(false))
           · 规则在订阅配置中定义，此处只读
         </p>
       </div>
-      <n-button size="small" :loading="loading" :disabled="!store.status?.running" @click="load(false)">刷新</n-button>
+      <n-button size="small" :loading="loading" :disabled="!store.status?.running" @click="load(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
     </div>
 
     <n-input v-model:value="keyword" placeholder="搜索规则内容、类型或目标…" clearable>

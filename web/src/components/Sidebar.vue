@@ -113,7 +113,7 @@ function pickTheme(v) {
 }
 nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
-  display: flex; align-items: center; gap: 11px;
+  display: flex; align-items: center; gap: 26px;
   padding: 10px 12px;
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.62);
@@ -121,6 +121,8 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   font-size: 13.5px;
   transition: background 0.15s, color 0.15s;
 }
+/* 标题字符间隔开（HTML 连续空格会塌缩，用 letter-spacing 做出两格空格观感） */
+.nav-item span { letter-spacing: 0.5em; }
 .nav-item:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 .nav-item.active { background: var(--accent); color: #fff; }
 .bottom { display: flex; flex-direction: column; gap: 10px; }

@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { NButton, NCard, NEmpty, NProgress, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtBytes, fmtTime } from '../store.js'
+import AppIcon from '../components/AppIcon.vue'
 import SubFormModal from '../components/SubFormModal.vue'
 
 const route = useRoute()
@@ -94,7 +95,7 @@ onMounted(() => {
         <h1 class="page-title">订阅</h1>
         <span class="page-sub">{{ profiles.length ? profiles.length + ' 个订阅' : '管理订阅源' }}</span>
       </div>
-      <n-button type="primary" @click="showModal = true">＋ 添加订阅</n-button>
+      <n-button type="primary" @click="showModal = true"><template #icon><AppIcon name="plus" :size="14" /></template>添加订阅</n-button>
     </div>
 
     <n-card v-if="profiles.length === 0" class="pad">
@@ -125,11 +126,11 @@ onMounted(() => {
         <p v-if="p.expire" class="page-sub">到期时间 {{ fmtExpire(p.expire) }}</p>
       </div>
       <div class="p-actions">
-        <n-button size="small" :loading="busyId === p.id" @click="update(p)">更新</n-button>
+        <n-button size="small" :loading="busyId === p.id" @click="update(p)"><template #icon><AppIcon name="download" :size="13" /></template>更新</n-button>
         <n-button v-if="p.id !== active" type="primary" size="small" :disabled="busyId === p.id" @click="activate(p)">
-          启用
+          <template #icon><AppIcon name="upload" :size="13" /></template>启用
         </n-button>
-        <n-button size="small" type="error" ghost :disabled="busyId === p.id" @click="remove(p)">删除</n-button>
+        <n-button size="small" type="error" ghost :disabled="busyId === p.id" @click="remove(p)"><template #icon><AppIcon name="trash" :size="13" /></template>删除</n-button>
       </div>
     </n-card>
 

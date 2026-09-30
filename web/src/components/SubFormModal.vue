@@ -4,6 +4,7 @@
 import { ref, watch } from 'vue'
 import { NButton, NInput, NModal, NSelect } from 'naive-ui'
 import { api } from '../api.js'
+import AppIcon from './AppIcon.vue'
 import { toast } from '../store.js'
 
 const props = defineProps({ open: Boolean })
@@ -119,8 +120,9 @@ async function add() {
       />
       <p class="page-sub">部分机场按 UA 返回不同格式的配置，更新订阅时沿用添加时的 UA</p>
       <div class="actions">
-        <n-button quaternary @click="emit('close')">取消</n-button>
+        <n-button quaternary @click="emit('close')"><template #icon><AppIcon name="close" :size="13" /></template>取消</n-button>
         <n-button type="primary" :loading="adding" @click="add">
+          <template #icon><AppIcon name="plus" :size="14" /></template>
           {{ adding && addProgress ? `添加中 ${addProgress}…` : '添加' }}
         </n-button>
       </div>

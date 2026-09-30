@@ -4,6 +4,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { NButton, NCard, NCheckbox, NEmpty, NTabs, NTabPane } from 'naive-ui'
 import { api } from '../api.js'
 import { toast } from '../store.js'
+import AppIcon from '../components/AppIcon.vue'
 
 const TABS = [
   { key: 'core', label: '内核日志', hint: 'mihomo 运行日志（logs/core.log）' },
@@ -96,7 +97,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       <div class="opts">
         <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
         <n-checkbox v-model:checked="follow">跟随滚动</n-checkbox>
-        <n-button size="small" :loading="loading" @click="load(false)">刷新</n-button>
+        <n-button size="small" :loading="loading" @click="load(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
       </div>
     </div>
 

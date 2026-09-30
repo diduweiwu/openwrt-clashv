@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, delayColor } from '../store.js'
+import AppIcon from '../components/AppIcon.vue'
 
 const proxies = ref({})
 const loading = ref(true)
@@ -117,13 +118,7 @@ onMounted(load)
         <span class="page-sub">点击节点切换 · {{ groups.length }} 个代理组</span>
       </div>
       <n-button :loading="loading" @click="load">
-        <template #icon>
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
-            <polyline points="21 3 21 9 15 9"/>
-          </svg>
-        </template>
+        <template #icon><AppIcon name="refresh" :size="15" /></template>
         刷新
       </n-button>
     </div>
@@ -146,7 +141,8 @@ onMounted(load)
           <span v-if="g.now" class="page-sub">当前 {{ g.now }}</span>
         </div>
         <n-button size="small" :loading="testing === g.name" :disabled="testing !== ''" @click="testGroup(g)">
-          {{ testing === g.name ? `测速中 ${testProg}` : '⚡ 整组测速' }}
+          <template #icon><AppIcon name="zap" :size="13" /></template>
+          {{ testing === g.name ? `测速中 ${testProg}` : '整组测速' }}
         </n-button>
       </div>
       <div class="nodes">

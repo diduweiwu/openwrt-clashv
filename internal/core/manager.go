@@ -260,13 +260,12 @@ func (m *Manager) Stop() error {
 		}
 		return nil
 	}
-	_ = cmd.Process.Signal(syscall.SIGTERM)
-	select {
-	case <-m.exited:
-	case <-time.After(5 * time.Second):
-		_ = cmd.Process.Kill()
-		<-m.exited
-	}
+	// 直接 SIGKILL，不等优雅退出：内核没有必须优雅关停才能落盘的状态——
+	// TUN/监听端口随进程消失由内核回收，代理选择/fakeip 走 bbolt 事务即时落盘；
+	// 防火墙与 dnsmasq 劫持已在上面先撤。SIGTERM 会被 mihomo 的信号处理器接住
+	// 走完整关闭流程，最坏要等 5 秒才兜底 kill，保存设置重启时白白卡住。
+	_ = cmd.Process.Kill()
+	<-m.exited
 	if cancel != nil {
 		cancel()
 	}

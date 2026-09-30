@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { NButton, NCard, NInput, NInputNumber, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask } from '../store.js'
+import AppIcon from '../components/AppIcon.vue'
 
 // mihomo Release 提供的 linux 平台名（按指令集分组），value 与资产文件名一一对应
 const CORE_PLATFORMS = [
@@ -418,9 +419,11 @@ const tab = ref('general')
             </span>
           </div>
           <div class="btn-pair">
-            <n-button size="small" :disabled="coreUpgrading" @click="checkCore">检查更新</n-button>
+            <n-button size="small" :disabled="coreUpgrading" @click="checkCore">
+              <template #icon><AppIcon name="search" :size="13" /></template>检查更新
+            </n-button>
             <n-button v-if="coreLatest?.has_update" type="primary" size="small" :loading="coreUpgrading" @click="upgradeCore">
-              {{ coreBtnText }}
+              <template #icon><AppIcon name="download" :size="13" /></template>{{ coreBtnText }}
             </n-button>
           </div>
         </div>
@@ -459,9 +462,11 @@ const tab = ref('general')
             </span>
           </div>
           <div class="btn-pair">
-            <n-button size="small" :disabled="pluginUpgrading" @click="checkPlugin">检查更新</n-button>
+            <n-button size="small" :disabled="pluginUpgrading" @click="checkPlugin">
+              <template #icon><AppIcon name="search" :size="13" /></template>检查更新
+            </n-button>
             <n-button v-if="pluginLatest?.has_update" type="primary" size="small" :loading="pluginUpgrading" @click="upgradePlugin">
-              {{ pluginBtnText }}
+              <template #icon><AppIcon name="download" :size="13" /></template>{{ pluginBtnText }}
             </n-button>
           </div>
         </div>
@@ -486,13 +491,17 @@ const tab = ref('general')
             <span class="rt">重启服务</span>
             <span class="rs">修改界面端口或令牌后需重启</span>
           </div>
-          <n-button size="small" @click="restartService">重启</n-button>
+          <n-button size="small" @click="restartService">
+            <template #icon><AppIcon name="restart" :size="13" /></template>重启
+          </n-button>
         </div>
       </div>
     </n-card>
 
     <div class="save-bar" v-if="tab !== 'plugin'">
-      <n-button type="primary" :loading="saving" :disabled="!loaded" @click="save">保存设置</n-button>
+      <n-button type="primary" :loading="saving" :disabled="!loaded" @click="save">
+        <template #icon><AppIcon name="save" :size="14" /></template>保存设置
+      </n-button>
     </div>
   </div>
 </template>

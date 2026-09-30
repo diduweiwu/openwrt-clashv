@@ -7,8 +7,14 @@ import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic } from '../stor
 import Sparkline from '../components/Sparkline.vue'
 import NodeSheet from '../components/NodeSheet.vue'
 import SubFormModal from '../components/SubFormModal.vue'
+import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
+
+// hero 控制按钮与左侧状态瓦片同高；启动/停止为圆形图标钮
+const HERO_H = 62
+const heroCtl = { width: HERO_H + 'px', height: HERO_H + 'px' }
+const heroCtlPill = { height: HERO_H + 'px', padding: '0 24px', fontSize: '14.5px' }
 const proxies = ref({})
 const showSheet = ref(false)
 const sheetGroup = ref(null)
@@ -270,13 +276,25 @@ function currentOf(g) {
           </div>
         </div>
         <div class="actions">
-          <n-button v-if="!status?.running" type="primary" :loading="busy === 'start'" :disabled="busy !== ''" @click="coreAction('start')">
-            ▶ 启动内核
+          <n-button
+            v-if="!status?.running"
+            circle type="primary" title="启动内核"
+            :style="heroCtl"
+            :loading="busy === 'start'" :disabled="busy !== ''" @click="coreAction('start')"
+          >
+            <template #icon><AppIcon name="play" :size="24" /></template>
           </n-button>
           <template v-else>
-            <n-button :loading="busy === 'restart'" :disabled="busy !== ''" @click="coreAction('restart')">重启</n-button>
-            <n-button type="error" ghost :loading="busy === 'stop'" :disabled="busy !== ''" @click="coreAction('stop')">
-              ■ 停止
+            <n-button :style="heroCtlPill" :loading="busy === 'restart'" :disabled="busy !== ''" @click="coreAction('restart')">
+              <template #icon><AppIcon name="restart" :size="17" /></template>
+              重启
+            </n-button>
+            <n-button
+              circle type="error" ghost title="停止内核"
+              :style="heroCtl"
+              :loading="busy === 'stop'" :disabled="busy !== ''" @click="coreAction('stop')"
+            >
+              <template #icon><AppIcon name="stop" :size="20" :stroke-width="2.4" /></template>
             </n-button>
           </template>
         </div>
@@ -288,10 +306,18 @@ function currentOf(g) {
       <div class="sec-head">
         <h3>当前订阅</h3>
         <div class="sub-actions">
-          <n-button size="small" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">刷新订阅</n-button>
-          <n-button v-if="status?.running" size="small" @click="viewConfig">运行时配置</n-button>
-          <n-button size="small" @click="openSwitch">切换订阅</n-button>
-          <n-button size="small" @click="showAdd = true">添加订阅</n-button>
+          <n-button size="small" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
+            <template #icon><AppIcon name="refresh" :size="13" /></template>刷新订阅
+          </n-button>
+          <n-button v-if="status?.running" size="small" title="查看运行时配置（config.yaml）" @click="viewConfig">
+            <template #icon><AppIcon name="file-code" :size="13" /></template>配置
+          </n-button>
+          <n-button size="small" @click="openSwitch">
+            <template #icon><AppIcon name="swap" :size="13" /></template>切换订阅
+          </n-button>
+          <n-button size="small" @click="showAdd = true">
+            <template #icon><AppIcon name="plus" :size="13" /></template>添加订阅
+          </n-button>
         </div>
       </div>
       <n-empty v-if="!status?.profile" description="未设置订阅，请先添加并启用" />
@@ -418,7 +444,9 @@ function currentOf(g) {
             :loading="switching"
             :disabled="!switchSelected || switchSelected === switchActive"
             @click="confirmSwitch"
-          >确认切换</n-button>
+          >
+            <template #icon><AppIcon name="check" :size="14" /></template>确认切换
+          </n-button>
         </div>
       </div>
     </n-modal>
