@@ -369,7 +369,7 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	// 内核相关设置变化且内核在运行 → 自动重启生效
 	coreChanged := old.MixedPort != s.MixedPort ||
 		old.TUN != s.TUN || old.TUNStack != s.TUNStack || old.DNS != s.DNS ||
-		old.DNSMode != s.DNSMode ||
+		old.DNSMode != s.DNSMode || old.CoreMemLimit != s.CoreMemLimit ||
 		old.ControllerPort != s.ControllerPort
 	restarted := false
 	var restartErr string

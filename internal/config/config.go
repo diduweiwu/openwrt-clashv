@@ -31,6 +31,7 @@ type Settings struct {
 	AutoUpdateHours  int    `json:"auto_update"`       // 订阅自动更新间隔（小时），0 为关闭
 	CorePath         string `json:"core_path"`         // mihomo 二进制路径
 	CoreArch         string `json:"core_arch"`         // 内核下载平台名，留空自动检测（如 linux-arm64）
+	CoreMemLimit     int    `json:"core_mem_limit"`    // 内核内存软上限（GOMEMLIMIT，MB），0 为不限制
 	DNSHijack        string `json:"dns_hijack"`        // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
 	CustomUA         string `json:"custom_ua"`         // 上次使用的自定义订阅 User-Agent（记住，下次预填）
 	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
@@ -56,6 +57,7 @@ func Defaults() Settings {
 		AutoUpdateHours:  12,
 		CorePath:         "",
 		CoreArch:         "",
+		CoreMemLimit:     0,
 		DNSHijack:        "firewall", // 与 OpenClash 一致：默认防火墙转发 DNS
 		CustomUA:         "",
 		WorkDir:          "",
@@ -197,6 +199,10 @@ func (s *Settings) normalize() {
 	}
 	s.ControllerSecret = strings.ReplaceAll(s.ControllerSecret, "'", "")
 	s.Token = strings.ReplaceAll(s.Token, "'", "")
+	// 内存软上限：负数视为关闭；给个硬顶防止误填离谱值
+	if s.CoreMemLimit < 0 || s.CoreMemLimit > 16384 {
+		s.CoreMemLimit = 0
+	}
 	s.PluginRepo = strings.Trim(s.PluginRepo, "/ ")
 	if s.PluginRepo == "" {
 		s.PluginRepo = "nier/clashv"

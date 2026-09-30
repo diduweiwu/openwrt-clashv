@@ -25,7 +25,7 @@ case "$TARGET" in
   ipk|apk) ;;
   *) echo "ERROR: TARGET 必须是 ipk 或 apk，当前为 $TARGET" >&2; exit 1 ;;
 esac
-PKG_NAME=clashv
+PKG_NAME=luci-app-clashv
 
 STAGE="${STAGE:-all}"
 case "$STAGE" in
@@ -129,7 +129,9 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   # 都当成包定义，删掉包内这份（install 引用的 openwrt/root/ 等文件保留）
   rm -f "$PKG_SRC/openwrt/Makefile"
   # 清掉上次构建残留在 SDK bin/ 里的旧产物，避免不同版本号混入
-  rm -f "$SDK/bin/clashv_*.ipk" "$SDK/bin/clashv-*.apk"
+  # （现包名 luci-app-clashv*；*clashv* 连历史包名 clashv* 一起清掉；
+  # 此时 cwd 还在仓库根，必须用 SDK 绝对路径）
+  find "$SDK/bin" \( -name '*clashv*.ipk' -o -name '*clashv*.apk' \) -delete 2>/dev/null || true
 
   echo "==> [package] 编译包 (make package/$PKG_NAME/compile)"
   # 与 OpenClash 的打包逻辑一致：包正确注册（BuildPackage 宏）后，SDK 模式下
@@ -167,8 +169,9 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   make package/$PKG_NAME/compile V=s
 
   case "$TARGET" in
-    ipk) PATTERN='clashv_*.ipk' ;;
-    apk) PATTERN='clashv-*.apk' ;;
+    # 通用版 luci-app-clashv_* / luci-app-clashv-<版本> 与架构精简版一把抓
+    ipk) PATTERN='luci-app-clashv*.ipk' ;;
+    apk) PATTERN='luci-app-clashv*.apk' ;;
   esac
   rm -rf "$OUT_DIR"
   mkdir -p "$OUT_DIR"

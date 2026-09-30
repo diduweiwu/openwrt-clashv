@@ -62,6 +62,8 @@ func main() {
 	setupLogger(cfg)
 	prof := profiles.New(cfg)
 	mgr := core.NewManager(cfg, prof, Version)
+	// 日志占用常驻清理：运行中按大小轮转 + 过期旧档删除
+	go core.LogJanitor(cfg)
 
 	if err := api.Serve(cfg, prof, mgr, Version); err != nil {
 		fmt.Fprintln(os.Stderr, "clashv:", err)

@@ -182,7 +182,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <div class="page">
+  <div class="page conn-page">
     <div class="head-row">
       <div>
         <h2 class="page-title">连接</h2>
@@ -222,8 +222,9 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         :data="shown"
         :row-key="c => c.id"
         :row-class-name="c => (c.closedAt ? 'gone' : '')"
-        :max-height="'calc(100vh - 300px)'"
+        flex-height
         :scroll-x="1370"
+        class="conn-table"
       />
       <n-empty
         v-else-if="sub === 'active'"
@@ -241,6 +242,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </template>
 
 <style scoped>
+/* 连接页整体精确占满内容区（与日志页同理，避免 .content 外层滚动 + 表格内层
+   滚动两根竖条并存）：卡片吃掉剩余高度，滚动只发生在表格内部（flex-height） */
+.conn-page { height: 100%; }
+.conn-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.conn-card :deep(.n-card__content) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 2px 2px; }
+.conn-table { flex: 1; min-height: 0; }
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .page-title { margin-bottom: 2px; }
 .actions { display: flex; align-items: center; gap: 14px; }
@@ -248,7 +255,6 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .toolbar-row { display: flex; align-items: center; gap: 12px; }
 .subs { width: 220px; flex: none; }
 .search { flex: 1; max-width: 420px; min-width: 160px; }
-.conn-card :deep(.n-card__content) { padding: 0 2px 2px; }
 .poll-err {
   color: var(--orange); font-size: 13px; padding: 20px 16px;
   white-space: pre-wrap; word-break: break-all;

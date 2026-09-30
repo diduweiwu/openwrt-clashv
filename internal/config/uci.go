@@ -24,6 +24,7 @@ import (
 //	    option auto_update '12'
 //	    option core_path ''
 //	    option core_arch ''
+//	    option core_mem_limit '0'
 //	    option dns_hijack 'firewall'
 //	    option custom_ua ''
 //	    option workdir ''
@@ -83,6 +84,7 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setInt(&s.AutoUpdateHours, "auto_update")
 	setStr(&s.CorePath, "core_path")
 	setStr(&s.CoreArch, "core_arch")
+	setInt(&s.CoreMemLimit, "core_mem_limit")
 	setStr(&s.DNSHijack, "dns_hijack")
 	setStr(&s.CustomUA, "custom_ua")
 	setStr(&s.WorkDir, "workdir")
@@ -123,6 +125,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.auto_update='%d'", uciSection, s.AutoUpdateHours)
 	line("set %s.core_path='%s'", uciSection, s.CorePath)
 	line("set %s.core_arch='%s'", uciSection, s.CoreArch)
+	line("set %s.core_mem_limit='%d'", uciSection, s.CoreMemLimit)
 	line("set %s.dns_hijack='%s'", uciSection, s.DNSHijack)
 	line("set %s.custom_ua='%s'", uciSection, s.CustomUA)
 	line("set %s.workdir='%s'", uciSection, s.WorkDir)

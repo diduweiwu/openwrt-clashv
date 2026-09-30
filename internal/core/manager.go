@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -149,7 +150,7 @@ func (m *Manager) Start() error {
 		slog.Warn("已清理残留的内核进程", "count", killed, "path", corePath)
 	}
 
-	rotateLog(m.cfg.LogDir()+"/core.log", 8<<20)
+	RotateAtOpen(filepath.Join(m.cfg.LogDir(), "core.log"), LogMaxBytes)
 	logFile, err := os.OpenFile(m.cfg.LogDir()+"/core.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
@@ -165,9 +166,14 @@ func (m *Manager) Start() error {
 	cmd := exec.Command(corePath, "-d", m.cfg.Home(), "-f", m.cfg.RuntimeConfigPath())
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	// 透传 TZ，让内核日志也用本地时区（OpenWrt 的 /etc/TZ 由本插件解析后同步）
+	// 透传 TZ，让内核日志也用本地时区（OpenWrt 的 /etc/TZ 由本插件解析后同步）；
+	// 设置了内存软上限时注入 GOMEMLIMIT，内核接近上限会加大 GC 力度压住 RSS
+	cmd.Env = os.Environ()
 	if tzVal := tz.EnvValue(); tzVal != "" {
-		cmd.Env = append(os.Environ(), "TZ="+tzVal)
+		cmd.Env = append(cmd.Env, "TZ="+tzVal)
+	}
+	if s.CoreMemLimit > 0 {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("GOMEMLIMIT=%dMiB", s.CoreMemLimit))
 	}
 	cmd.SysProcAttr = sysProcAttr()
 	m.starting.Store(true)

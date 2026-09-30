@@ -86,7 +86,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <div class="page">
+  <div class="page logs-page">
     <div class="head-row">
       <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
         <n-tab-pane v-for="k in TABS" :key="k.key" :name="k.key">
@@ -118,13 +118,18 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .tabs { width: 260px; flex: none; }
 .opts { display: flex; align-items: center; gap: 14px; }
 .meta-line { margin: 8px 2px 10px; }
-.log-card :deep(.n-card__content) { padding: 0; }
+/* 日志页整体精确占满内容区（.content 有 overflow:auto，若页面超高会同时出现
+   内外两根滚动条）：page 高度锁死为可视区，卡片吃掉剩余高度，滚动只发生在
+   日志组件内部 */
+.logs-page { height: 100%; }
+.log-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.log-card :deep(.n-card__content) { padding: 0; flex: 1; min-height: 0; display: flex; }
 .log-view {
+  flex: 1; min-height: 0; box-sizing: border-box;
   margin: 0; padding: 14px 16px;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 12px; line-height: 1.65;
   white-space: pre-wrap; word-break: break-all;
-  max-height: calc(100vh - 210px); min-height: 300px;
   overflow-y: auto;
 }
 </style>

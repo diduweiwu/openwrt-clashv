@@ -72,6 +72,7 @@ const form = reactive({
   auto_update: 12,
   token: '',
   core_arch: '',
+  core_mem_limit: 0,
   download_proxy: 'https://gh-proxy.com',
 })
 const loaded = ref(false)
@@ -126,6 +127,7 @@ async function load() {
       auto_update: s.auto_update,
       token: s.token || '',
       core_arch: s.core_arch || '',
+      core_mem_limit: s.core_mem_limit || 0,
       download_proxy: s.download_proxy || '',
     })
     loaded.value = true
@@ -146,6 +148,7 @@ async function save() {
       mixed_port: Number(form.mixed_port) || 7890,
       ui_port: Number(form.ui_port) || 9097,
       auto_update: Number(form.auto_update) || 0,
+      core_mem_limit: Math.max(0, Number(form.core_mem_limit) || 0),
     }
     const r = await api.put('/api/settings', payload)
     Object.assign(form, {
@@ -159,6 +162,7 @@ async function save() {
       auto_update: r.settings.auto_update,
       token: r.settings.token || '',
       core_arch: r.settings.core_arch || '',
+      core_mem_limit: r.settings.core_mem_limit || 0,
       download_proxy: r.settings.download_proxy || '',
     })
     if (r.error) toast('已保存，但内核重启失败：' + r.error, 'error')
@@ -384,6 +388,15 @@ const tab = ref('general')
             class="ctl"
             style="width: 250px"
           />
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">内存限制</span>
+            <span class="rs">内核接近上限时会更积极回收内存（GOMEMLIMIT），明显降低实际占用；设置过小会增加 CPU 开销。建议 64～128，0 为不限制，保存后自动重启内核</span>
+          </div>
+          <n-input-number v-model:value="form.core_mem_limit" :show-button="false" :min="0" :max="16384" class="num">
+            <template #suffix><span class="unit">MB</span></template>
+          </n-input-number>
         </div>
         <div class="row">
           <div class="row-text">
