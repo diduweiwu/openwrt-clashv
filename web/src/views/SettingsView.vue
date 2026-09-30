@@ -254,7 +254,6 @@ const tab = ref('general')
   <div class="page">
     <n-card class="head-card">
       <n-tabs v-model:value="tab" type="segment" size="small" class="tabs">
-        <template #prefix><span class="head-title">设置</span></template>
         <n-tab-pane name="general"><template #tab>通用</template></n-tab-pane>
         <n-tab-pane name="network"><template #tab>网络</template></n-tab-pane>
         <n-tab-pane name="core"><template #tab>内核</template></n-tab-pane>
@@ -508,7 +507,6 @@ const tab = ref('general')
 
 <style scoped>
 .head-card :deep(.n-card-content) { padding: 10px 16px; }
-.head-title { font-size: 17px; font-weight: 600; white-space: nowrap; }
 .tabs { min-width: 0; }
 .rows { display: flex; flex-direction: column; }
 .row {

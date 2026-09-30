@@ -45,6 +45,10 @@ export const naiveOverrides = computed(() => {
       dividerColor: dark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(20, 22, 30, 0.08)',
     },
     Card: { borderRadius: '14px', paddingMedium: '18px 20px' },
+    // segment 型 tab 的选中底色默认与输入框同色，深色下几乎看不见 → 用主题色胶囊
+    ...(dark
+      ? { Tabs: { tabColorSegment: '#5b6bf0', tabTextColorActiveSegment: '#ffffff' } }
+      : {}),
   }
 })
 
