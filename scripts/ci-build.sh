@@ -169,7 +169,7 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   make package/$PKG_NAME/compile V=s
 
   case "$TARGET" in
-    # 通用版 luci-app-clashv_* / luci-app-clashv-<版本> 与架构精简版一把抓
+    # 单包：luci-app-clashv_<版本>_all.ipk / luci-app-clashv-<版本>.apk
     ipk) PATTERN='luci-app-clashv*.ipk' ;;
     apk) PATTERN='luci-app-clashv*.apk' ;;
   esac

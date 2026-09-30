@@ -91,23 +91,16 @@ scripts/             交叉编译脚本
 
 ### 方式一：opkg / apk 包（推荐）
 
-直接从 GitHub Release 下载（Actions 构建自动发布）。每个系统提供 8 个 OpenWrt 包（`luci-app-` 前缀表明是 LuCI 插件包）：
-
-- `luci-app-clashv_*.ipk` / `luci-app-clashv-<版本>.apk` —— **通用版**：内置 7 种架构二进制，装哪个设备都行
-- `luci-app-clashv-<架构>_*` —— **架构精简版**：只含单一架构二进制，包体约为通用版的 1/7，
-  明确自己设备架构时下载更快（架构看 SSH 里 `/etc/openwrt_release` 的 `DISTRIB_ARCH`，
-  或下方架构映射表；精简版之间与通用版互相冲突，同一设备只能装一个）
+直接从 GitHub Release 下载（Actions 构建自动发布）。单包全平台（`luci-app-` 前缀表明是 LuCI 插件包）：内置 7 种架构二进制，任意设备直接安装，装后自动保留当前架构。
 
 ```bash
 # opkg 系统（OpenWrt 22.03 / 23.05）
-opkg install luci-app-clashv_0.1.0-5_all.ipk            # 通用版
-opkg install luci-app-clashv-arm64_0.1.0-5_all.ipk      # 或 arm64 精简版
+opkg install luci-app-clashv_0.1.0-6_all.ipk
 # apk 系统（OpenWrt 24.10+ / snapshot）
-apk add --allow-untrusted luci-app-clashv-0.1.0-5.apk   # 通用版
-apk add --allow-untrusted luci-app-clashv-arm64-0.1.0-5.apk  # 或 arm64 精简版
+apk add --allow-untrusted luci-app-clashv-0.1.0-6.apk
 ```
 
-不确定架构就用通用版，安装时启动器按设备自动选择；mihomo 内核装完后在「设置 → 内核」里一键下载。
+安装时启动器按设备架构自动选择；mihomo 内核装完后在「设置 → 内核」里一键下载。
 
 > 从旧版本升级：首个发布版的包名叫 `clashv`（无前缀），安装新包前先卸载它 —— `opkg remove clashv` 或 `apk del clashv`。
 
@@ -195,7 +188,7 @@ make linux        # 交叉编译 7 种 Linux 架构 bin/clashv-{arm64,armv7,mips
 
 `.github/workflows/compile_packages.yml`（参照 OpenClash 的方案）：
 
-- **每个 target 产出 8 个包**：通用版 `luci-app-clashv`（`PKGARCH:=all`，内含 7 种架构的 Go 二进制，安装后 `/usr/bin/clashv` 启动器按设备 `DISTRIB_ARCH` 自动选择执行，`postinst` 删除其余架构，安装后仅占 7~9MB，包体约 22MB）；另有 `luci-app-clashv-<架构>` 精简版 ×7，只含单一架构二进制（包体约 3~4MB），与通用版互相 CONFLICTS
+- **单包全平台**：`luci-app-clashv` 为 `PKGARCH:=all`，内含 7 种架构的 Go 二进制，安装后 `/usr/bin/clashv` 启动器按设备 `DISTRIB_ARCH` 自动选择执行，`postinst` 删除其余架构（安装后仅占 7~9MB，包体约 22MB）
 - 双 SDK matrix：22.03 SDK 出 **ipk**（OpenWrt 22.03/23.05，opkg）、snapshot SDK 出 **apk**（OpenWrt 24.10+/snapshot）
 - push 到 master 或手动触发即构建；产物上传 Artifacts 并自动发 GitHub Release（tag = `v<PKG_VERSION>`，版本号取自 `openwrt/Makefile`）
 

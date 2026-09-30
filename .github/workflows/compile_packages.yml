@@ -5,12 +5,9 @@ name: Build clashv (ipk & apk)
 #   2. Actions 页面手动 Run workflow 随时触发
 # 产物：Actions Artifacts + GitHub Release（tag = v<openwrt/Makefile 里的 PKG_VERSION>）
 #
-# 平台说明：每个 target（ipk/apk）产出 8 个包 ——
-#   luci-app-clashv(.ipk/.apk)          通用版：内置 7 种架构 Go 二进制，装哪个设备都行，
-#                                       安装后由 /usr/bin/clashv 启动器按设备 DISTRIB_ARCH
-#                                       自动选择，postinst 删除其余架构节省空间
-#   luci-app-clashv-<arch>(.ipk/.apk)   架构精简版 ×7：只含对应架构二进制，包体约为通用版 1/7
-# 全部包 PKGARCH:=all（安装器不校验设备架构，靠包名区分），互相 CONFLICTS。
+# 平台说明：单包全平台 —— luci-app-clashv PKGARCH:=all，内置 7 种架构 Go
+# 二进制（x86/64 / arm / mips… 一个包通吃），安装后由 /usr/bin/clashv 启动器
+# 按设备 DISTRIB_ARCH 自动选择，postinst 删除其余架构节省空间。
 # mihomo 内核由插件在界面上按架构一键下载。
 
 on:
@@ -131,6 +128,6 @@ jobs:
         run: |
           ls -lh ./release
           gh release create "$TAG" --title "clashv v${{ needs.Version.outputs.version }}" \
-            --notes "每个系统产出 8 个 OpenWrt 包：**luci-app-clashv**（无架构后缀，通用版，内置 7 种架构二进制，不确定设备架构时选它）与 **luci-app-clashv-<架构>** 精简版（arm64/armv7/mips/mipsle/amd64/riscv64/loong64，只含单一架构，包体约为通用版 1/7）。架构可在 SSH 里看 \`/etc/openwrt_release\` 的 DISTRIB_ARCH，或先装通用版由启动器自动识别。ipk 适用于 opkg 系统（OpenWrt 22.03/23.05）；apk 适用于 apk 系统（OpenWrt 24.10+/snapshot）。同一设备只能装一个，互相冲突。mihomo 内核请在插件「设置 → 内核」中一键下载。" \
+            --notes "单包全平台：内置 7 种架构二进制（arm64/armv7/mips/mipsle/amd64/riscv64/loong64），任意设备直接安装，安装后自动保留当前架构。ipk 适用于 opkg 系统（OpenWrt 22.03/23.05）；apk 适用于 apk 系统（OpenWrt 24.10+/snapshot）。mihomo 内核请在插件「设置 → 内核」中一键下载。" \
             --latest || true
           gh release upload "$TAG" ./release/* --clobber

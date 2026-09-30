@@ -4,23 +4,19 @@
 #   cp -r clashv package/clashv          # 整个项目目录放进 SDK 的 package/
 #   make package/clashv/compile V=s
 #
-# 产物结构：一次编译产出 8 个包 ——
-#   luci-app-clashv              通用版（PKGARCH:=all，内置 7 种架构二进制，装哪个设备都行）
-#   luci-app-clashv-<arch>       架构精简版 ×7（只内置对应架构的二进制，包体约为通用版的 1/7）
-#
-# 全部包 PKGARCH:=all（安装器不校验设备架构，靠包名区分），互相 CONFLICTS，
-# 同一台设备只能装一个，避免覆盖同名文件。
-# 包名带 luci-app- 前缀表明这是 OpenWrt LuCI 插件包；插件自身的运行时文件
-# （/usr/bin/clashv、/usr/lib/clashv 等）命名保持不变，升级互不影响。
-# 注意：8 个包全部显式书写 —— 不要改成 $(eval $(call 模板)) 生成，SDK 的
-# 全量打包模式下嵌套 define 模板会生成坏文本（missing separator，CI 已踩坑）。
+# 单包全平台：PKGARCH:=all，内置 7 种架构的 Go 二进制（arm64/armv7/mips/
+# mipsle/amd64/riscv64/loong64），安装后由 /usr/bin/clashv 启动器按设备
+# DISTRIB_ARCH 自动选择执行，postinst 删除其余架构节省安装空间。
+# CONFLICTS 声明了首个发布版的旧包名 clashv，升级前需先卸载旧包。
+# 注意：不要拆分架构子包，也不要改回 $(eval $(call 模板)) 生成 —— SDK 全量
+# 打包模式下嵌套 define 模板会生成坏文本（missing separator，CI 已踩坑）。
 # 二进制由 `./scripts/build-linux.sh` 或 GitHub Actions 预先构建。
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-clashv
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 PKG_MAINTAINER:=Nier
 PKG_LICENSE:=MIT
 
@@ -32,14 +28,14 @@ define Package/luci-app-clashv
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt
   URL:=https://github.com/nier/clashv
   DEPENDS:=+ca-bundle +kmod-tun
-  CONFLICTS:=luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
+  CONFLICTS:=clashv
   PKGARCH:=all
 endef
 
 define Package/luci-app-clashv/description
   轻量级 mihomo 管理插件：Go 后端 + 内嵌 Web 界面。
-  通用版：内置 7 种架构二进制（arm64/armv7/mips/mipsle/amd64/riscv64/loong64），
-  安装后按设备架构自动选择、删除其余。不确定设备架构时选这个。
+  单包全平台：内置 7 种架构二进制（arm64/armv7/mips/mipsle/amd64/riscv64/loong64），
+  安装后按设备架构自动选择、删除其余，任意设备直接安装。
   支持订阅管理、节点切换、TUN 全局接管、内核/插件一键更新。
   LuCI「服务 → clashv」或 http://路由器:9097 进入界面。
 endef
@@ -54,8 +50,7 @@ endef
 define Build/Compile
 endef
 
-# 除内核二进制外的公共文件（$1 = 目标目录）；$$(call) 展开发生在打包脚本
-# 生成阶段，纯文本替换，与 SDK 元数据解析无关，可安全共享
+# 除内核二进制外的公共文件（$1 = 目标目录）
 define ClashvCommonInstall
 	$(INSTALL_DIR) $(1)/usr/lib/clashv/bin
 	$(INSTALL_DIR) $(1)/usr/bin
@@ -78,8 +73,7 @@ define ClashvCommonInstall
 	$(INSTALL_DIR) $(1)/etc/clashv/profiles
 endef
 
-# 安装后只保留当前架构的二进制（通用版内置 7 种架构，省下 ~40MB 空间；
-# 架构精简版只装进了一个二进制，此循环自然跳过）
+# 安装后只保留当前架构的二进制（包内置 7 种架构，省下 ~40MB 空间）
 define ClashvPostinst
 #!/bin/sh
 [ "$${IPKG_NO_SCRIPT}" = "1" ] && exit 0
@@ -121,216 +115,4 @@ define Package/luci-app-clashv/postinst
 $(ClashvPostinst)
 endef
 
-# ---- 以下 7 个架构精简版包，除二进制与 CONFLICTS 外内容一致，全部显式书写 ----
-
-define Package/luci-app-clashv-arm64
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (arm64 build)
-  URL:=https://github.com/nier/clashv
-  DEPENDS:=+ca-bundle +kmod-tun
-  CONFLICTS:=luci-app-clashv luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
-  PKGARCH:=all
-endef
-
-define Package/luci-app-clashv-arm64/description
-  轻量级 mihomo 管理插件（arm64 架构精简版，仅内置单一架构二进制，包体约为通用版的 1/7）。
-  与通用版及其他架构精简版互斥。不确定设备架构时请安装通用版 luci-app-clashv。
-endef
-
-define Package/luci-app-clashv-arm64/conffiles
-/etc/config/clashv
-/etc/clashv
-endef
-
-define Package/luci-app-clashv-arm64/install
-	$(call ClashvCommonInstall,$(1))
-	$(INSTALL_BIN) ./bin/clashv-arm64 $(1)/usr/lib/clashv/bin/
-endef
-
-define Package/luci-app-clashv-arm64/postinst
-$(ClashvPostinst)
-endef
-
-define Package/luci-app-clashv-armv7
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (armv7 build)
-  URL:=https://github.com/nier/clashv
-  DEPENDS:=+ca-bundle +kmod-tun
-  CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
-  PKGARCH:=all
-endef
-
-define Package/luci-app-clashv-armv7/description
-  轻量级 mihomo 管理插件（armv7 架构精简版，仅内置单一架构二进制，包体约为通用版的 1/7）。
-  与通用版及其他架构精简版互斥。不确定设备架构时请安装通用版 luci-app-clashv。
-endef
-
-define Package/luci-app-clashv-armv7/conffiles
-/etc/config/clashv
-/etc/clashv
-endef
-
-define Package/luci-app-clashv-armv7/install
-	$(call ClashvCommonInstall,$(1))
-	$(INSTALL_BIN) ./bin/clashv-armv7 $(1)/usr/lib/clashv/bin/
-endef
-
-define Package/luci-app-clashv-armv7/postinst
-$(ClashvPostinst)
-endef
-
-define Package/luci-app-clashv-mips
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (mips build)
-  URL:=https://github.com/nier/clashv
-  DEPENDS:=+ca-bundle +kmod-tun
-  CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
-  PKGARCH:=all
-endef
-
-define Package/luci-app-clashv-mips/description
-  轻量级 mihomo 管理插件（mips 大端架构精简版，仅内置单一架构二进制，包体约为通用版的 1/7）。
-  与通用版及其他架构精简版互斥。不确定设备架构时请安装通用版 luci-app-clashv。
-endef
-
-define Package/luci-app-clashv-mips/conffiles
-/etc/config/clashv
-/etc/clashv
-endef
-
-define Package/luci-app-clashv-mips/install
-	$(call ClashvCommonInstall,$(1))
-	$(INSTALL_BIN) ./bin/clashv-mips $(1)/usr/lib/clashv/bin/
-endef
-
-define Package/luci-app-clashv-mips/postinst
-$(ClashvPostinst)
-endef
-
-define Package/luci-app-clashv-mipsle
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (mipsle build)
-  URL:=https://github.com/nier/clashv
-  DEPENDS:=+ca-bundle +kmod-tun
-  CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
-  PKGARCH:=all
-endef
-
-define Package/luci-app-clashv-mipsle/description
-  轻量级 mihomo 管理插件（mipsle 小端架构精简版，仅内置单一架构二进制，包体约为通用版的 1/7）。
-  与通用版及其他架构精简版互斥。不确定设备架构时请安装通用版 luci-app-clashv。
-endef
-
-define Package/luci-app-clashv-mipsle/conffiles
-/etc/config/clashv
-/etc/clashv
-endef
-
-define Package/luci-app-clashv-mipsle/install
-	$(call ClashvCommonInstall,$(1))
-	$(INSTALL_BIN) ./bin/clashv-mipsle $(1)/usr/lib/clashv/bin/
-endef
-
-define Package/luci-app-clashv-mipsle/postinst
-$(ClashvPostinst)
-endef
-
-define Package/luci-app-clashv-amd64
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (amd64 build)
-  URL:=https://github.com/nier/clashv
-  DEPENDS:=+ca-bundle +kmod-tun
-  CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
-  PKGARCH:=all
-endef
-
-define Package/luci-app-clashv-amd64/description
-  轻量级 mihomo 管理插件（amd64/x86-64 架构精简版，仅内置单一架构二进制，包体约为通用版的 1/7）。
-  与通用版及其他架构精简版互斥。不确定设备架构时请安装通用版 luci-app-clashv。
-endef
-
-define Package/luci-app-clashv-amd64/conffiles
-/etc/config/clashv
-/etc/clashv
-endef
-
-define Package/luci-app-clashv-amd64/install
-	$(call ClashvCommonInstall,$(1))
-	$(INSTALL_BIN) ./bin/clashv-amd64 $(1)/usr/lib/clashv/bin/
-endef
-
-define Package/luci-app-clashv-amd64/postinst
-$(ClashvPostinst)
-endef
-
-define Package/luci-app-clashv-riscv64
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (riscv64 build)
-  URL:=https://github.com/nier/clashv
-  DEPENDS:=+ca-bundle +kmod-tun
-  CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-loong64 clashv
-  PKGARCH:=all
-endef
-
-define Package/luci-app-clashv-riscv64/description
-  轻量级 mihomo 管理插件（riscv64 架构精简版，仅内置单一架构二进制，包体约为通用版的 1/7）。
-  与通用版及其他架构精简版互斥。不确定设备架构时请安装通用版 luci-app-clashv。
-endef
-
-define Package/luci-app-clashv-riscv64/conffiles
-/etc/config/clashv
-/etc/clashv
-endef
-
-define Package/luci-app-clashv-riscv64/install
-	$(call ClashvCommonInstall,$(1))
-	$(INSTALL_BIN) ./bin/clashv-riscv64 $(1)/usr/lib/clashv/bin/
-endef
-
-define Package/luci-app-clashv-riscv64/postinst
-$(ClashvPostinst)
-endef
-
-define Package/luci-app-clashv-loong64
-  SECTION:=net
-  CATEGORY:=Network
-  TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (loong64 build)
-  URL:=https://github.com/nier/clashv
-  DEPENDS:=+ca-bundle +kmod-tun
-  CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 clashv
-  PKGARCH:=all
-endef
-
-define Package/luci-app-clashv-loong64/description
-  轻量级 mihomo 管理插件（loong64 架构精简版，仅内置单一架构二进制，包体约为通用版的 1/7）。
-  与通用版及其他架构精简版互斥。不确定设备架构时请安装通用版 luci-app-clashv。
-endef
-
-define Package/luci-app-clashv-loong64/conffiles
-/etc/config/clashv
-/etc/clashv
-endef
-
-define Package/luci-app-clashv-loong64/install
-	$(call ClashvCommonInstall,$(1))
-	$(INSTALL_BIN) ./bin/clashv-loong64 $(1)/usr/lib/clashv/bin/
-endef
-
-define Package/luci-app-clashv-loong64/postinst
-$(ClashvPostinst)
-endef
-
 $(eval $(call BuildPackage,luci-app-clashv))
-$(eval $(call BuildPackage,luci-app-clashv-arm64))
-$(eval $(call BuildPackage,luci-app-clashv-armv7))
-$(eval $(call BuildPackage,luci-app-clashv-mips))
-$(eval $(call BuildPackage,luci-app-clashv-mipsle))
-$(eval $(call BuildPackage,luci-app-clashv-amd64))
-$(eval $(call BuildPackage,luci-app-clashv-riscv64))
-$(eval $(call BuildPackage,luci-app-clashv-loong64))
