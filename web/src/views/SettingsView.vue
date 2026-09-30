@@ -339,13 +339,13 @@ const tab = ref('general')
         <div class="row" v-if="form.dns">
           <div class="row-text">
             <span class="rt">DNS 解析模式</span>
-            <span class="rs">fake-ip 返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（国外域名已自动经代理用国外 DNS 防污染复核）</span>
+            <span class="rs">推荐 fake-ip：返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（国外域名已自动经代理用国外 DNS 防污染复核）</span>
           </div>
           <n-select
             v-model:value="form.dns_mode"
-            :options="[{ value: 'fake-ip', label: 'fake-ip（推荐）' }, { value: 'redir-host', label: 'redir-host' }]"
+            :options="[{ value: 'fake-ip', label: 'fake-ip' }, { value: 'redir-host', label: 'redir-host' }]"
             class="ctl"
-            style="width: 160px"
+            style="width: 190px"
           />
         </div>
         <div class="row" v-if="form.dns && store.status?.openwrt">
@@ -355,9 +355,9 @@ const tab = ref('general')
           </div>
           <n-select
             v-model:value="form.dns_hijack"
-            :options="[{ value: 'firewall', label: '防火墙转发（推荐）' }, { value: 'dnsmasq', label: 'dnsmasq 转发' }, { value: 'off', label: '禁用' }]"
+            :options="[{ value: 'firewall', label: '防火墙转发' }, { value: 'dnsmasq', label: 'dnsmasq 转发' }, { value: 'off', label: '禁用' }]"
             class="ctl"
-            style="width: 160px"
+            style="width: 190px"
           />
         </div>
       </div>
@@ -498,7 +498,7 @@ const tab = ref('general')
 </template>
 
 <style scoped>
-.head-card :deep(.n-card__content) { padding: 10px 16px; }
+.head-card :deep(.n-card-content) { padding: 10px 16px; }
 .head-title { font-size: 17px; font-weight: 600; white-space: nowrap; }
 .tabs { min-width: 0; }
 .rows { display: flex; flex-direction: column; }
