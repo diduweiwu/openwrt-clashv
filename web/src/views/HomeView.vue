@@ -13,7 +13,7 @@ const busy = ref('')
 // hero 控制按钮与左侧状态瓦片同高；启停为常驻圆形切换钮，重启为等高长方形文字钮
 const HERO_H = 62
 const heroCtl = { width: HERO_H + 'px', height: HERO_H + 'px' }
-const heroRestart = { height: HERO_H + 'px', padding: '0 24px', fontSize: '15px' }
+const heroRestart = { height: HERO_H + 'px', padding: '0 16px', fontSize: '15px' }
 const proxies = ref({})
 const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
 const subBusy = ref(false)
@@ -261,7 +261,7 @@ function currentOf(g) {
         </div>
         <!-- 第二行放瓦片与按钮，align 居中让按钮与瓦片严格水平对齐 -->
         <n-flex justify="space-between" align="center" :size="18">
-          <n-flex :size="10">
+          <n-flex :size="8">
             <div class="meta-item">
               <span class="k"><AppIcon name="file-text" :size="13" />当前订阅</span>
               <span class="v">{{ status?.profile || '未设置' }}</span>
@@ -299,7 +299,7 @@ function currentOf(g) {
               :style="heroRestart"
               :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
             >
-              <template #icon><AppIcon name="restart" :size="18" /></template>重启内核
+              <template #icon><AppIcon name="restart" :size="18" /></template>重启
             </n-button>
             <!-- 启动/停止同一个按钮：停止态主色播放，运行态红色方块 -->
             <n-button
@@ -529,8 +529,8 @@ function currentOf(g) {
   background: var(--bg-card-2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 9px 14px 10px;
-  min-width: 104px;
+  padding: 8px 11px 9px;
+  min-width: 80px;
 }
 .meta-item .k { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
@@ -538,8 +538,8 @@ function currentOf(g) {
 
 .traffic-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
 /* 瓦片与清零钮显式等高（69px），换行后也不参差 */
-.traffic-nums { display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
-.traffic-nums .meta-item { min-width: 100px; height: 69px; }
+.traffic-nums { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+.traffic-nums .meta-item { height: 69px; }
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; }
 
