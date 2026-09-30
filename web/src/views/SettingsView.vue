@@ -464,6 +464,8 @@ const tab = ref('general')
 .num { width: 110px; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
 .btn-pair { display: flex; gap: 8px; flex: none; }
+/* n-input-group 默认 flex 拉伸占满剩余宽度，收缩并靠右与行内其他控件一致 */
+.row .n-input-group { width: fit-content; margin-left: auto; }
 .prog { width: 180px; flex-shrink: 0; }
 .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; padding: 10px 0 2px; }
 </style>

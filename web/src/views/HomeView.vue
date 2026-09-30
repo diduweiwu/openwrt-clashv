@@ -270,6 +270,24 @@ async function applyDns() {
   }
 }
 
+// ---- 混合端口使用说明（瓦片齿轮 → 弹窗） ----
+const showPort = ref(false)
+// 弹窗示例里的主机地址：直接用打开本页面所用的地址（即路由器 IP）
+const locationHost = location.hostname || '<路由器IP>'
+
+const portHelp = computed(() => {
+  const h = location.hostname || '<路由器IP>'
+  const p = status.value?.mixed_port || 7890
+  return [
+    { os: 'Windows', steps: `设置 → 网络和 Internet → 代理 → 手动设置代理：地址 ${h}，端口 ${p}，保存即生效` },
+    { os: 'macOS', steps: `系统设置 → 网络 → 详细信息 → 代理：开启「网页代理 (HTTP)」和「安全网页代理 (HTTPS)」，地址 ${h} 端口 ${p}` },
+    { os: 'iOS / iPadOS', steps: `设置 → Wi-Fi → 当前网络 (i) → 配置代理 → 手动：服务器 ${h}，端口 ${p}` },
+    { os: 'Android', steps: `设置 → WLAN → 长按当前网络 → 修改网络 → 高级 → 代理选「手动」：主机 ${h}，端口 ${p}` },
+    { os: '浏览器插件', steps: `SwitchyOmega 等代理插件：HTTP 代理填 ${h}:${p}（SOCKS5 亦共用此端口）` },
+    { os: '终端（macOS / Linux）', steps: `export https_proxy=http://${h}:${p} http_proxy=http://${h}:${p}` },
+  ]
+})
+
 // status 晚于挂载到达时，运行起来后补一次代理列表
 watch(
   () => store.status?.running,
@@ -316,7 +334,11 @@ function currentOf(g) {
               <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
             </div>
             <div class="meta-item">
-              <span class="k"><AppIcon name="plug" :size="13" />混合端口</span>
+              <span class="k"><AppIcon name="plug" :size="13" />混合端口
+                <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
+                  <AppIcon name="gear" :size="12" />
+                </button>
+              </span>
               <span class="v mono">{{ status?.mixed_port || '—' }}</span>
             </div>
             <div class="meta-item">
@@ -597,6 +619,28 @@ function currentOf(g) {
       </div>
     </n-modal>
 
+    <!-- 混合端口使用说明 -->
+    <n-modal
+      preset="card"
+      title="混合端口使用说明"
+      :show="showPort"
+      :style="{ width: '560px', maxWidth: '94vw' }"
+      @update:show="showPort = false"
+    >
+      <div class="help-body">
+        <div class="help-endpoint mono">{{ locationHost }}:{{ status?.mixed_port || 7890 }}</div>
+        <div class="help-sub">HTTP 与 SOCKS5 共用此端口，任选其一；插件已允许局域网设备连接（allow-lan）。</div>
+        <div v-for="s in portHelp" :key="s.os" class="help-sec">
+          <div class="h-os">{{ s.os }}</div>
+          <div class="h-steps">{{ s.steps }}</div>
+        </div>
+        <div class="help-note">
+          代理连接本身无需任何令牌——「界面访问令牌」只保护本管理页面，与代理无关。
+          开启 TUN 或透明代理模式时，局域网设备无需任何配置即自动接管，此端口供手动指定代理的设备使用。
+        </div>
+      </div>
+    </n-modal>
+
     <!-- 运行时配置查看 -->
     <n-modal
       preset="card"
@@ -668,6 +712,29 @@ function currentOf(g) {
 }
 .dns-row .dns-text { display: flex; flex-direction: column; gap: 3px; }
 .mode-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
+
+/* 混合端口使用说明弹窗 */
+.help-body { display: flex; flex-direction: column; gap: 10px; }
+.help-endpoint {
+  align-self: center;
+  font-size: 20px; font-weight: 700;
+  color: var(--accent); background: var(--accent-soft);
+  border-radius: 10px; padding: 10px 18px;
+}
+.help-sub { color: var(--text-dim); font-size: 12.5px; text-align: center; }
+.help-sec {
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.h-os { font-weight: 600; font-size: 13px; }
+.h-steps { color: var(--text-dim); font-size: 12.5px; line-height: 1.6; }
+.help-note {
+  color: var(--text-dim); font-size: 12px; line-height: 1.7;
+  border-top: 1px dashed var(--border); padding-top: 10px;
+}
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 
