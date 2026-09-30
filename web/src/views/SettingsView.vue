@@ -49,6 +49,13 @@ const coreBtnText = computed(() =>
 const pluginBtnText = computed(() =>
   pluginUpgrading.value ? (prog.value?.percent > 0 ? `下载中 ${Math.round(prog.value.percent)}%` : '下载安装中…') : '升级')
 
+// 随机生成 32 位十六进制令牌（crypto 安全随机）
+function genToken() {
+  const b = new Uint8Array(16)
+  crypto.getRandomValues(b)
+  form.token = [...b].map(x => x.toString(16).padStart(2, '0')).join('')
+}
+
 function startProgPoll() {
   stopProgPoll()
   prog.value = null
@@ -234,14 +241,24 @@ const tab = ref('general')
               <span class="rt">界面访问令牌</span>
               <span class="rs">设置后局域网内打开界面需输入令牌，留空不启用</span>
             </div>
-            <n-input
-              v-model:value="form.token"
-              type="password"
-              show-password-on="click"
-              placeholder="留空不启用"
-              class="ctl"
-              style="width: 200px"
-            />
+            <div class="token-ctl">
+              <n-input
+                v-model:value="form.token"
+                type="password"
+                show-password-on="click"
+                placeholder="留空不启用"
+                class="ctl"
+                style="width: 200px"
+              />
+              <div class="btn-pair">
+                <n-button size="small" quaternary title="清空令牌" :disabled="!form.token" @click="form.token = ''">
+                  <template #icon><AppIcon name="trash" :size="13" /></template>
+                </n-button>
+                <n-button size="small" quaternary title="随机生成 32 位令牌" @click="genToken">
+                  <template #icon><AppIcon name="zap" :size="13" /></template>
+                </n-button>
+              </div>
+            </div>
           </div>
         </div>
       </n-card>
@@ -450,6 +467,7 @@ const tab = ref('general')
 .num { width: 110px; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
 .btn-pair { display: flex; gap: 8px; flex: none; }
+.token-ctl { display: flex; align-items: center; gap: 8px; flex: none; }
 .prog { width: 180px; flex-shrink: 0; }
 .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; padding: 10px 0 2px; }
 </style>
