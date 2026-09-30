@@ -97,7 +97,7 @@ function pickTheme(v) {
 
 <style scoped>
 .sidebar {
-  width: 208px;
+  width: 176px;
   flex: none;
   background: var(--sidebar);
   display: flex;
