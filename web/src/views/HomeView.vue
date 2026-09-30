@@ -3,9 +3,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic } from '../store.js'
+import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic, tripTotals, resetTrip, delayColor } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
-import NodeSheet from '../components/NodeSheet.vue'
 import SubFormModal from '../components/SubFormModal.vue'
 import AppIcon from '../components/AppIcon.vue'
 
@@ -16,8 +15,6 @@ const HERO_H = 62
 const heroCtl = { width: HERO_H + 'px', height: HERO_H + 'px' }
 const heroRestart = { height: HERO_H + 'px', padding: '0 24px', fontSize: '15px' }
 const proxies = ref({})
-const showSheet = ref(false)
-const sheetGroup = ref(null)
 const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
 const subBusy = ref(false)
 let trafficTimer = null
@@ -197,9 +194,30 @@ async function viewConfig() {
   }
 }
 
-function openGroup(g) {
-  sheetGroup.value = g
-  showSheet.value = true
+// ---- 快速切换：分组手风琴，默认全展开、可折叠；节点点击即切换 ----
+const folded = ref({}) // 组名 → 是否折叠（缺省 false = 展开）
+
+function delayOf(nodeName) {
+  const h = proxies.value[nodeName]?.history
+  return Array.isArray(h) && h.length ? h[h.length - 1].delay : 0
+}
+
+async function pick(g, node) {
+  try {
+    await api.put('/api/proxies/' + encodeURIComponent(g.name), { name: node })
+    toast(`「${g.name}」已切换到 ${node}`, 'success')
+    loadProxies()
+  } catch (e) {
+    toast(e.message, 'error')
+  }
+}
+
+// ---- 流量里程表：显示 内核累计 - 基线，清零即从当前值重新统计 ----
+const trip = computed(() => tripTotals())
+
+function onTripReset() {
+  resetTrip()
+  toast('累计流量已清零，重新开始统计', 'success')
 }
 
 // status 晚于挂载到达时，运行起来后补一次代理列表
@@ -309,17 +327,17 @@ function currentOf(g) {
       <div class="sec-head">
         <h3>当前订阅</h3>
         <div class="sub-actions">
-          <n-button size="small" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
-            <template #icon><AppIcon name="refresh" :size="13" /></template>刷新订阅
+          <n-button size="small" title="刷新当前订阅" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
+            <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
           </n-button>
           <n-button v-if="status?.running" size="small" title="查看运行时配置（config.yaml）" @click="viewConfig">
-            <template #icon><AppIcon name="file-code" :size="13" /></template>配置
+            <template #icon><AppIcon name="file-code" :size="13" /></template>查看
           </n-button>
-          <n-button size="small" @click="openSwitch">
-            <template #icon><AppIcon name="swap" :size="13" /></template>切换订阅
+          <n-button size="small" title="切换订阅" @click="openSwitch">
+            <template #icon><AppIcon name="swap" :size="13" /></template>切换
           </n-button>
-          <n-button size="small" @click="showAdd = true">
-            <template #icon><AppIcon name="plus" :size="13" /></template>添加订阅
+          <n-button size="small" title="添加订阅" @click="showAdd = true">
+            <template #icon><AppIcon name="plus" :size="13" /></template>添加
           </n-button>
         </div>
       </div>
@@ -373,37 +391,60 @@ function currentOf(g) {
             <span class="k">内核内存</span>
             <span class="v mono">{{ traffic.memory_mb ? traffic.memory_mb.toFixed(1) + ' MB' : '—' }}</span>
           </div>
+          <div class="tn">
+            <span class="k">累计上传</span>
+            <span class="v mono" style="color: var(--green)">{{ fmtBytes(trip.up) }}</span>
+          </div>
+          <div class="tn">
+            <span class="k">累计下载</span>
+            <span class="v mono" style="color: var(--accent)">{{ fmtBytes(trip.down) }}</span>
+          </div>
+          <n-button
+            class="trip-reset" size="tiny" quaternary
+            title="里程清零：丢弃当前累计，从零重新统计" @click="onTripReset"
+          >
+            <template #icon><AppIcon name="restart" :size="12" /></template>清零
+          </n-button>
         </div>
       </div>
       <Sparkline v-if="status?.running" :series="store.history" :height="130" />
       <n-empty v-else description="内核未运行" style="padding: 40px 0" />
     </n-card>
 
-    <!-- 快速切换 -->
+    <!-- 切换节点：分组手风琴，默认全展开；容器限高，超出出现竖向滚动 -->
     <n-card>
       <div class="sec-head">
-        <h3>快速切换节点</h3>
-        <span class="page-sub">点击分组选择节点 · 仅显示可手动选择分组</span>
+        <h3>切换节点</h3>
+        <span class="page-sub">点击节点名直接切换 · 点击分组标题可折叠</span>
       </div>
       <n-empty v-if="!status?.running" description="内核未运行，启动后可切换节点" />
       <n-empty v-else-if="selectableGroups.length === 0" description="订阅中没有可手动选择的代理组" />
-      <div v-else class="group-list">
-        <button v-for="g in selectableGroups" :key="g.name" class="group-row" @click="openGroup(g)">
-          <span class="g-name">{{ g.name }}</span>
-          <span class="g-count">{{ g.all.length }} 节点</span>
-          <span class="g-now">{{ currentOf(g) }}</span>
-          <span class="g-arrow">›</span>
-        </button>
+      <div v-else class="group-acc">
+        <div v-for="g in selectableGroups" :key="g.name" class="grp">
+          <button class="grp-head" @click="folded[g.name] = !folded[g.name]">
+            <span class="g-name">{{ g.name }}</span>
+            <span class="g-count">{{ g.all.length }} 节点</span>
+            <span class="g-now">{{ currentOf(g) }}</span>
+            <span class="g-arrow" :class="{ open: !folded[g.name] }">›</span>
+          </button>
+          <div v-show="!folded[g.name]" class="grp-body">
+            <button
+              v-for="node in g.all"
+              :key="node"
+              class="node-row"
+              :class="{ on: node === currentOf(g) }"
+              @click="pick(g, node)"
+            >
+              <span class="n-name">{{ node }}</span>
+              <span class="n-delay mono" :style="{ color: delayColor(delayOf(node)) }">
+                {{ delayOf(node) > 0 ? delayOf(node) + ' ms' : '' }}
+              </span>
+              <AppIcon v-if="node === currentOf(g)" name="check" :size="13" style="color: var(--accent)" />
+            </button>
+          </div>
+        </div>
       </div>
     </n-card>
-
-    <NodeSheet
-      v-if="showSheet"
-      :group="sheetGroup"
-      :proxies="proxies"
-      @close="showSheet = false"
-      @selected="loadProxies"
-    />
 
     <!-- 添加订阅弹窗（首页原地弹出） -->
     <SubFormModal :open="showAdd" @close="showAdd = false" @added="onSubAdded" />
@@ -507,8 +548,11 @@ function currentOf(g) {
 .sub-name { font-size: 15px; font-weight: 600; }
 .sub-traffic { display: flex; align-items: center; gap: 12px; margin-top: 9px; }
 .sub-bar { width: 260px; max-width: 50%; }
-.group-list { display: flex; flex-direction: column; gap: 6px; }
-.group-row {
+.group-acc {
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: 60vh; overflow-y: auto;
+}
+.grp-head {
   display: flex; align-items: center; gap: 12px;
   width: 100%; text-align: left;
   padding: 12px 14px; border-radius: 11px;
@@ -516,13 +560,29 @@ function currentOf(g) {
   border: none; cursor: pointer;
   font: inherit; color: inherit;
 }
+.grp-head:hover { background: var(--hover); }
 .g-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-count { color: var(--text-dim); font-size: 12px; flex: none; }
 .g-now {
   color: var(--accent); font-size: 13px; max-width: 40%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.g-arrow { color: var(--text-dim); font-size: 18px; flex: none; }
+.g-arrow { color: var(--text-dim); font-size: 18px; flex: none; transition: transform 0.15s; }
+.g-arrow.open { transform: rotate(90deg); }
+.grp-body { display: flex; flex-direction: column; gap: 2px; padding: 6px 0 2px 14px; }
+.node-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 8px 12px; border-radius: 9px;
+  background: transparent; border: none; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.node-row:hover { background: var(--hover); }
+.node-row.on { background: var(--accent-soft); }
+.n-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.node-row.on .n-name { color: var(--accent); font-weight: 600; }
+.n-delay { font-size: 12px; flex: none; }
+.trip-reset { align-self: center; flex: none; }
 
 .switch-body { display: flex; flex-direction: column; gap: 12px; }
 .switch-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }

@@ -81,9 +81,27 @@ export function ask(title, content) {
 }
 
 export function pushTraffic(t) {
+  // 内核重启会把内核侧累计清零：总量小于基线时自动把基线挪到新起点
+  if ((t.up_total || 0) < tripBase.up) tripBase.up = t.up_total || 0
+  if ((t.down_total || 0) < tripBase.down) tripBase.down = t.down_total || 0
   store.traffic = t
   store.history.push({ up: t.up, down: t.down })
   if (store.history.length > 120) store.history.shift()
+}
+
+// ---- 流量里程表：显示值 = 内核累计 - 基线，清零即把基线挪到当前累计 ----
+const tripBase = reactive({ up: 0, down: 0 })
+
+export function tripTotals() {
+  return {
+    up: (store.traffic.up_total || 0) - tripBase.up,
+    down: (store.traffic.down_total || 0) - tripBase.down,
+  }
+}
+
+export function resetTrip() {
+  tripBase.up = store.traffic.up_total || 0
+  tripBase.down = store.traffic.down_total || 0
 }
 
 // ---- 展示格式化 ----
