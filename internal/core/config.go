@@ -53,16 +53,22 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 // managedOverlay 返回本插件托管的 mihomo 基础配置。
 func managedOverlay(s config.Settings) map[string]any {
 	m := map[string]any{
-		"mixed-port":         s.MixedPort,
-		"allow-lan":          s.AllowLAN,
-		"bind-address":       "*",
-		"mode":               "rule",
-		"log-level":          "info",
-		"unified-delay":      true,
-		"tcp-concurrent":     true,
+		"mixed-port": s.MixedPort,
+		// 路由器插件固定允许 LAN：透明代理把流量 REDIRECT 到本机端口，
+		// 以及局域网设备直连混合端口，都要求监听 0.0.0.0（127.0.0.1 会拒收）
+		"allow-lan":           true,
+		"bind-address":        "*",
+		"mode":                "rule",
+		"log-level":           "info",
+		"unified-delay":       true,
+		"tcp-concurrent":      true,
+		"find-process-mode":   "off", // 路由器 CPU 弱，跳过每连接的进程匹配
 		"external-controller": fmt.Sprintf("127.0.0.1:%d", s.ControllerPort),
-		"secret":             s.ControllerSecret,
-		"profile":            map[string]any{"store-selected": true},
+		"secret":              s.ControllerSecret,
+		// 透明代理（redirect 模式）监听端口：防火墙把 LAN 的 TCP 重定向到这里，
+		// 与 hijack.go 的 redirPort 保持一致
+		"redir-port": 7892,
+		"profile":    map[string]any{"store-selected": true},
 		"tun": map[string]any{
 			"enable":                s.TUN,
 			"stack":                 s.TUNStack,
@@ -73,12 +79,18 @@ func managedOverlay(s config.Settings) map[string]any {
 	}
 	if s.DNS {
 		m["dns"] = map[string]any{
-			"enable":         true,
-			"listen":         "0.0.0.0:1053",
-			"ipv6":           false,
-			"enhanced-mode":  "fake-ip",
-			"fake-ip-range":  "198.18.0.1/16",
-			"fake-ip-filter": []any{"*.lan", "+.local", "+.market.xiaomi.com"},
+			"enable":        true,
+			"listen":        "0.0.0.0:1053",
+			"ipv6":          false,
+			"enhanced-mode": "fake-ip",
+			"fake-ip-range": "198.18.0.1/16",
+			// NTP/系统连通性检查走真实 IP，避免假 IP 干扰时间同步等
+			"fake-ip-filter": []any{
+				"*.lan", "+.local", "+.market.xiaomi.com",
+				"+.msftconnecttest.com", "+.msftncsi.com",
+				"time.windows.com", "time.nist.gov", "*.ntp.org",
+				"time.apple.com", "time.asia.apple.com", "time1.cloud.tencent.com",
+			},
 			"default-nameserver": []any{"223.5.5.5", "119.29.29.29"},
 			"nameserver":         []any{"https://doh.pub/dns-query", "https://dns.alidns.com/dns-query"},
 		}

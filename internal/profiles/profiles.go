@@ -1,7 +1,8 @@
 // Package profiles 管理订阅：下载、存储、更新、删除。
 //
 // 存储布局: <workdir>/profiles/<id>.yaml   订阅原文（即 mihomo 配置）
-//                    <id>.meta.json        名称/URL/更新时间等元数据
+//
+//	<id>.meta.json        名称/URL/更新时间等元数据
 package profiles
 
 import (
@@ -31,10 +32,10 @@ type Profile struct {
 	Size      int64  `json:"size"`
 	UA        string `json:"ua,omitempty"` // 添加订阅时用的 User-Agent，更新时沿用
 	// 订阅流量信息（来自 subscription-userinfo 响应头），0 表示机场未提供
-	Upload  int64 `json:"upload,omitempty"`
+	Upload   int64 `json:"upload,omitempty"`
 	Download int64 `json:"download,omitempty"`
-	Total   int64 `json:"total,omitempty"`
-	Expire  int64 `json:"expire,omitempty"` // 到期时间 unix 秒
+	Total    int64 `json:"total,omitempty"`
+	Expire   int64 `json:"expire,omitempty"` // 到期时间 unix 秒
 }
 
 type metaFile struct {

@@ -91,10 +91,38 @@ func (c *controllerClient) version(ctx context.Context) (coreVersion, error) {
 	return v, err
 }
 
+// ConnItem 是内核的一条活动连接（mihomo /connections 单条记录）。
+type ConnItem struct {
+	ID          string   `json:"id"`
+	Upload      int64    `json:"upload"`
+	Download    int64    `json:"download"`
+	Start       string   `json:"start"` // RFC3339
+	Chains      []string `json:"chains"`
+	Rule        string   `json:"rule"`
+	RulePayload string   `json:"rulePayload"`
+	Metadata    struct {
+		Network         string `json:"network"`
+		Type            string `json:"type"`
+		SourceIP        string `json:"sourceIP"`
+		SourcePort      string `json:"sourcePort"`
+		DestinationIP   string `json:"destinationIP"`
+		DestinationPort string `json:"destinationPort"`
+		Host            string `json:"host"`
+	} `json:"metadata"`
+}
+
+// Target 展示用的访问目标：优先域名，否则 IP:端口。
+func (c ConnItem) Target() string {
+	if h := c.Metadata.Host; h != "" {
+		return h
+	}
+	return c.Metadata.DestinationIP + ":" + c.Metadata.DestinationPort
+}
+
 type connSnapshot struct {
-	UploadTotal   int64         `json:"uploadTotal"`
-	DownloadTotal int64         `json:"downloadTotal"`
-	Connections   []json.RawMessage `json:"connections"`
+	UploadTotal   int64      `json:"uploadTotal"`
+	DownloadTotal int64      `json:"downloadTotal"`
+	Connections   []ConnItem `json:"connections"`
 }
 
 func (c *controllerClient) connections(ctx context.Context) (connSnapshot, error) {

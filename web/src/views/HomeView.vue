@@ -178,8 +178,8 @@ function currentOf(g) {
             <span class="k">模式</span>
             <span class="v">
               <span v-if="status?.tun" class="badge">TUN</span>
-              <span v-if="status?.allow_lan" class="badge" style="margin-left:4px">局域网</span>
-              <span v-if="!status?.tun && !status?.allow_lan" class="v">标准</span>
+              <span v-else-if="status?.openwrt" class="badge">透明代理</span>
+              <span v-else class="v">标准</span>
             </span>
           </div>
         </div>

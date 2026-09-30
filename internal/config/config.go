@@ -17,23 +17,22 @@ import (
 
 // Settings 是全部用户可配置项，字段与 UCI option 一一对应（见 uci.go）。
 type Settings struct {
-	Enabled          bool   `json:"enabled"`            // 开机启动插件服务
-	CoreAutostart    bool   `json:"core_autostart"`     // 插件服务启动时自动拉起 mihomo
-	UIPort           int    `json:"ui_port"`            // 管理界面 / API 端口
-	MixedPort        int    `json:"mixed_port"`         // mihomo 混合代理端口
-	ControllerPort   int    `json:"controller_port"`    // mihomo external-controller 端口（仅监听 127.0.0.1）
-	ControllerSecret string `json:"controller_secret"`  // mihomo 控制密钥，留空则首次启动自动生成
-	Token            string `json:"token"`              // 管理界面访问令牌，留空表示不启用鉴权
-	AllowLAN         bool   `json:"allow_lan"`          // 允许局域网设备使用代理端口
-	TUN              bool   `json:"tun"`                // TUN 模式（接管全局流量）
-	TUNStack         string `json:"tun_stack"`          // TUN 协议栈: system / gvisor / mixed
-	DNS              bool   `json:"dns"`                // 由 mihomo 接管 DNS（TUN 模式建议开启）
-	AutoUpdateHours  int    `json:"auto_update"`        // 订阅自动更新间隔（小时），0 为关闭
-	CorePath         string `json:"core_path"`          // mihomo 二进制路径
-	CoreArch         string `json:"core_arch"`          // 内核下载平台名，留空自动检测（如 linux-arm64）
-	DNSHijack        string `json:"dns_hijack"`         // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
-	CustomUA         string `json:"custom_ua"`          // 上次使用的自定义订阅 User-Agent（记住，下次预填）
-	WorkDir          string `json:"workdir"`            // 数据目录：订阅、运行时配置、日志
+	Enabled          bool   `json:"enabled"`           // 开机启动插件服务
+	CoreAutostart    bool   `json:"core_autostart"`    // 插件服务启动时自动拉起 mihomo
+	UIPort           int    `json:"ui_port"`           // 管理界面 / API 端口
+	MixedPort        int    `json:"mixed_port"`        // mihomo 混合代理端口
+	ControllerPort   int    `json:"controller_port"`   // mihomo external-controller 端口（仅监听 127.0.0.1）
+	ControllerSecret string `json:"controller_secret"` // mihomo 控制密钥，留空则首次启动自动生成
+	Token            string `json:"token"`             // 管理界面访问令牌，留空表示不启用鉴权
+	TUN              bool   `json:"tun"`               // TUN 模式（接管全局流量）；关闭时自动用防火墙做 TCP 透明代理
+	TUNStack         string `json:"tun_stack"`         // TUN 协议栈: system / gvisor / mixed
+	DNS              bool   `json:"dns"`               // 由 mihomo 接管 DNS（TUN 模式建议开启）
+	AutoUpdateHours  int    `json:"auto_update"`       // 订阅自动更新间隔（小时），0 为关闭
+	CorePath         string `json:"core_path"`         // mihomo 二进制路径
+	CoreArch         string `json:"core_arch"`         // 内核下载平台名，留空自动检测（如 linux-arm64）
+	DNSHijack        string `json:"dns_hijack"`        // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
+	CustomUA         string `json:"custom_ua"`         // 上次使用的自定义订阅 User-Agent（记住，下次预填）
+	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
 	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
 	DownloadProxy    string `json:"download_proxy"`    // GitHub 下载加速前缀（如 https://gh-proxy.com），留空直连
 	ActiveProfile    string `json:"active_profile"`    // 当前激活的订阅 ID
@@ -49,7 +48,6 @@ func Defaults() Settings {
 		ControllerPort:   9090,
 		ControllerSecret: "",
 		Token:            "",
-		AllowLAN:         false,
 		TUN:              false,
 		TUNStack:         "mixed",
 		DNS:              true,

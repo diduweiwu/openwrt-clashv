@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"clashv/internal/config"
+	"clashv/internal/core"
 	"clashv/internal/profiles"
 )
 
@@ -84,26 +85,34 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 		uptime = int64(time.Since(startedAt).Seconds())
 	}
 	writeJSON(w, 200, map[string]any{
-		"running":         d.mgr.Running(),
-		"pid":             d.mgr.PID(),
-		"uptime":          uptime,
-		"started_at":      startedAt.Unix(),
-		"core":            cs,
-		"plugin_version":  d.ver,
-		"profile":         profileName,
-		"ui_port":         s.UIPort,
-		"mixed_port":      s.MixedPort,
-		"tun":             s.TUN,
-		"allow_lan":       s.AllowLAN,
-		"dns":             s.DNS,
-		"auto_update":     s.AutoUpdateHours,
-		"openwrt":         d.cfg.IsOpenWrt(),
-		"token_required":  s.Token != "",
+		"running":        d.mgr.Running(),
+		"pid":            d.mgr.PID(),
+		"uptime":         uptime,
+		"started_at":     startedAt.Unix(),
+		"core":           cs,
+		"plugin_version": d.ver,
+		"profile":        profileName,
+		"ui_port":        s.UIPort,
+		"mixed_port":     s.MixedPort,
+		"tun":            s.TUN,
+		"dns":            s.DNS,
+		"auto_update":    s.AutoUpdateHours,
+		"openwrt":        d.cfg.IsOpenWrt(),
+		"token_required": s.Token != "",
 	})
 }
 
 func (d *deps) handleTraffic(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, d.mgr.Traffic())
+}
+
+// handleConnections 返回当前活动连接快照（随内核每秒轮询刷新）。
+func (d *deps) handleConnections(w http.ResponseWriter, r *http.Request) {
+	items := []core.ConnItem{}
+	if d.mgr.Running() {
+		items = d.mgr.Connections()
+	}
+	writeJSON(w, 200, map[string]any{"items": items})
 }
 
 // ---- 代理 ----
@@ -319,7 +328,7 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	s, _ := d.cfg.Get()
 
 	// 内核相关设置变化且内核在运行 → 自动重启生效
-	coreChanged := old.MixedPort != s.MixedPort || old.AllowLAN != s.AllowLAN ||
+	coreChanged := old.MixedPort != s.MixedPort ||
 		old.TUN != s.TUN || old.TUNStack != s.TUNStack || old.DNS != s.DNS ||
 		old.ControllerPort != s.ControllerPort
 	restarted := false
@@ -333,10 +342,11 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	}
 	// 仅 DNS 劫持模式变化 → 不必重启内核，立即切换
 	if old.DNSHijack != s.DNSHijack && !coreChanged {
-		if d.mgr.Running() && s.DNS && s.DNSHijack != "off" {
-			go d.mgr.ApplyDNSHijack(s)
+		if d.mgr.Running() {
+			go d.mgr.ApplyTrafficHooks(s)
 		} else {
-			go d.mgr.RemoveDNSHijack()
+			// 内核没跑时规则绝不能留着：透明代理指向死端口会断 LAN 上网
+			go d.mgr.RemoveTrafficHooks()
 		}
 	}
 	writeJSON(w, 200, map[string]any{

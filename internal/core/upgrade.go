@@ -148,13 +148,13 @@ func (r *ghRelease) findAsset(re *regexp.Regexp) (string, bool) {
 
 // UpgradeProgress 一次升级任务的实时进度（内核/插件共用）。
 type UpgradeProgress struct {
-	Kind       string  `json:"kind"`        // core / plugin
-	Stage      string  `json:"stage"`       // download / install / done / error
-	Message    string  `json:"message"`     // 展示用文本（error 时为失败原因）
-	Downloaded int64   `json:"downloaded"`  // 已下载字节
-	Total      int64   `json:"total"`       // 总字节（服务器未给出时为 0）
-	Percent    float64 `json:"percent"`     // 0-100，未知总量时为 0
-	Active     bool    `json:"active"`      // 任务是否进行中
+	Kind       string  `json:"kind"`       // core / plugin
+	Stage      string  `json:"stage"`      // download / install / done / error
+	Message    string  `json:"message"`    // 展示用文本（error 时为失败原因）
+	Downloaded int64   `json:"downloaded"` // 已下载字节
+	Total      int64   `json:"total"`      // 总字节（服务器未给出时为 0）
+	Percent    float64 `json:"percent"`    // 0-100，未知总量时为 0
+	Active     bool    `json:"active"`     // 任务是否进行中
 }
 
 // beginUpgrade 占用一个升级槽位，同一时间只允许一个升级任务。

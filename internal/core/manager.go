@@ -53,6 +53,7 @@ type Manager struct {
 
 	tmu      sync.Mutex
 	traffic  Traffic
+	conns    []ConnItem // 最近一次轮询的活动连接快照
 	lastTot  [2]int64
 	lastTime time.Time
 	polling  atomic.Bool
@@ -177,16 +178,16 @@ func (m *Manager) Start() error {
 		time.Sleep(300 * time.Millisecond)
 	}
 	m.startPolling(ctx)
-	// DNS 劫持（防火墙/dnsmasq 转发）在内核就绪后异步套用
-	go m.ApplyDNSHijack(s)
+	// DNS 劫持 + TCP 透明代理在内核就绪后异步套用
+	go m.ApplyTrafficHooks(s)
 	slog.Info("mihomo 已启动", "pid", cmd.Process.Pid, "profile", active)
 	return nil
 }
 
 // Stop 停止 mihomo 进程。
 func (m *Manager) Stop() error {
-	// 先撤 DNS 劫持，让 LAN 解析立刻回退 dnsmasq/上游，再停内核
-	m.RemoveDNSHijack()
+	// 先撤 DNS 劫持与透明代理规则，让 LAN 解析和转发立刻回退直连，再停内核
+	m.RemoveTrafficHooks()
 	m.mu.Lock()
 	cmd, cancel := m.cmd, m.cancel
 	m.mu.Unlock()
@@ -243,8 +244,18 @@ func (m *Manager) resetTraffic() {
 	m.tmu.Lock()
 	defer m.tmu.Unlock()
 	m.traffic = Traffic{}
+	m.conns = nil
 	m.lastTot = [2]int64{}
 	m.lastTime = time.Time{}
+}
+
+// Connections 返回内核当前活动连接快照（随流量每秒轮询刷新）；内核未运行为空。
+func (m *Manager) Connections() []ConnItem {
+	m.tmu.Lock()
+	defer m.tmu.Unlock()
+	out := make([]ConnItem, len(m.conns))
+	copy(out, m.conns)
+	return out
 }
 
 // startPolling 每秒轮询一次 /connections 计算速率，并采样内核内存。
@@ -293,6 +304,11 @@ func (m *Manager) startPolling(ctx context.Context) {
 					DownTotal:   snap.DownloadTotal,
 					Connections: len(snap.Connections),
 					MemoryMB:    m.processRSSMB(),
+				}
+				// 连接快照上限 1000 条，防止异常大量连接拖垮路由器内存
+				m.conns = snap.Connections
+				if len(m.conns) > 1000 {
+					m.conns = m.conns[:1000]
 				}
 				m.tmu.Unlock()
 			}

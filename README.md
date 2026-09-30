@@ -16,11 +16,14 @@ OpenWrt 专用的 Clash/Mihomo 管理插件。Go 后端 + 内嵌 Web 界面，�
 
 - **首页**：运行状态、实时流量（上传/下载/连接数/内核内存）、一键启停重启、快速切换节点
 - **代理**：全部代理组与节点，点击切换，整组测速，延迟颜色分级
+- **连接日志**：内核当前活动连接实时列表（来源、目标、命中规则、代理链、上下行流量）
 - **订阅**：添加/更新/启用/删除订阅，支持定时自动更新；订阅内容 + 托管基础配置自动合成为运行时配置
 - **设置**：
   - 内核（mihomo）一键检查更新/升级，自动识别路由器架构
   - 插件自更新（从 GitHub Releases 下载替换）
-  - 端口、允许局域网、TUN 模式、DNS 接管、访问令牌等常用开关
+  - TUN 模式（内核 auto-route 接管全局流量）；关闭时自动用防火墙接管局域网 TCP（透明代理，与 OpenClash 的 redirect 模式一致）
+  - DNS 接管（fake-ip）+ DNS 劫持（防火墙转发 / dnsmasq 转发），旁路由/网关模式开箱即用
+  - 访问令牌等常用开关
 - **LuCI 集成**：安装后在 LuCI「服务 → clashv」进入界面（iframe 内嵌）
 - **低占用**：Go 后端约 10–20MB 内存；前端打包后仅 ~51KB gzip，纯静态文件由 Go 直接托管，无 Node/PHP/Lua 运行时
 
@@ -36,7 +39,7 @@ OpenWrt 专用的 Clash/Mihomo 管理插件。Go 后端 + 内嵌 Web 界面，�
 
 - clashv 全权管理 mihomo 子进程的生死与配置；浏览器永远不直接接触内核 API
 - mihomo 控制密钥自动生成，控制器只监听 `127.0.0.1`
-- 端口规划：管理界面 `9097`、混合代理 `7890`、内核控制器 `127.0.0.1:9090`（均可在设置修改）
+- 端口规划：管理界面 `9097`、混合代理 `7890`、透明代理（redir）`7892`、内核 DNS `1053`、内核控制器 `127.0.0.1:9090`（均可在设置修改，透明代理端口内置）
 
 ## 目录结构
 
@@ -157,8 +160,8 @@ ssh root@router "/etc/uci-defaults/99-clashv; /etc/init.d/clashv start"
 
 ## 使用注意
 
-- **代理生效**：其他设备把网关/代理指向路由器 `:7890` 即可；开启「TUN 模式」后路由器自身流量也被接管（依赖 `kmod-tun`），无需配 iptables
-- **DNS**：TUN 模式建议保持「接管 DNS」开启（fake-ip）；如需 dnsmasq 联动，把 dnsmasq 上游转发到 `127.0.0.1:1053` 即可，插件不做强制
+- **代理生效**：其他设备把**网关和 DNS** 指向本路由器 IP 即可，插件启动内核后自动接管（防火墙 DNS 劫持 + TCP 透明代理）；局域网设备也可手动把代理设为 `<路由器IP>:7890`。开启「TUN 模式」后路由器自身流量也被接管（依赖 `kmod-tun`）
+- **DNS**：TUN 模式建议保持「接管 DNS」开启（fake-ip）；非 TUN 模式默认「防火墙转发」劫持 LAN 的 53 端口到内核 DNS，dnsmasq 联动可在设置中切换为「dnsmasq 转发」
 - **架构识别**：内核更新默认按 Go 运行时推导 mihomo 平台名，MIPS 硬浮点等特殊设备在「设置 → 平台」手动填（如 `linux-mips-hardfloat`）
 - **安全**：界面默认局域网开放；建议在「设置 → 访问控制」配置访问令牌；控制器仅监听本机，外部无法直连内核
 - **配置持久化**：设置存 UCI（`/etc/config/clashv`），订阅存 `/etc/clashv/profiles/`，两者都在 conffiles 列表中，升级不丢
@@ -174,6 +177,7 @@ ssh root@router "/etc/uci-defaults/99-clashv; /etc/init.d/clashv start"
 | PUT | /api/proxies/{group} | 切换节点 `{"name":"..."}` |
 | GET | /api/proxies/{name}/delay | 单节点测速 |
 | GET | /api/group/{name}/delay | 整组测速 |
+| GET | /api/connections | 当前活动连接（连接日志） |
 | GET/POST | /api/profiles | 订阅列表/添加 |
 | POST | /api/profiles/{id}/update·activate | 更新/启用订阅 |
 | DELETE | /api/profiles/{id} | 删除订阅 |

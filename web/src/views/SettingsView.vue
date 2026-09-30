@@ -56,7 +56,6 @@ function fmtMB(n) {
 const form = reactive({
   mixed_port: 7890,
   ui_port: 9097,
-  allow_lan: false,
   tun: false,
   tun_stack: 'mixed',
   dns: true,
@@ -110,7 +109,6 @@ async function load() {
     Object.assign(form, {
       mixed_port: s.mixed_port,
       ui_port: s.ui_port,
-      allow_lan: s.allow_lan,
       tun: s.tun,
       tun_stack: s.tun_stack,
       dns: s.dns,
@@ -137,7 +135,6 @@ async function save() {
     Object.assign(form, {
       mixed_port: r.settings.mixed_port,
       ui_port: r.settings.ui_port,
-      allow_lan: r.settings.allow_lan,
       tun: r.settings.tun,
       tun_stack: r.settings.tun_stack,
       dns: r.settings.dns,
@@ -245,16 +242,6 @@ onBeforeUnmount(stopProgPoll)
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">允许局域网</span>
-            <span class="rs">局域网设备可通过此路由器使用代理</span>
-          </div>
-          <label class="switch">
-            <input v-model="form.allow_lan" type="checkbox">
-            <span class="track"></span><span class="thumb"></span>
-          </label>
-        </div>
-        <div class="row">
-          <div class="row-text">
             <span class="rt">订阅自动更新</span>
             <span class="rs">每 N 小时自动更新一次，0 为关闭</span>
           </div>
@@ -273,7 +260,7 @@ onBeforeUnmount(stopProgPoll)
         <div class="row">
           <div class="row-text">
             <span class="rt">TUN 模式</span>
-            <span class="rs">接管路由器全局流量（无需配置 iptables）</span>
+            <span class="rs">接管全局流量（需内核 tun 模块）；关闭时自动用防火墙接管局域网 TCP（透明代理），无需手动配置</span>
           </div>
           <label class="switch">
             <input v-model="form.tun" type="checkbox">

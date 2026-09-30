@@ -17,7 +17,6 @@ import (
 //	    option controller_port '9090'
 //	    option controller_secret ''
 //	    option token ''
-//	    option allow_lan '0'
 //	    option tun '0'
 //	    option tun_stack 'mixed'
 //	    option dns '1'
@@ -72,9 +71,6 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setInt(&s.ControllerPort, "controller_port")
 	setStr(&s.ControllerSecret, "controller_secret")
 	setStr(&s.Token, "token")
-	if _, ok := getOK("allow_lan"); ok {
-		s.AllowLAN = isOn("allow_lan")
-	}
 	if _, ok := getOK("tun"); ok {
 		s.TUN = isOn("tun")
 	}
@@ -118,7 +114,6 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.controller_port='%d'", uciSection, s.ControllerPort)
 	line("set %s.controller_secret='%s'", uciSection, s.ControllerSecret)
 	line("set %s.token='%s'", uciSection, s.Token)
-	line("set %s.allow_lan='%s'", uciSection, onOff(s.AllowLAN))
 	line("set %s.tun='%s'", uciSection, onOff(s.TUN))
 	line("set %s.tun_stack='%s'", uciSection, s.TUNStack)
 	line("set %s.dns='%s'", uciSection, onOff(s.DNS))

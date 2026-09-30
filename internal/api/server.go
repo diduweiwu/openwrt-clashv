@@ -17,10 +17,10 @@ import (
 
 // deps 聚合各模块，供 handler 使用。
 type deps struct {
-	cfg   *config.Manager
-	prof  *profiles.Manager
-	mgr   *core.Manager
-	ver   string
+	cfg  *config.Manager
+	prof *profiles.Manager
+	mgr  *core.Manager
+	ver  string
 }
 
 // Serve 启动 HTTP 服务（阻塞）。
@@ -29,8 +29,9 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	if err := cfg.EnsureDirs(); err != nil {
 		return err
 	}
-	// 上次运行可能残留 dnsmasq 转发（持久化），内核未起时会把 LAN DNS 指向死端口
-	go mgr.RemoveDNSHijack()
+	// 上次运行可能残留 dnsmasq 转发/防火墙规则（持久化），内核未起时会把
+	// LAN DNS 指向死端口、TCP 指向死监听
+	go mgr.RemoveTrafficHooks()
 	s, err := cfg.Get()
 	if err != nil {
 		return err
@@ -42,6 +43,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	// 状态与流量
 	mux.HandleFunc("GET /api/status", d.handleStatus)
 	mux.HandleFunc("GET /api/traffic", d.handleTraffic)
+	mux.HandleFunc("GET /api/connections", d.handleConnections)
 
 	// 代理（转发 mihomo 控制接口）
 	mux.HandleFunc("GET /api/proxies", d.handleProxies)
