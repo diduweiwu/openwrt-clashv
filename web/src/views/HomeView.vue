@@ -1,9 +1,9 @@
 <script setup>
 // 首页：运行状态、当前订阅、流量概览、快速切换节点
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, fmtRate, fmtBytes, fmtUptime, pushTraffic, tripTotals, resetTrip, delayColor } from '../store.js'
+import { store, toast, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
 import AppIcon from '../components/AppIcon.vue'
@@ -17,7 +17,6 @@ const heroRestart = { height: HERO_H + 'px', padding: '0 16px', fontSize: '15px'
 const proxies = ref({})
 const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
 const subBusy = ref(false)
-let trafficTimer = null
 
 const GROUP_TYPES = ['Selector', 'URLTest', 'Fallback', 'LoadBalance', 'Relay']
 
@@ -31,8 +30,6 @@ const selectableGroups = computed(() => groups.value.filter(g => g.type === 'Sel
 
 const status = computed(() => store.status)
 const traffic = computed(() => store.traffic)
-// CPU 占用率超 80% 标橙（字段缺失 = 非 Linux 环境，显示 —）
-const cpuHigh = computed(() => (status.value?.cpu ?? 0) > 80)
 
 async function loadProxies(silent = true) {
   if (!status.value?.running) { proxies.value = {}; return }
@@ -228,21 +225,10 @@ watch(
   },
 )
 
-// 流量轮询只在首页进行（离开页面即停止，减少无谓请求与重绘）
-async function refreshTraffic() {
-  if (!store.status?.running) return
-  try {
-    pushTraffic(await api.get('/api/traffic'))
-  } catch { /* 忽略单次失败 */ }
-}
-
 onMounted(() => {
   loadProxies()
   loadProfiles()
-  refreshTraffic()
-  trafficTimer = setInterval(refreshTraffic, 1000)
 })
-onUnmounted(() => clearInterval(trafficTimer))
 
 function currentOf(g) {
   const p = proxies.value[g.name]
@@ -262,10 +248,6 @@ function currentOf(g) {
         <!-- 第二行放瓦片与按钮，align 居中让按钮与瓦片严格水平对齐 -->
         <n-flex justify="space-between" align="center" :size="18">
           <n-flex :size="8">
-            <div class="meta-item">
-              <span class="k"><AppIcon name="file-text" :size="13" />当前订阅</span>
-              <span class="v">{{ status?.profile || '未设置' }}</span>
-            </div>
             <div class="meta-item">
               <span class="k"><AppIcon name="cpu" :size="13" />内核版本</span>
               <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
@@ -368,7 +350,7 @@ function currentOf(g) {
     <n-card>
       <div class="traffic-head">
         <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时流量</h3>
-        <!-- 指标做成与顶部一致的小卡片瓦片：图标 + 标签在上、数值在下 -->
+        <!-- 指标做成小卡片瓦片：图标 + 标签在上、数值在下；连接/CPU/内存移至侧栏底部 -->
         <div class="traffic-nums">
           <div class="meta-item">
             <span class="k"><AppIcon name="upload" :size="13" />上传</span>
@@ -377,20 +359,6 @@ function currentOf(g) {
           <div class="meta-item">
             <span class="k"><AppIcon name="download" :size="13" />下载</span>
             <span class="v mono" style="color: var(--accent)">{{ fmtRate(traffic.down) }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k"><AppIcon name="link" :size="13" />连接</span>
-            <span class="v mono">{{ traffic.connections }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k"><AppIcon name="cpu" :size="13" />CPU</span>
-            <span class="v mono" :style="cpuHigh ? 'color: var(--orange)' : ''">
-              {{ status?.cpu != null ? Math.round(status.cpu) + '%' : '—' }}
-            </span>
-          </div>
-          <div class="meta-item">
-            <span class="k"><AppIcon name="database" :size="13" />内核内存</span>
-            <span class="v mono">{{ traffic.memory_mb ? traffic.memory_mb.toFixed(1) + ' MB' : '—' }}</span>
           </div>
           <div class="meta-item">
             <span class="k"><AppIcon name="history" :size="13" />累计上传</span>
@@ -528,8 +496,8 @@ function currentOf(g) {
   background: var(--bg-card-2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 8px 11px 9px;
-  min-width: 80px;
+  padding: 9px 14px 10px;
+  min-width: 104px;
 }
 .meta-item .k { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
 .meta-item .v { font-size: 13.5px; font-weight: 600; }

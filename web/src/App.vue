@@ -2,10 +2,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { NConfigProvider, NModal, NProgress, NSpin } from 'naive-ui'
 import Sidebar from './components/Sidebar.vue'
-import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes } from './store.js'
+import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes, pushTraffic } from './store.js'
 import { api } from './api.js'
 
 let statusTimer = null
+let trafficTimer = null
 let lastStarting = null
 
 async function refreshStatus() {
@@ -27,12 +28,22 @@ function armPolling() {
   statusTimer = setInterval(refreshStatus, store.status?.starting ? 1000 : 5000)
 }
 
+// 流量每秒轮询（全局）：驱动首页流量曲线与侧栏底部的连接/内存小卡
+async function refreshTraffic() {
+  if (!store.status?.running) return
+  try {
+    pushTraffic(await api.get('/api/traffic'))
+  } catch { /* 忽略单次失败 */ }
+}
+
 onMounted(() => {
   refreshStatus()
   armPolling()
+  trafficTimer = setInterval(refreshTraffic, 1000)
 })
 onUnmounted(() => {
   clearInterval(statusTimer)
+  clearInterval(trafficTimer)
   stopDlProgPoll()
 })
 

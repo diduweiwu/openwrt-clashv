@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { NButton, NDropdown } from 'naive-ui'
 import { themeMode, resolvedTheme, applyTheme } from '../theme.js'
 import { store } from '../store.js'
+import AppIcon from './AppIcon.vue'
 
 const navs = [
   { to: '/', label: '首页', icon: 'home' },
@@ -84,6 +85,21 @@ function pickTheme(v) {
     </nav>
 
     <div class="bottom">
+      <!-- 连接/CPU/内存迷你卡：数据来自全局每秒流量与 5s 状态轮询 -->
+      <div class="side-stats">
+        <div class="ss">
+          <span class="ss-k"><AppIcon name="cpu" :size="11" />CPU</span>
+          <span class="ss-v mono">{{ store.status?.running && store.status?.cpu != null ? Math.round(store.status.cpu) + '%' : '—' }}</span>
+        </div>
+        <div class="ss">
+          <span class="ss-k"><AppIcon name="database" :size="11" />内存</span>
+          <span class="ss-v mono">{{ store.status?.running && store.traffic.memory_mb ? store.traffic.memory_mb.toFixed(1) + ' MB' : '—' }}</span>
+        </div>
+        <div class="ss">
+          <span class="ss-k"><AppIcon name="link" :size="11" />连接</span>
+          <span class="ss-v mono">{{ store.status?.running ? store.traffic.connections : '—' }}</span>
+        </div>
+      </div>
       <div class="status-line">
         <span class="dot" :class="{ on: store.status?.running, wait: !store.status?.running && store.status?.starting }"></span>
         <span class="status-text">{{ store.status?.running ? '运行中' : store.status?.starting ? '启动中…' : '已停止' }}</span>
@@ -126,6 +142,20 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 .nav-item.active { background: var(--accent); color: #fff; }
 .bottom { display: flex; flex-direction: column; gap: 10px; }
+/* 连接/CPU/内存迷你卡：细分隔线 + 三行小卡，置于运行状态上方 */
+.side-stats {
+  display: flex; flex-direction: column; gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+.ss {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.ss-k { display: flex; align-items: center; gap: 5px; color: rgba(255, 255, 255, 0.45); font-size: 11px; }
+.ss-v { color: rgba(255, 255, 255, 0.85); font-size: 11.5px; font-weight: 600; }
 .status-line {
   display: flex; align-items: center; gap: 8px;
   color: rgba(255, 255, 255, 0.55); font-size: 12.5px; padding: 0 8px;
@@ -156,6 +186,7 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .nav-item { padding: 7px 10px; }
   .nav-item span { display: none; }
   .bottom { flex-direction: row; align-items: center; }
+  .side-stats { display: none; }
   .status-text { display: none; }
   .theme-btn { width: auto; justify-content: center; padding-left: 0; }
 }
