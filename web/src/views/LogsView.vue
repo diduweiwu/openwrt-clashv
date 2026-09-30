@@ -27,13 +27,34 @@ function fmtSize(n) {
   return n + ' B'
 }
 
+// 行首时间戳：内核日志 time="2026-…Z"（logrus 带引号）、插件日志 time=2026-…+08:00（slog 无引号）
+const TIME_RE = /^time=(?:"([^"]+)"|(\S+))/
+
+// 归一化展示：把行首 time= 统一为本地「年-月-日 时:分:秒.毫秒」。
+// 内核若还在写 UTC（Z 结尾），浏览器会换算成本地时区，时区错乱在界面上不可见
+function normalizeLog(text) {
+  if (!text) return ''
+  const p = (n, l = 2) => String(n).padStart(l, '0')
+  return text.split('\n').map(line => {
+    const m = TIME_RE.exec(line)
+    if (!m) return line
+    // RFC3339 带纳秒（9 位小数）时截到毫秒，超出 JS Date 解析精度
+    const raw = (m[1] || m[2] || '').replace(/\.(\d{3})\d+/, '.$1')
+    const d = new Date(raw)
+    if (isNaN(d)) return line
+    const ts = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+      `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`
+    return ts + line.slice(m[0].length)
+  }).join('\n')
+}
+
 async function load(silent = true) {
   loading.value = !silent
   try {
     const r = await api.get(`/api/logs?kind=${tab.value}&bytes=131072`)
     const hadEnd =
       !preRef.value || preRef.value.scrollTop + preRef.value.clientHeight >= preRef.value.scrollHeight - 30
-    content.value = r.content || ''
+    content.value = normalizeLog(r.content || '')
     exists.value = r.exists
     truncated.value = r.truncated
     size.value = r.size || 0

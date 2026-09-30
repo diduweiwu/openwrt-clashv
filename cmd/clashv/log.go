@@ -25,7 +25,19 @@ func setupLogger(cfg *config.Manager) {
 		// 文件打不开（如只读 fs）时退回纯 stderr，不影响服务
 		return
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.MultiWriter(os.Stderr, f), nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.MultiWriter(os.Stderr, f), &slog.HandlerOptions{
+		// 时间用「年-月-日 时:分:秒.毫秒」，替代 slog 默认的 RFC3339
+		// （time=2026-09-30T12:52:33.180+08:00），与内核日志在界面上的
+		// 展示格式保持一致
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey && len(groups) == 0 {
+				if t, ok := a.Value.Any().(time.Time); ok {
+					a.Value = slog.StringValue(t.Format("2006-01-02 15:04:05.000"))
+				}
+			}
+			return a
+		},
+	})))
 }
 
 // rotateLog 超过 max 字节时把当前日志挪到 .old（仅保留一份旧档）。
