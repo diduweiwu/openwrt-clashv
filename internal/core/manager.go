@@ -51,6 +51,8 @@ type Manager struct {
 	progMu sync.Mutex
 	prog   UpgradeProgress // 当前升级任务进度（同一时间至多一个）
 
+	hookMu sync.Mutex // 防火墙接管规则（DNS 劫持/TCP 透明代理）重建串行化
+
 	tmu      sync.Mutex
 	traffic  Traffic
 	conns    []ConnItem // 最近一次轮询的活动连接快照
