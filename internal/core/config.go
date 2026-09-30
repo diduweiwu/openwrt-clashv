@@ -41,16 +41,18 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 	// 关闭 DNS 设置时也不留订阅的 dns 段——mihomo 不应监听任何 DNS 端口。
 	delete(doc, "dns")
 	delete(doc, "listeners")
-	for k, v := range managedOverlay(s) {
+	// 代理目标（首个代理组/节点）供 DNS 防污染 fallback 指定出口
+	proxyTarget := firstProxyTarget(doc)
+	for k, v := range managedOverlay(s, proxyTarget) {
 		doc[k] = v
 	}
-	if target := firstProxyTarget(doc); target != "" && !rulesRouteAnyProxy(doc) {
+	if proxyTarget != "" && !rulesRouteAnyProxy(doc) {
 		reason := "订阅未提供规则"
 		if !rulesEmpty(doc) {
 			reason = "订阅规则未将任何流量导向代理（目标全是 DIRECT/REJECT）"
 		}
-		doc["rules"] = []any{"MATCH," + target}
-		slog.Info("已注入兜底规则，保证默认流量走代理", "reason", reason, "rule", "MATCH,"+target)
+		doc["rules"] = []any{"MATCH," + proxyTarget}
+		slog.Info("已注入兜底规则，保证默认流量走代理", "reason", reason, "rule", "MATCH,"+proxyTarget)
 	}
 	out, err := yaml.Marshal(doc)
 	if err != nil {
@@ -136,7 +138,8 @@ func firstProxyTarget(doc map[string]any) string {
 }
 
 // managedOverlay 返回本插件托管的 mihomo 基础配置。
-func managedOverlay(s config.Settings) map[string]any {
+// proxyTarget 是订阅里首个代理组/节点名，供 redir-host 防污染解析指定出口。
+func managedOverlay(s config.Settings, proxyTarget string) map[string]any {
 	m := map[string]any{
 		"mixed-port": s.MixedPort,
 		// 路由器插件固定允许 LAN：透明代理把流量 REDIRECT 到本机端口，
@@ -194,6 +197,23 @@ func managedOverlay(s config.Settings) map[string]any {
 				"time.windows.com", "time.nist.gov", "*.ntp.org",
 				"time.apple.com", "time.asia.apple.com", "time1.cloud.tencent.com",
 			}
+		} else if proxyTarget != "" {
+			// redir-host 防污染：客户端会真的使用内核返回的 IP，而国内 DNS
+			// 对国外域名的回答多为污染 IP。fallback-filter 命中（答案非 CN IP /
+			// 保留段）时改由「走代理的国外 DoH」复核，客户端才能拿到真实 IP。
+			// 没有代理目标时不启用（退化为按 IP 匹配，与旧版行为一致）。
+			dns["fallback"] = []any{
+				"https://8.8.8.8/dns-query#" + proxyTarget,
+				"https://1.1.1.1/dns-query#" + proxyTarget,
+			}
+			dns["fallback-filter"] = map[string]any{
+				"geoip":      true,
+				"geoip-code": "CN",
+				"ipcidr":     []any{"240.0.0.0/4", "0.0.0.0/32"},
+			}
+			// 代理节点域名的解析固定走国内直连 DNS，避免
+			// 「解析节点域名 → 经代理 → 代理解析节点域名」的自举死锁
+			dns["proxy-server-nameserver"] = []any{"223.5.5.5", "119.29.29.29"}
 		}
 		m["dns"] = dns
 	}

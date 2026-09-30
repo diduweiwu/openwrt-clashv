@@ -294,7 +294,7 @@ onBeforeUnmount(stopProgPoll)
         <div class="row" v-if="form.dns">
           <div class="row-text">
             <span class="rt">DNS 解析模式</span>
-            <span class="rs">fake-ip 返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（部分 IPTV、游戏机、打印机会异常时可换它）</span>
+            <span class="rs">fake-ip 返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（国外域名已自动经代理用国外 DNS 防污染复核）</span>
           </div>
           <select v-model="form.dns_mode" style="width:160px">
             <option value="fake-ip">fake-ip（推荐）</option>
@@ -304,10 +304,10 @@ onBeforeUnmount(stopProgPoll)
         <div class="row" v-if="form.dns && store.status?.openwrt">
           <div class="row-text">
             <span class="rt">DNS 劫持模式</span>
-            <span class="rs">旁路由/网关模式必须选一种，否则局域网域名解析被污染（google 打不开）</span>
+            <span class="rs">推荐防火墙转发：强制接管所有设备的 DNS（包括手动改过 DNS 的设备）。dnsmasq 转发只对使用路由器 DNS 的设备有效，设备自行配了 DNS 就会绕过内核（redir-host 下表现为部分网站打不开）</span>
           </div>
           <select v-model="form.dns_hijack" style="width:160px">
-            <option value="firewall">防火墙转发</option>
+            <option value="firewall">防火墙转发（推荐）</option>
             <option value="dnsmasq">dnsmasq 转发</option>
             <option value="off">禁用</option>
           </select>
