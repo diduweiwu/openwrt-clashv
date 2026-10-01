@@ -229,14 +229,14 @@ const tab = ref('general')
           <div class="row">
             <div class="row-text">
               <span class="rt">混合代理端口</span>
-              <span class="rs">HTTP + SOCKS5 共用端口</span>
+              <span class="rs">HTTP 与 SOCKS5 共用的代理端口，局域网设备手动配置代理时填它<span class="rec">默认 7890，建议保持，端口被占用再改</span></span>
             </div>
             <n-input-number v-model:value="form.mixed_port" :show-button="false" :min="1" :max="65535" class="num" />
           </div>
           <div class="row">
             <div class="row-text">
               <span class="rt">订阅自动更新</span>
-              <span class="rs">每 N 小时自动更新一次，0 为关闭</span>
+              <span class="rs">到点自动拉取订阅更新并重载内核，0 为关闭<span class="rec">默认 12 小时，建议保持</span></span>
             </div>
             <n-input-number v-model:value="form.auto_update" :show-button="false" :min="0" :max="720" class="num">
               <template #suffix><span class="unit">小时</span></template>
@@ -245,7 +245,7 @@ const tab = ref('general')
           <div class="row">
             <div class="row-text">
               <span class="rt">界面访问令牌</span>
-              <span class="rs">设置后局域网内打开界面需输入令牌，留空不启用</span>
+              <span class="rs">保护管理界面：设置后局域网内打开本页面需先输入令牌<span class="rec">默认不启用；局域网内使用建议设置，仅本机访问可留空</span></span>
             </div>
             <n-input-group class="ctl">
               <n-input
@@ -273,14 +273,14 @@ const tab = ref('general')
         <div class="row">
           <div class="row-text">
             <span class="rt">TUN 模式</span>
-            <span class="rs">接管全局流量（需内核 tun 模块）；关闭时自动用防火墙接管局域网 TCP（透明代理），无需手动配置</span>
+            <span class="rs">接管全局流量（含 UDP，需内核 tun 模块）；关闭时自动用防火墙接管局域网 TCP（透明代理），无需手动配置<span class="rec">默认关闭，建议保持；需接管 UDP/全局流量时再开</span></span>
           </div>
           <n-switch v-model:value="form.tun" />
         </div>
         <div class="row" v-if="form.tun">
           <div class="row-text">
             <span class="rt">TUN 协议栈</span>
-            <span class="rs">mixed 兼顾性能与兼容性</span>
+            <span class="rs">system 走系统网络栈、gvisor 纯用户态实现，mixed 混合两者<span class="rec">默认 mixed，建议保持</span></span>
           </div>
           <n-select v-model:value="form.tun_stack" :options="[{ value: 'mixed', label: 'mixed' }, { value: 'system', label: 'system' }, { value: 'gvisor', label: 'gvisor' }]" class="ctl" style="width: 130px" />
         </div>
@@ -299,14 +299,14 @@ const tab = ref('general')
         <div class="row">
           <div class="row-text">
             <span class="rt">接管 DNS</span>
-            <span class="rs">由 mihomo 处理局域网域名解析，透明代理/TUN 模式建议开启</span>
+            <span class="rs">由 mihomo 处理局域网域名解析，透明代理/TUN 模式建议开启<span class="rec">默认开启，建议保持</span></span>
           </div>
           <n-switch v-model:value="form.dns" />
         </div>
         <div class="row" v-if="form.dns">
           <div class="row-text">
             <span class="rt">DNS 解析模式</span>
-            <span class="rs">推荐 fake-ip：返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（国外域名已自动经代理用国外 DNS 防污染复核）</span>
+            <span class="rs">fake-ip 返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（国外域名已自动经代理用国外 DNS 防污染复核）<span class="rec">默认 fake-ip，建议保持</span></span>
           </div>
           <n-select
             v-model:value="form.dns_mode"
@@ -318,7 +318,7 @@ const tab = ref('general')
         <div class="row" v-if="form.dns && store.status?.openwrt">
           <div class="row-text">
             <span class="rt">DNS 劫持模式</span>
-            <span class="rs">推荐防火墙转发：强制接管所有设备的 DNS（包括手动改过 DNS 的设备）。dnsmasq 转发只对使用路由器 DNS 的设备有效，设备自行配了 DNS 就会绕过内核（redir-host 下表现为部分网站打不开）</span>
+            <span class="rs">防火墙转发强制接管所有设备的 DNS（包括手动改过 DNS 的设备）；dnsmasq 转发只覆盖使用路由器 DNS 的设备，设备自行配了 DNS 就会绕过内核（redir-host 下表现为部分网站打不开）<span class="rec">默认防火墙转发，建议保持</span></span>
           </div>
           <n-select
             v-model:value="form.dns_hijack"
@@ -330,14 +330,14 @@ const tab = ref('general')
         <div class="row" v-if="form.dns">
           <div class="row-text">
             <span class="rt">IPv4 劫持</span>
-            <span class="rs">把局域网 IPv4 的 53 端口查询重定向到内核 DNS；防火墙转发与 TUN 模式均生效，保存后自动应用</span>
+            <span class="rs">把局域网 IPv4 的 53 端口查询重定向到内核 DNS；防火墙转发与 TUN 模式均生效，保存后自动应用<span class="rec">默认开启，建议保持</span></span>
           </div>
           <n-switch v-model:value="form.dns_hijack_ipv4" />
         </div>
         <div class="row" v-if="form.dns">
           <div class="row-text">
             <span class="rt">IPv6 劫持</span>
-            <span class="rs">同上，作用于 IPv6；默认关闭——不劫持时 IPv6 设备的域名解析走原路径，可能绕过内核（宽带无 IPv6 可保持关闭）</span>
+            <span class="rs">同 IPv4 劫持，作用于 IPv6；不劫持时 IPv6 设备的域名解析走原路径，可能绕过内核<span class="rec">默认关闭；宽带无 IPv6 或无需接管时保持关闭</span></span>
           </div>
           <n-switch v-model:value="form.dns_hijack_ipv6" />
         </div>
@@ -367,7 +367,7 @@ const tab = ref('general')
         <div class="row">
           <div class="row-text">
             <span class="rt">内存限制</span>
-            <span class="rs">内核接近上限时会更积极回收内存（GOMEMLIMIT），明显降低实际占用；设置过小会增加 CPU 开销。建议 64～128，0 为不限制，保存后自动重启内核</span>
+            <span class="rs">内核接近上限时更积极回收内存（GOMEMLIMIT），设得过小会增加 CPU 开销换内存<span class="rec">默认 0 不限制；小内存设备建议 64～128</span></span>
           </div>
           <n-input-number v-model:value="form.core_mem_limit" :show-button="false" :min="0" :max="16384" class="num">
             <template #suffix><span class="unit">MB</span></template>
@@ -376,7 +376,7 @@ const tab = ref('general')
         <div class="row">
           <div class="row-text">
             <span class="rt">下载加速前缀</span>
-            <span class="rs">内核/插件从 GitHub 下载时套用此前缀（如 gh-proxy.com），留空直连</span>
+            <span class="rs">内核/插件从 GitHub 下载时套用此前缀加速，直连 GitHub 够快可留空<span class="rec">默认 https://gh-proxy.com，建议保持</span></span>
           </div>
           <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.com" style="width: 210px" />
         </div>
@@ -390,6 +390,7 @@ const tab = ref('general')
                 <template v-else>（已是最新）</template>
               </template>
               <template v-else>从 GitHub 下载最新 mihomo</template>
+              <span class="rec">建议：发现新版本再升级即可</span>
             </span>
           </div>
           <div class="btn-pair">
@@ -433,6 +434,7 @@ const tab = ref('general')
                 <template v-else>（已是最新）</template>
               </template>
               <template v-else>从 GitHub 下载最新版本</template>
+              <span class="rec">建议：发现新版本再升级即可</span>
             </span>
           </div>
           <div class="btn-pair">
@@ -496,6 +498,17 @@ const tab = ref('general')
 .row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .rt { font-size: 13.5px; font-weight: 500; }
 .rs { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+/* 行描述尾部的「默认/建议」徽章：主题色软底小胶囊，辅助用户对照默认值做选择 */
+.rec {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  vertical-align: 1px;
+}
 .num { width: 110px; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
 .btn-pair { display: flex; gap: 8px; flex: none; }
