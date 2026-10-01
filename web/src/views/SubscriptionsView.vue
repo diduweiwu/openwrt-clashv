@@ -144,18 +144,17 @@ const columns = computed(() => [
     render: p => h('span', { class: 'mono url-txt' }, p.url),
   },
   {
-    title: '流量', key: 'traffic', width: 250,
+    title: '流量', key: 'traffic', width: 180,
     render: p => {
       const t = trafficOf(p)
       if (!t) return h('span', { class: 'dim' }, '—')
+      const txt = `${fmtBytes(t.used)} / ${fmtBytes(t.total)}（${Math.round(t.percent)}%）`
       return h('div', { class: 'traf' }, [
-        h('div', { class: 'traf-row' }, [
-          h(NProgress, {
-            class: 'bar', type: 'line', percentage: t.percent,
-            showIndicator: false, height: 5, borderRadius: '3px',
-          }),
-          h('span', { class: 'mono dim t2' }, `${fmtBytes(t.used)} / ${fmtBytes(t.total)}（${Math.round(t.percent)}%）`),
-        ]),
+        h(NProgress, {
+          class: 'bar', type: 'line', percentage: t.percent,
+          showIndicator: false, height: 5, borderRadius: '3px',
+        }),
+        h('span', { class: 'mono dim t2 t-usage', title: txt }, txt),
         p.expire ? h('span', { class: 'dim t2' }, `到期 ${fmtExpire(p.expire)}`) : null,
       ])
     },
@@ -315,7 +314,7 @@ onMounted(() => {
         :data="filtered"
         :row-key="p => p.id"
         :row-class-name="p => (p.id === active ? 'row-active' : '')"
-        :scroll-x="1160"
+        :scroll-x="1080"
       >
         <template #empty>
           <n-empty description="没有匹配的订阅" style="padding: 30px 0" />
@@ -383,8 +382,7 @@ onMounted(() => {
 :deep(.url-txt) { color: var(--text-dim); font-size: 12px; }
 :deep(.row-active > td) { background: var(--accent-soft) !important; }
 :deep(.traf) { display: flex; flex-direction: column; gap: 3px; }
-:deep(.traf-row) { display: flex; align-items: center; gap: 10px; }
-:deep(.traf-row .bar) { width: 110px; flex: none; }
+:deep(.t-usage) { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :deep(.upd-cell) { display: flex; flex-direction: column; gap: 2px; }
 :deep(.t2) { font-size: 11.5px; }
 :deep(.t2.ua) { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
