@@ -119,12 +119,12 @@ function pickTheme(v) {
       <n-dropdown trigger="click" placement="top-start" :options="themeOptions" @select="pickTheme">
         <n-button quaternary size="small" class="theme-btn">{{ themeLabel }}</n-button>
       </n-dropdown>
-      <!-- 折叠开关：收起后仅剩箭头图标，logo 区只留小图 -->
+      <!-- 折叠开关：收起后仅剩箭头图标（文字条件渲染，避免残留图标边距导致不居中），logo 区只留小图 -->
       <n-button quaternary size="small" class="collapse-btn" :title="collapsed ? '展开菜单' : '收起菜单'" @click="toggleCollapsed">
         <template #icon>
           <AppIcon :name="collapsed ? 'chevron-right' : 'chevron-left'" :size="14" />
         </template>
-        <span class="ct-text">收起菜单</span>
+        <span v-if="!collapsed" class="ct-text">收起菜单</span>
       </n-button>
     </div>
   </aside>
@@ -222,8 +222,7 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .sidebar.collapsed .status-line { justify-content: center; padding: 0; }
   .sidebar.collapsed .status-text { display: none; }
   .sidebar.collapsed .theme-btn,
-  .sidebar.collapsed .collapse-btn { justify-content: center; padding-left: 0; }
-  .sidebar.collapsed .ct-text { display: none; }
+  .sidebar.collapsed .collapse-btn { justify-content: center; padding: 0; }
 }
 @media (max-width: 760px) {
   .sidebar {
