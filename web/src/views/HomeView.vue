@@ -407,37 +407,34 @@ function currentOf(g) {
         </template>
       </n-card>
       <n-card class="quick-card">
-        <div class="meta-item">
-          <span class="k"><AppIcon name="plug" :size="13" />混合端口
-            <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
-              <AppIcon name="gear" :size="12" />
-            </button>
-          </span>
-          <span class="v mono">{{ status?.mixed_port || '—' }}</span>
+        <div class="quick-head">
+          <span class="k"><AppIcon name="plug" :size="13" />混合端口</span>
+          <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
+            <AppIcon name="gear" :size="12" />
+          </button>
+        </div>
+        <div class="quick-body mono">{{ status?.mixed_port || '—' }}</div>
+      </n-card>
+      <n-card class="quick-card">
+        <div class="quick-head">
+          <span class="k"><AppIcon name="globe" :size="13" />DNS</span>
+          <button class="tile-gear" title="DNS 设置" @click="openDns">
+            <AppIcon name="gear" :size="12" />
+          </button>
+        </div>
+        <div class="quick-body mono" :class="{ dim: !status?.dns }">
+          {{ status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管' }}
         </div>
       </n-card>
       <n-card class="quick-card">
-        <div class="meta-item">
-          <span class="k"><AppIcon name="globe" :size="13" />DNS
-            <button class="tile-gear" title="DNS 设置" @click="openDns">
-              <AppIcon name="gear" :size="12" />
-            </button>
-          </span>
-          <span class="v mono" :class="{ dim: !status?.dns }">
-            {{ status?.dns ? (status.dns_mode || 'fake-ip') : '未接管' }}
-          </span>
+        <div class="quick-head">
+          <span class="k"><AppIcon name="layers" :size="13" />出站模式</span>
+          <button class="tile-gear" title="切换出站模式" @click="showMode = true">
+            <AppIcon name="gear" :size="12" />
+          </button>
         </div>
-      </n-card>
-      <n-card class="quick-card">
-        <div class="meta-item">
-          <span class="k"><AppIcon name="layers" :size="13" />出站模式
-            <button class="tile-gear" title="切换出站模式" @click="showMode = true">
-              <AppIcon name="gear" :size="12" />
-            </button>
-          </span>
-          <span class="v">
-            <n-tag size="small" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
-          </span>
+        <div class="quick-body">
+          <n-tag size="medium" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
         </div>
       </n-card>
     </div>
@@ -747,9 +744,9 @@ function currentOf(g) {
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 
-/* 标题独占一行，指标瓦片与清零按钮在标题下方独立成行 */
+/* 标题独占一行，指标瓦片与清零按钮在标题下方独立成行；间隙与顶部卡片行一致（16px） */
 .traffic-head { margin-bottom: 0; }
-.traffic-nums { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; margin: 12px 0 8px; }
+.traffic-nums { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; margin: 12px 0 8px; }
 /* 流量瓦片与运行卡/订阅行瓦片同一列宽基准：(50% − 24px) / 3；清零钮靠右 */
 .traffic-nums .meta-item { height: 69px; flex: 0 1 calc((50% - 24px) / 3); }
 .traffic-nums .meta-item .v { font-size: 16px; }
@@ -766,10 +763,12 @@ function currentOf(g) {
 .sub-row-cards { display: flex; gap: 16px; align-items: stretch; }
 .sub-card { flex: 0 0 50%; min-width: 0; }
 .quick-card { flex: 1 1 0; min-width: 0; }
-/* 快捷卡外壳由卡片本身提供：内容层垂直居中（卡片根元素是纵向 flex，内容层自带 flex:1），
-   瓦片去掉自带的底色边框内衬只留排版 */
-.quick-card :deep(.n-card-content) { display: flex; flex-direction: column; justify-content: center; }
-.quick-card .meta-item { background: none; border: none; padding: 0; min-width: 0; }
+/* 快捷卡：标题+齿轮置顶成头部行，下方内容区吃满剩余高度、大字号显示值 */
+.quick-card :deep(.n-card-content) { display: flex; flex-direction: column; }
+.quick-head { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
+.quick-head .tile-gear { margin-left: auto; }
+.quick-body { flex: 1; display: flex; align-items: center; font-size: 20px; font-weight: 600; min-width: 0; }
+.quick-body .dim, .quick-body.dim { color: var(--text-dim); font-weight: 500; }
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .sec-head h3 { font-size: 15px; }
