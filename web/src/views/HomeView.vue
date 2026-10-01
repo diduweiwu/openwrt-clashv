@@ -10,10 +10,9 @@ import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
 
-// hero 控制按钮与左侧状态瓦片同高；启停为常驻圆形切换钮，重启为与它同高同宽的方形文字钮
+// hero 控制按钮同高同宽的方形文字钮（icon+文字），启停随状态换图标与文案
 const HERO_H = 62
-const heroCtl = { width: HERO_H + 'px', height: HERO_H + 'px' }
-const heroRestart = { width: HERO_H + 'px', height: HERO_H + 'px', padding: '0', fontSize: '15px' }
+const heroBtn = { width: '78px', height: HERO_H + 'px', padding: '0', fontSize: '15px' }
 const proxies = ref({})
 const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
 const subBusy = ref(false)
@@ -338,26 +337,25 @@ function currentOf(g) {
           <n-flex class="hero-actions" :size="12">
             <n-button
               title="重启内核"
-              :style="heroRestart"
+              :style="heroBtn"
               :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
             >
               <template #icon><AppIcon name="restart" :size="18" /></template>重启
             </n-button>
-            <!-- 启动/停止同一个按钮：停止态主色播放，运行态红色方块 -->
+            <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态红色幽灵「停止」 -->
             <n-button
-              circle
               :type="status?.running ? 'error' : 'primary'"
               :ghost="!!status?.running"
               :title="status?.running ? '停止内核' : '启动内核'"
-              :style="heroCtl"
+              :style="heroBtn"
               :loading="busy === 'start' || busy === 'stop'"
               :disabled="busy === 'restart'"
               @click="coreAction(status?.running ? 'stop' : 'start')"
             >
               <template #icon>
-                <AppIcon v-if="!status?.running" name="play" :size="24" />
-                <AppIcon v-else name="stop" :size="20" :stroke-width="2.4" />
-              </template>
+                <AppIcon v-if="!status?.running" name="play" :size="18" />
+                <AppIcon v-else name="stop" :size="16" :stroke-width="2.4" />
+              </template>{{ status?.running ? '停止' : '启动' }}
             </n-button>
           </n-flex>
         </n-flex>
@@ -766,6 +764,8 @@ function currentOf(g) {
 /* 快捷卡：标题+齿轮置顶成头部行，下方内容区吃满剩余高度、大字号显示值 */
 .quick-card :deep(.n-card-content) { display: flex; flex-direction: column; }
 .quick-head { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
+/* 行内 SVG 默认按基线对齐会偏低：icon 与标题用 flex 垂直居中 */
+.quick-head .k { display: inline-flex; align-items: center; gap: 6px; }
 .quick-head .tile-gear { margin-left: auto; }
 .quick-body { flex: 1; display: flex; align-items: center; font-size: 20px; font-weight: 600; min-width: 0; }
 .quick-body .dim, .quick-body.dim { color: var(--text-dim); font-weight: 500; }
