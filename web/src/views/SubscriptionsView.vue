@@ -129,6 +129,9 @@ function fmtExpire(ts) {
 }
 
 // ---- 表格列 ----
+// 流量列：整个列表都没有流量信息时收窄到标题宽度（只显示横杠没必要占宽），有流量才展开
+const hasTraffic = computed(() => profiles.value.some(p => trafficOf(p)))
+
 const columns = computed(() => [
   {
     title: '名称', key: 'name', width: 190, ellipsis: { tooltip: true },
@@ -144,7 +147,7 @@ const columns = computed(() => [
     render: p => h('span', { class: 'mono url-txt' }, p.url),
   },
   {
-    title: '流量', key: 'traffic', width: 180,
+    title: '流量', key: 'traffic', width: hasTraffic.value ? 180 : 64,
     render: p => {
       const t = trafficOf(p)
       if (!t) return h('span', { class: 'dim' }, '—')
@@ -314,7 +317,7 @@ onMounted(() => {
         :data="filtered"
         :row-key="p => p.id"
         :row-class-name="p => (p.id === active ? 'row-active' : '')"
-        :scroll-x="1080"
+        :scroll-x="974"
       >
         <template #empty>
           <n-empty description="没有匹配的订阅" style="padding: 30px 0" />
