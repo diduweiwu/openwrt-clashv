@@ -287,8 +287,14 @@ const tab = ref('general')
       </div>
     </n-card>
 
-    <n-card v-if="tab === 'network'" title="DNS">
-      <p class="page-sub card-sub">以下选项已按最常见的组网场景预设，保持默认即可稳定工作；确有需要再调整，保存后自动生效</p>
+    <n-card v-if="tab === 'network'">
+      <!-- 副标题挂在标题里：提示用户保持默认，弱化显示不抢选项行 -->
+      <template #header>
+        <div class="card-head">
+          <span>DNS</span>
+          <span class="card-sub">以下选项已按最常见的组网场景预设，保持默认即可稳定工作；确有需要再调整，保存后自动生效</span>
+        </div>
+      </template>
       <div class="rows">
         <div class="row">
           <div class="row-text">
@@ -478,8 +484,9 @@ const tab = ref('general')
 .head-card :deep(.n-card-content) { padding: 10px 16px; }
 .tabs { min-width: 0; }
 .rows { display: flex; flex-direction: column; }
-/* 卡片顶部提示行（如 DNS 卡的「保持默认」文案）：标题与选项行之间留出呼吸 */
-.card-sub { margin: 0 0 12px; }
+/* 卡片标题副行（DNS 卡的「保持默认」提示）：继承标题槽的排版，弱化成说明文字 */
+.card-head { display: flex; flex-direction: column; gap: 3px; }
+.card-head .card-sub { color: var(--text-dim); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 11px 0;
