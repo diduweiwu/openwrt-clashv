@@ -396,6 +396,34 @@ func (d *deps) handleProfileActivate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": startErr == "", "error": startErr, "restarted": running})
 }
 
+// handleProfileEdit 修改订阅（名称/地址/UA）；地址或 UA 变化时自动重新下载，
+// 该订阅处于激活且内核在跑时自动重启生效。
+func (d *deps) handleProfileEdit(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct {
+		Name string `json:"name"`
+		URL  string `json:"url"`
+		UA   string `json:"ua"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法 JSON"))
+		return
+	}
+	p, redownloaded, err := d.prof.Edit(id, body.Name, body.URL, body.UA)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	s, _ := d.cfg.Get()
+	restarted := false
+	if redownloaded && s.ActiveProfile == id && d.mgr.Running() {
+		if err := d.mgr.Restart(); err == nil {
+			restarted = true
+		}
+	}
+	writeJSON(w, 200, map[string]any{"profile": p, "redownloaded": redownloaded, "restarted": restarted})
+}
+
 func (d *deps) handleProfileDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	s, _ := d.cfg.Get()

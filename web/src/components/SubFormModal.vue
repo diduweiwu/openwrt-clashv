@@ -1,14 +1,20 @@
 <script setup>
-// 添加订阅弹窗（订阅页与首页共用）：由 open prop 控制显隐
-// 链接输入为 textarea：一行一条，支持粘贴多个批量添加
-import { ref, watch } from 'vue'
+// 添加/编辑订阅弹窗（订阅页与首页共用）：由 open prop 控制显隐
+// 添加模式链接输入为 textarea：一行一条，支持粘贴多个批量添加；
+// 编辑模式（传入 edit prop）单条回填，保存走 PUT /api/profiles/{id}
+import { computed, ref, watch } from 'vue'
 import { NButton, NInput, NModal, NSelect } from 'naive-ui'
 import { api } from '../api.js'
 import AppIcon from './AppIcon.vue'
 import { toast } from '../store.js'
 
-const props = defineProps({ open: Boolean })
-const emit = defineEmits(['close', 'added'])
+const props = defineProps({
+  open: Boolean,
+  edit: { type: Object, default: null }, // 非 null 时为编辑模式
+})
+const emit = defineEmits(['close', 'added', 'saved'])
+
+const isEdit = computed(() => !!props.edit)
 
 const name = ref('')
 const url = ref('')
@@ -28,23 +34,38 @@ const UA_OPTIONS = [
 const uaPick = ref('')
 const customUa = ref('')
 
+// 把 UA 值映射到下拉选项：内置项直接选中，其他进「自定义」
+function pickUA(ua) {
+  if (ua && !UA_OPTIONS.some(o => o.value === ua)) {
+    uaPick.value = CUSTOM_UA
+    customUa.value = ua
+  } else {
+    uaPick.value = ua || ''
+    customUa.value = ''
+  }
+}
+
 watch(() => props.open, (v) => {
   if (!v) return
-  name.value = ''
-  url.value = ''
   adding.value = false
   addProgress.value = ''
+  if (props.edit) {
+    name.value = props.edit.name
+    url.value = props.edit.url
+    pickUA(props.edit.ua || '')
+    return
+  }
+  name.value = ''
+  url.value = ''
   // 上次用的 UA 不是内置项 → 自动选中"自定义"并预填
-  api.get('/api/settings').then(s => {
-    const last = s.custom_ua || ''
-    if (last && !UA_OPTIONS.some(o => o.value === last)) {
-      uaPick.value = CUSTOM_UA
-      customUa.value = last
-    } else if (last) {
-      uaPick.value = last
-    }
-  }).catch(() => { /* 拿不到就保持默认 */ })
+  api.get('/api/settings').then(s => pickUA(s.custom_ua || '')).catch(() => { /* 拿不到就保持默认 */ })
 })
+
+const modalTitle = computed(() => (isEdit.value ? '编辑订阅' : '添加订阅'))
+const urlPlaceholder = computed(() =>
+  isEdit.value
+    ? '订阅链接'
+    : '订阅链接，每行一条，可粘贴多行批量添加\nhttps://example.com/subscription')
 
 // 多行且没填备注名时，用链接域名当名字，避免一排「订阅」分不清
 function hostOf(line) {
@@ -55,6 +76,7 @@ function shortUrl(line) {
   return s.length > 46 ? s.slice(0, 46) + '…' : s
 }
 
+// 添加模式：多行批量；多行且未填备注名时用链接域名当名字
 async function add() {
   const lines = url.value.split('\n').map(s => s.trim()).filter(Boolean)
   if (!lines.length) { toast('请输入订阅链接', 'info'); return }
@@ -93,35 +115,63 @@ async function add() {
     addProgress.value = ''
   }
 }
+
+// 编辑模式：单条保存；名称留空沿用原名。地址或 UA 变化时后端自动重新下载
+async function saveEdit() {
+  adding.value = true
+  try {
+    const r = await api.put(`/api/profiles/${props.edit.id}`, {
+      name: name.value.trim(),
+      url: url.value.trim(),
+      ua: uaPick.value === CUSTOM_UA ? customUa.value.trim() : uaPick.value,
+    })
+    toast('订阅已保存' + (r.redownloaded ? '，已按新配置重新下载' + (r.restarted ? '并重载内核' : '') : ''), 'success')
+    emit('saved', r.profile)
+    emit('close')
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    adding.value = false
+  }
+}
+
+function submit() {
+  if (isEdit.value) saveEdit()
+  else add()
+}
 </script>
 
 <template>
   <n-modal
     preset="card"
-    title="添加订阅"
+    :title="modalTitle"
     :show="open"
     :style="{ width: '460px', maxWidth: '94vw' }"
     @update:show="emit('close')"
   >
     <div class="form">
-      <n-input v-model:value="name" placeholder="备注名（可选）" @keyup.enter="add" />
+      <n-input v-model:value="name" :placeholder="isEdit ? '备注名（留空保持原名）' : '备注名（可选）'" @keyup.enter="submit" />
       <n-input
         v-model:value="url"
         type="textarea"
-        :rows="3"
-        placeholder="订阅链接，每行一条，可粘贴多行批量添加&#10;https://example.com/subscription"
+        :rows="isEdit ? 2 : 3"
+        :placeholder="urlPlaceholder"
+        @keyup.enter="submit"
       />
       <n-select v-model:value="uaPick" :options="UA_OPTIONS" />
       <n-input
         v-if="uaPick === CUSTOM_UA"
         v-model:value="customUa"
         placeholder="自定义 User-Agent，如 clash.meta/1.19.31"
-        @keyup.enter="add"
+        @keyup.enter="submit"
       />
       <p class="page-sub">部分机场按 UA 返回不同格式的配置，更新订阅时沿用添加时的 UA</p>
       <div class="actions">
         <n-button quaternary @click="emit('close')"><template #icon><AppIcon name="close" :size="13" /></template>取消</n-button>
-        <n-button type="primary" :loading="adding" @click="add">
+        <n-button v-if="isEdit" type="primary" :loading="adding" @click="submit">
+          <template #icon><AppIcon name="check" :size="14" /></template>保存
+        </n-button>
+        <n-button v-else type="primary" :loading="adding" @click="submit">
           <template #icon><AppIcon name="plus" :size="14" /></template>
           {{ adding && addProgress ? `添加中 ${addProgress}…` : '添加' }}
         </n-button>

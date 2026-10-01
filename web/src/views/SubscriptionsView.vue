@@ -9,15 +9,26 @@ import {
 import { api } from '../api.js'
 import { store, toast, ask, fmtBytes, fmtTime } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
+import SubFormModal from '../components/SubFormModal.vue'
 
 const route = useRoute()
 
 const profiles = ref([])
 const active = ref('')
 const showModal = ref(false)
+const editing = ref(null) // 编辑中的订阅；null=添加模式
 const busyId = ref('')
 const updatingAll = ref(false)
 const keyword = ref('')
+
+function openAdd() {
+  editing.value = null
+  showModal.value = true
+}
+function openEdit(p) {
+  editing.value = p
+  showModal.value = true
+}
 
 async function load() {
   try {
@@ -157,22 +168,26 @@ const columns = computed(() => [
     ]),
   },
   {
-    title: '操作', key: 'ops', width: 252,
+    title: '操作', key: 'ops', width: 330,
     render: p => h('div', { class: 'ops-cell' }, [
       h(NButton, {
         size: 'small', loading: busyId.value === p.id,
         disabled: updatingAll.value, onClick: () => update(p),
-      }, { icon: () => h(AppIcon, { name: 'download', size: 13 }), default: () => '更新' }),
+      }, { icon: () => h(AppIcon, { name: 'refresh', size: 13 }), default: () => '更新' }),
+      h(NButton, {
+        size: 'small', type: 'error', ghost: true,
+        disabled: busyId.value === p.id || updatingAll.value, onClick: () => remove(p),
+      }, { icon: () => h(AppIcon, { name: 'trash', size: 13 }), default: () => '删除' }),
+      h(NButton, {
+        size: 'small',
+        disabled: busyId.value === p.id || updatingAll.value, onClick: () => openEdit(p),
+      }, { icon: () => h(AppIcon, { name: 'edit', size: 13 }), default: () => '编辑' }),
       p.id !== active.value
         ? h(NButton, {
             type: 'primary', size: 'small', disabled: busyId.value === p.id || updatingAll.value,
             onClick: () => activate(p),
           }, { icon: () => h(AppIcon, { name: 'upload', size: 13 }), default: () => '启用' })
         : null,
-      h(NButton, {
-        size: 'small', type: 'error', ghost: true,
-        disabled: busyId.value === p.id || updatingAll.value, onClick: () => remove(p),
-      }, { icon: () => h(AppIcon, { name: 'trash', size: 13 }), default: () => '删除' }),
     ]),
   },
 ])
@@ -266,11 +281,11 @@ onMounted(() => {
           {{ profiles.length }} 个订阅<template v-if="keyword"> · 命中 {{ filtered.length }}</template>
         </span>
       </div>
-      <n-button type="primary" @click="showModal = true"><template #icon><AppIcon name="plus" :size="14" /></template>添加订阅</n-button>
+      <n-button type="primary" @click="openAdd"><template #icon><AppIcon name="plus" :size="14" /></template>添加</n-button>
     </div>
 
     <n-card v-if="profiles.length === 0" class="pad">
-      <n-empty description="还没有订阅，点击右上角「添加订阅」粘贴机场订阅链接" />
+      <n-empty description="还没有订阅，点击右上角「添加」粘贴机场订阅链接" />
     </n-card>
 
     <n-card v-else>
@@ -300,7 +315,7 @@ onMounted(() => {
         :data="filtered"
         :row-key="p => p.id"
         :row-class-name="p => (p.id === active ? 'row-active' : '')"
-        :scroll-x="1036"
+        :scroll-x="1160"
       >
         <template #empty>
           <n-empty description="没有匹配的订阅" style="padding: 30px 0" />
@@ -308,8 +323,8 @@ onMounted(() => {
       </n-data-table>
     </n-card>
 
-    <!-- 添加订阅弹窗（共用组件） -->
-    <SubFormModal :open="showModal" @close="showModal = false" @added="load" />
+    <!-- 添加/编辑订阅弹窗（共用组件，editing 决定模式） -->
+    <SubFormModal :open="showModal" :edit="editing" @close="showModal = false" @added="load" @saved="load" />
 
     <!-- 定时更新配置弹窗 -->
     <n-modal

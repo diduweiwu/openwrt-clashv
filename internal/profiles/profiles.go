@@ -179,6 +179,43 @@ func (m *Manager) Delete(id string) error {
 	return nil
 }
 
+// Edit 修改订阅的名称/地址/UA，返回更新后的元数据与是否重新下载了内容。
+// ID 保持不变（激活状态不受影响）；地址或 UA 变化时重新下载——下载失败则整体
+// 报错不落盘，避免改坏了连原配置都没了。名称留空时沿用原名称。
+func (m *Manager) Edit(id, name, url, ua string) (Profile, bool, error) {
+	p, err := m.Get(id)
+	if err != nil {
+		return p, false, err
+	}
+	name, url, ua = strings.TrimSpace(name), strings.TrimSpace(url), strings.TrimSpace(ua)
+	if name == "" {
+		name = p.Name
+	}
+	if url == "" {
+		url = p.URL
+	}
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return Profile{}, false, fmt.Errorf("订阅地址必须以 http(s):// 开头")
+	}
+	redownload := url != p.URL || ua != p.UA
+	p.Name, p.URL, p.UA = name, url, ua
+	if redownload {
+		data, info, err := m.download(url, ua)
+		if err != nil {
+			return Profile{}, false, err
+		}
+		p.UpdatedAt = time.Now().Unix()
+		p.Size = int64(len(data))
+		p.Upload, p.Download, p.Total, p.Expire = info.upload, info.download, info.total, info.expire
+		if err := m.write(p, data); err != nil {
+			return Profile{}, false, err
+		}
+	} else if err := m.writeMeta(p); err != nil {
+		return Profile{}, false, err
+	}
+	return p, redownload, nil
+}
+
 func (m *Manager) write(p Profile, data []byte) error {
 	if err := m.cfg.EnsureDirs(); err != nil {
 		return err
@@ -190,6 +227,10 @@ func (m *Manager) write(p Profile, data []byte) error {
 	if err := os.Rename(tmpYaml, m.yamlPath(p.ID)); err != nil {
 		return err
 	}
+	return m.writeMeta(p)
+}
+
+func (m *Manager) writeMeta(p Profile) error {
 	meta, err := json.MarshalIndent(metaFile{p}, "", "  ")
 	if err != nil {
 		return err
