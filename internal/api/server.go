@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"clashv/internal/config"
@@ -17,10 +18,11 @@ import (
 
 // deps 聚合各模块，供 handler 使用。
 type deps struct {
-	cfg  *config.Manager
-	prof *profiles.Manager
-	mgr  *core.Manager
-	ver  string
+	cfg      *config.Manager
+	prof     *profiles.Manager
+	mgr      *core.Manager
+	ver      string
+	updating atomic.Bool // 批量更新进行中标记（手动全部更新 / 定时任务共用）
 }
 
 // Serve 启动 HTTP 服务（阻塞）。
@@ -36,7 +38,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	if err != nil {
 		return err
 	}
-	go d.autoUpdateLoop()
+	go d.scheduleLoop()
 
 	mux := http.NewServeMux()
 
@@ -62,6 +64,9 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	// 订阅
 	mux.HandleFunc("GET /api/profiles", d.handleProfileList)
 	mux.HandleFunc("POST /api/profiles", d.handleProfileAdd)
+	mux.HandleFunc("POST /api/profiles/update_all", d.handleProfilesUpdateAll)
+	mux.HandleFunc("GET /api/profiles/schedule", d.handleScheduleGet)
+	mux.HandleFunc("PUT /api/profiles/schedule", d.handleSchedulePut)
 	mux.HandleFunc("POST /api/profiles/{id}/update", d.handleProfileUpdate)
 	mux.HandleFunc("POST /api/profiles/{id}/activate", d.handleProfileActivate)
 	mux.HandleFunc("DELETE /api/profiles/{id}", d.handleProfileDelete)
@@ -152,40 +157,46 @@ func hostRuneIndex(s string, c byte) int {
 	return -1
 }
 
-// autoUpdateLoop 每小时检查一次订阅是否到期需要更新。
-func (d *deps) autoUpdateLoop() {
+// scheduleLoop 每 30 秒检查一次是否到达订阅定时更新时间。
+// 命中条件：今天星期在配置内、当前时间落在「到点起 10 分钟」窗口内、今天还没跑过。
+// 窗口外（如白天）重启服务不补跑，避免意外触发全量更新。
+func (d *deps) scheduleLoop() {
+	lastDate := ""
 	for {
-		time.Sleep(time.Hour)
+		time.Sleep(30 * time.Second)
 		s, err := d.cfg.Get()
-		if err != nil || s.AutoUpdateHours <= 0 {
+		if err != nil || s.AutoUpdateDays == "" {
 			continue
 		}
-		list, err := d.prof.List()
-		if err != nil {
+		now := time.Now()
+		due := false
+		for _, day := range config.ParseWeekdays(s.AutoUpdateDays) {
+			if int(now.Weekday()) == day {
+				due = true
+				break
+			}
+		}
+		if !due {
 			continue
 		}
-		due := s.AutoUpdateHours * 3600
-		now := time.Now().Unix()
-		changed := false
-		activeUpdated := false
-		for _, p := range list {
-			if now-p.UpdatedAt < int64(due) {
-				continue
-			}
-			if _, err := d.prof.Update(p.ID); err != nil {
-				slog.Warn("订阅自动更新失败", "name", p.Name, "err", err)
-				continue
-			}
-			slog.Info("订阅已自动更新", "name", p.Name)
-			changed = true
-			if p.ID == s.ActiveProfile {
-				activeUpdated = true
-			}
+		hh, mm, ok := config.ParseHHMM(s.AutoUpdateTime)
+		if !ok {
+			continue
 		}
-		if changed && activeUpdated && d.mgr.Running() {
-			if err := d.mgr.Restart(); err != nil {
-				slog.Warn("订阅更新后重启内核失败", "err", err)
-			}
+		sched := time.Date(now.Year(), now.Month(), now.Day(), hh, mm, 0, 0, now.Location())
+		if now.Before(sched) || now.After(sched.Add(10*time.Minute)) {
+			continue
+		}
+		today := now.Format("2006-01-02")
+		if today == lastDate {
+			continue
+		}
+		lastDate = today
+		slog.Info("到达订阅定时更新时间，开始更新全部订阅", "time", s.AutoUpdateTime)
+		if _, restarted, restartErr := d.updateAllProfiles(); restartErr != "" {
+			slog.Warn("订阅定时更新未完成", "err", restartErr)
+		} else if restarted {
+			slog.Info("订阅定时更新完成，内核已重载")
 		}
 	}
 }

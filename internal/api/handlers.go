@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -105,7 +106,6 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"dns":            s.DNS,
 		"dns_mode":       s.DNSMode,
 		"mode":           config.NormalizeCoreMode(s.CoreMode),
-		"auto_update":    s.AutoUpdateHours,
 		"openwrt":        d.cfg.IsOpenWrt(),
 		"token_required": s.Token != "",
 	})
@@ -410,6 +410,131 @@ func (d *deps) handleProfileDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// subUpdResult 是单个订阅的批量更新结果。
+type subUpdResult struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+// updateAllProfiles 依次更新全部订阅；激活订阅有变化且内核在跑时只重启一次。
+// updating 原子标记防止定时任务与手动「全部更新」并发重跑。
+func (d *deps) updateAllProfiles() (results []subUpdResult, restarted bool, restartErr string) {
+	if !d.updating.CompareAndSwap(false, true) {
+		return nil, false, "已有更新任务在进行中"
+	}
+	defer d.updating.Store(false)
+
+	list, err := d.prof.List()
+	if err != nil {
+		return nil, false, err.Error()
+	}
+	s, _ := d.cfg.Get()
+	activeUpdated := false
+	for _, p := range list {
+		res := subUpdResult{ID: p.ID, Name: p.Name}
+		if _, err := d.prof.Update(p.ID); err != nil {
+			res.Error = err.Error()
+			slog.Warn("订阅更新失败", "name", p.Name, "err", err)
+		} else {
+			res.OK = true
+			slog.Info("订阅已更新", "name", p.Name)
+			if p.ID == s.ActiveProfile {
+				activeUpdated = true
+			}
+		}
+		results = append(results, res)
+	}
+	if activeUpdated && d.mgr.Running() {
+		if err := d.mgr.Restart(); err != nil {
+			restartErr = err.Error()
+			slog.Warn("订阅更新后重启内核失败", "err", err)
+		} else {
+			restarted = true
+		}
+	}
+	return results, restarted, restartErr
+}
+
+// handleProfilesUpdateAll 一键更新全部订阅。
+func (d *deps) handleProfilesUpdateAll(w http.ResponseWriter, r *http.Request) {
+	results, restarted, restartErr := d.updateAllProfiles()
+	if results == nil && restartErr != "" {
+		writeErr(w, http.StatusConflict, errStr(restartErr))
+		return
+	}
+	okN, failN := 0, 0
+	for _, res := range results {
+		if res.OK {
+			okN++
+		} else {
+			failN++
+		}
+	}
+	writeJSON(w, 200, map[string]any{
+		"results":   results,
+		"ok_count":  okN,
+		"fail_count": failN,
+		"restarted": restarted,
+		"error":     restartErr,
+	})
+}
+
+// handleScheduleGet 返回订阅定时更新配置（星期列表 + 时间点）。
+func (d *deps) handleScheduleGet(w http.ResponseWriter, r *http.Request) {
+	s, err := d.cfg.Get()
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeSchedule(w, s.AutoUpdateDays, s.AutoUpdateTime)
+}
+
+// handleSchedulePut 保存订阅定时更新配置；启用时要求至少选一天且时间合法。
+func (d *deps) handleSchedulePut(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Enabled bool   `json:"enabled"`
+		Days    []int  `json:"days"`
+		Time    string `json:"time"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法 JSON"))
+		return
+	}
+	days := config.EncodeWeekdays(body.Days)
+	if body.Enabled {
+		if days == "" {
+			writeErr(w, 400, errStr("请至少选择一个星期"))
+			return
+		}
+		if _, _, ok := config.ParseHHMM(body.Time); !ok {
+			writeErr(w, 400, errStr("时间格式应为 HH:mm"))
+			return
+		}
+	}
+	if err := d.cfg.Update(func(u *config.Settings) {
+		u.AutoUpdateDays = days
+		if _, _, ok := config.ParseHHMM(body.Time); ok {
+			u.AutoUpdateTime = body.Time
+		}
+	}); err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	s, _ := d.cfg.Get()
+	slog.Info("订阅定时更新配置已保存", "enabled", s.AutoUpdateDays != "", "days", s.AutoUpdateDays, "time", s.AutoUpdateTime)
+	writeSchedule(w, s.AutoUpdateDays, s.AutoUpdateTime)
+}
+
+func writeSchedule(w http.ResponseWriter, days, tm string) {
+	writeJSON(w, 200, map[string]any{
+		"enabled": days != "",
+		"days":    config.ParseWeekdays(days),
+		"time":    tm,
+	})
 }
 
 // ---- 设置 ----

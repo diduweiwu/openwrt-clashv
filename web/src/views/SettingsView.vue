@@ -20,7 +20,6 @@ const form = reactive({
   dns_hijack: 'firewall',
   dns_hijack_ipv4: true,
   dns_hijack_ipv6: false,
-  auto_update: 12,
   token: '',
   core_arch: '',
   core_mem_limit: 0,
@@ -84,7 +83,6 @@ async function load() {
       dns_hijack: s.dns_hijack || 'firewall',
       dns_hijack_ipv4: s.dns_hijack_ipv4 !== false,
       dns_hijack_ipv6: !!s.dns_hijack_ipv6,
-      auto_update: s.auto_update,
       token: s.token || '',
       core_arch: s.core_arch || '',
       core_mem_limit: s.core_mem_limit || 0,
@@ -107,7 +105,6 @@ async function save() {
       ...form,
       mixed_port: Number(form.mixed_port) || 7890,
       ui_port: Number(form.ui_port) || 9097,
-      auto_update: Number(form.auto_update) || 0,
       core_mem_limit: Math.max(0, Number(form.core_mem_limit) || 0),
     }
     const r = await api.put('/api/settings', payload)
@@ -121,7 +118,6 @@ async function save() {
       dns_hijack: r.settings.dns_hijack || 'firewall',
       dns_hijack_ipv4: r.settings.dns_hijack_ipv4 !== false,
       dns_hijack_ipv6: !!r.settings.dns_hijack_ipv6,
-      auto_update: r.settings.auto_update,
       token: r.settings.token || '',
       core_arch: r.settings.core_arch || '',
       core_mem_limit: r.settings.core_mem_limit || 0,
@@ -232,15 +228,6 @@ const tab = ref('general')
               <span class="rs">HTTP 与 SOCKS5 共用的代理端口，局域网设备手动配置代理时填它<span class="rec">默认 7890，建议保持，端口被占用再改</span></span>
             </div>
             <n-input-number v-model:value="form.mixed_port" :show-button="false" :min="1" :max="65535" class="num" />
-          </div>
-          <div class="row">
-            <div class="row-text">
-              <span class="rt">订阅自动更新</span>
-              <span class="rs">到点自动拉取订阅更新并重载内核，0 为关闭<span class="rec">默认 12 小时，建议保持</span></span>
-            </div>
-            <n-input-number v-model:value="form.auto_update" :show-button="false" :min="0" :max="720" class="num">
-              <template #suffix><span class="unit">小时</span></template>
-            </n-input-number>
           </div>
           <div class="row">
             <div class="row-text">

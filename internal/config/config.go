@@ -27,7 +27,8 @@ type Settings struct {
 	TUNStack         string `json:"tun_stack"`         // TUN 协议栈: system / gvisor / mixed
 	DNS              bool   `json:"dns"`               // 由 mihomo 接管 DNS（TUN 模式建议开启）
 	DNSMode          string `json:"dns_mode"`          // DNS 解析模式: fake-ip / redir-host
-	AutoUpdateHours  int    `json:"auto_update"`       // 订阅自动更新间隔（小时），0 为关闭
+	AutoUpdateDays   string `json:"auto_update_days"`  // 订阅定时更新的星期列表（逗号分隔 0=周日…6=周六），空为关闭
+	AutoUpdateTime   string `json:"auto_update_time"`  // 订阅定时更新的时间点（HH:mm）
 	CorePath         string `json:"core_path"`         // mihomo 二进制路径
 	CoreArch         string `json:"core_arch"`         // 内核下载平台名，留空自动检测（如 linux-arm64）
 	CoreMemLimit     int    `json:"core_mem_limit"`    // 内核内存软上限（GOMEMLIMIT，MB），0 为不限制
@@ -55,7 +56,8 @@ func Defaults() Settings {
 		TUNStack:         "mixed",
 		DNS:              true,
 		DNSMode:          "fake-ip",
-		AutoUpdateHours:  12,
+		AutoUpdateDays:   "1,2,3,4,5,6,0", // 默认每天低峰自动更新
+		AutoUpdateTime:   "04:00",
 		CorePath:         "",
 		CoreArch:         "",
 		CoreMemLimit:     0,
@@ -237,8 +239,10 @@ func (s *Settings) normalize() {
 	if s.ControllerPort <= 0 || s.ControllerPort > 65535 {
 		s.ControllerPort = 9090
 	}
-	if s.AutoUpdateHours < 0 {
-		s.AutoUpdateHours = 0
+	// 订阅定时更新：星期列表去重排序，时间点非法时回退默认
+	s.AutoUpdateDays = EncodeWeekdays(ParseWeekdays(s.AutoUpdateDays))
+	if _, _, ok := ParseHHMM(s.AutoUpdateTime); !ok {
+		s.AutoUpdateTime = "04:00"
 	}
 	s.TUNStack = strings.TrimSpace(s.TUNStack)
 	switch s.TUNStack {
@@ -288,6 +292,50 @@ func NormalizeCoreMode(m string) string {
 		return m
 	}
 	return "rule"
+}
+
+// ParseWeekdays 解析逗号分隔的星期列表（0=周日…6=周六），去重去非法值后升序返回。
+func ParseWeekdays(s string) []int {
+	seen := map[int]bool{}
+	for _, part := range strings.Split(s, ",") {
+		n, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil || n < 0 || n > 6 {
+			continue
+		}
+		seen[n] = true
+	}
+	out := make([]int, 0, len(seen))
+	for d := 0; d <= 6; d++ {
+		if seen[d] {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// EncodeWeekdays 把星期列表编码为逗号分隔串（非法值剔除，空列表编码为空串表示关闭）。
+func EncodeWeekdays(days []int) string {
+	strs := make([]string, 0, len(days))
+	for _, d := range days {
+		if d >= 0 && d <= 6 {
+			strs = append(strs, strconv.Itoa(d))
+		}
+	}
+	return strings.Join(strs, ",")
+}
+
+// ParseHHMM 解析 "HH:mm"，返回时分与是否合法。
+func ParseHHMM(s string) (int, int, bool) {
+	parts := strings.Split(strings.TrimSpace(s), ":")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	hh, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+	mm, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err1 != nil || err2 != nil || hh < 0 || hh > 23 || mm < 0 || mm > 59 {
+		return 0, 0, false
+	}
+	return hh, mm, true
 }
 
 // EnsureDirs 创建运行所需目录结构。

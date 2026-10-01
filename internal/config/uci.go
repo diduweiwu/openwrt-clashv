@@ -20,7 +20,8 @@ import (
 //	    option tun_stack 'mixed'
 //	    option dns '1'
 //	    option dns_mode 'fake-ip'
-//	    option auto_update '12'
+//	    option auto_update_days '0,1,2,3,4,5,6'
+//	    option auto_update_time '04:00'
 //	    option core_path ''
 //	    option core_arch ''
 //	    option core_mem_limit '0'
@@ -79,7 +80,8 @@ func (m *Manager) loadUCI(s *Settings) error {
 		s.DNS = isOn("dns")
 	}
 	setStr(&s.DNSMode, "dns_mode")
-	setInt(&s.AutoUpdateHours, "auto_update")
+	setStr(&s.AutoUpdateDays, "auto_update_days")
+	setStr(&s.AutoUpdateTime, "auto_update_time")
 	setStr(&s.CorePath, "core_path")
 	setStr(&s.CoreArch, "core_arch")
 	setInt(&s.CoreMemLimit, "core_mem_limit")
@@ -126,7 +128,8 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.tun_stack='%s'", uciSection, s.TUNStack)
 	line("set %s.dns='%s'", uciSection, onOff(s.DNS))
 	line("set %s.dns_mode='%s'", uciSection, s.DNSMode)
-	line("set %s.auto_update='%d'", uciSection, s.AutoUpdateHours)
+	line("set %s.auto_update_days='%s'", uciSection, s.AutoUpdateDays)
+	line("set %s.auto_update_time='%s'", uciSection, s.AutoUpdateTime)
 	line("set %s.core_path='%s'", uciSection, s.CorePath)
 	line("set %s.core_arch='%s'", uciSection, s.CoreArch)
 	line("set %s.core_mem_limit='%d'", uciSection, s.CoreMemLimit)
