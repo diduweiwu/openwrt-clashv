@@ -2,7 +2,7 @@
 // 规则页：自定义规则（置顶并入运行时配置）+ 内核实际加载的路由规则（mihomo GET /rules）。
 // 自定义规则在弹窗里用「类型 / 值 / 目标」合成，保证 clash 规则格式；支持新增与编辑，
 // 保存后内核自动重载。
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NCheckbox, NEmpty, NInput, NModal, NSelect } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast } from '../store.js'
@@ -119,6 +119,7 @@ const lastUsed = { type: 'DOMAIN-SUFFIX', target: 'DIRECT' }
 function openAdd() {
   editIndex.value = -1
   form.value = { type: lastUsed.type, value: '', target: lastUsed.target, noResolve: false }
+  loadTargets() // 弹窗每次打开都刷新目标候选，跟随当前订阅的代理组
   showRuleModal.value = true
 }
 
@@ -179,6 +180,14 @@ async function persist(next) {
   }
 }
 
+// 自定义规则搜索：命中行携带原下标，编辑/删除仍定位到完整列表的原始位置
+const customFiltered = computed(() => {
+  const k = keyword.value.trim().toLowerCase()
+  return custom.value
+    .map((rule, idx) => ({ rule, idx }))
+    .filter(x => !k || x.rule.toLowerCase().includes(k))
+})
+
 // 过滤：内容 / 类型 / 目标 任一命中即可
 const filtered = computed(() => {
   const k = keyword.value.trim().toLowerCase()
@@ -207,6 +216,14 @@ onMounted(() => {
   loadTargets()
   load(true) // 挂载时静默加载：内核未运行是常态，不打扰
 })
+
+// 内核晚于挂载进入运行态时补拉代理组，目标下拉才能带出订阅里的分组
+watch(
+  () => store.status?.running,
+  (running) => {
+    if (running) loadTargets()
+  },
+)
 </script>
 
 <template>
@@ -215,7 +232,7 @@ onMounted(() => {
       <div>
         <h2 class="page-title">规则</h2>
         <p class="page-sub">
-          自定义规则置顶于订阅规则之前<template v-if="store.status?.running"> · 内核当前加载共 {{ rules.length }} 条</template><template v-if="keyword && filtered.length !== rules.length">，命中 {{ filtered.length }} 条</template>
+          自定义规则置顶于订阅规则之前<template v-if="store.status?.running"> · 内核当前加载共 {{ rules.length }} 条</template><template v-if="keyword">，命中：自定义 {{ customFiltered.length }} / 运行时 {{ filtered.length }} 条</template>
         </p>
       </div>
       <n-button size="small" :loading="loading" :disabled="!store.status?.running" @click="load(false); loadTargets()">
@@ -223,30 +240,40 @@ onMounted(() => {
       </n-button>
     </div>
 
+    <!-- 搜索框：同时过滤自定义规则与内核运行时规则 -->
+    <n-input v-model:value="keyword" placeholder="搜索规则内容、类型或目标（自定义 + 运行时）…" clearable>
+      <template #prefix>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" />
+        </svg>
+      </template>
+    </n-input>
+
     <!-- 自定义规则：弹窗内新增/编辑，内核运行时保存后自动重载 -->
     <n-card>
       <div class="sec-head">
         <h3><AppIcon class="sec-ico" name="layers" :size="15" />自定义规则</h3>
         <div class="sec-side">
-          <span class="page-sub">合成 clash 规则 · 越靠前越优先命中</span>
+          <span class="page-sub">共 {{ custom.length }} 条<template v-if="keyword"> · 命中 {{ customFiltered.length }} 条</template> · 越靠前越优先</span>
           <n-button size="small" type="primary" @click="openAdd">
             <template #icon><AppIcon name="plus" :size="13" /></template>添加规则
           </n-button>
         </div>
       </div>
       <n-empty v-if="!custom.length" description="还没有自定义规则，点右上角「添加规则」新建" style="padding: 26px 0" />
+      <n-empty v-else-if="!customFiltered.length" description="没有匹配的自定义规则" style="padding: 26px 0" />
       <div v-else class="custom-list">
-        <div v-for="(c, i) in custom" :key="c" class="rule-row custom">
-          <span class="no mono">{{ i + 1 }}</span>
+        <div v-for="x in customFiltered" :key="x.rule" class="rule-row custom">
+          <span class="no mono">{{ x.idx + 1 }}</span>
           <div class="rule-main">
-            <div class="payload mono">{{ c }}</div>
+            <div class="payload mono">{{ x.rule }}</div>
             <div class="rtype">自定义 · 置顶</div>
           </div>
           <div class="row-ops">
-            <n-button quaternary size="tiny" title="编辑该规则" :disabled="saving" @click="openEdit(i)">
+            <n-button quaternary size="tiny" title="编辑该规则" :disabled="saving" @click="openEdit(x.idx)">
               <template #icon><AppIcon name="edit" :size="14" /></template>
             </n-button>
-            <n-button quaternary size="tiny" title="删除该规则" :disabled="saving" @click="removeRule(i)">
+            <n-button quaternary size="tiny" title="删除该规则" :disabled="saving" @click="removeRule(x.idx)">
               <template #icon><AppIcon name="trash" :size="14" /></template>
             </n-button>
           </div>
@@ -291,14 +318,6 @@ onMounted(() => {
         </div>
       </div>
     </n-modal>
-
-    <n-input v-model:value="keyword" placeholder="搜索运行时规则内容、类型或目标…" clearable>
-      <template #prefix>
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" />
-        </svg>
-      </template>
-    </n-input>
 
     <n-card v-if="!store.status?.running" class="pad">
       <n-empty description="内核未运行，启动后可查看实际加载的规则" />
