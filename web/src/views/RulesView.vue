@@ -1,8 +1,9 @@
 <script setup>
 // 规则页：自定义规则（置顶并入运行时配置）+ 内核实际加载的路由规则（mihomo GET /rules）。
-// 自定义规则用「类型 / 值 / 目标」下拉合成，保证 clash 规则格式，保存后内核自动重载。
+// 自定义规则在弹窗里用「类型 / 值 / 目标」合成，保证 clash 规则格式；支持新增与编辑，
+// 保存后内核自动重载。
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NCard, NCheckbox, NEmpty, NInput, NSelect } from 'naive-ui'
+import { NButton, NCard, NCheckbox, NEmpty, NInput, NModal, NSelect } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -109,17 +110,50 @@ const composedRule = computed(() => {
   return `${f.type},${v},${f.target}${f.noResolve ? ',no-resolve' : ''}`
 })
 
-async function addRule() {
+// ---- 弹窗：新增 / 编辑共用；editIndex = -1 表示新增，否则为待编辑行下标 ----
+const showRuleModal = ref(false)
+const editIndex = ref(-1)
+// 记住上次用的类型/目标，连续录入少点两下
+const lastUsed = { type: 'DOMAIN-SUFFIX', target: 'DIRECT' }
+
+function openAdd() {
+  editIndex.value = -1
+  form.value = { type: lastUsed.type, value: '', target: lastUsed.target, noResolve: false }
+  showRuleModal.value = true
+}
+
+// 把合成好的规则串拆回表单字段（本页生成的规则格式固定，可逆）
+function parseRule(rule) {
+  const parts = rule.split(',').map(s => s.trim())
+  if (parts[0] === 'MATCH') return { type: 'MATCH', value: '', target: parts[1] || 'DIRECT', noResolve: false }
+  const noResolve = parts[parts.length - 1] === 'no-resolve'
+  if (noResolve) parts.pop()
+  const target = parts.length > 2 ? parts.pop() : 'DIRECT'
+  const type = RULE_TYPES.some(t => t.value === parts[0]) ? parts[0] : 'DOMAIN-SUFFIX'
+  return { type, value: parts.slice(1).join(','), target, noResolve }
+}
+
+function openEdit(i) {
+  editIndex.value = i
+  form.value = parseRule(custom.value[i])
+  showRuleModal.value = true
+}
+
+async function saveRule() {
   const rule = composedRule.value
   if (!rule || saving.value) return
-  if (custom.value.includes(rule)) {
+  if (custom.value.some((r, i) => r === rule && i !== editIndex.value)) {
     toast('该规则已存在', 'warning')
     return
   }
-  await persist([...custom.value, rule])
-  // 保留类型与目标，清掉值方便连续录入
-  form.value.value = ''
-  form.value.noResolve = false
+  const next = editIndex.value >= 0
+    ? custom.value.map((r, i) => (i === editIndex.value ? rule : r))
+    : [...custom.value, rule]
+  if (await persist(next)) {
+    lastUsed.type = form.value.type
+    lastUsed.target = form.value.target
+    showRuleModal.value = false
+  }
 }
 
 async function removeRule(i) {
@@ -127,7 +161,7 @@ async function removeRule(i) {
   await persist(custom.value.filter((_, idx) => idx !== i))
 }
 
-// 全量覆写保存；内核在运行时后端会自动重启加载
+// 全量覆写保存；内核在运行时后端会自动重启加载。返回是否成功，供弹窗决定是否关闭
 async function persist(next) {
   saving.value = true
   try {
@@ -136,8 +170,10 @@ async function persist(next) {
     if (r.error) toast('规则已保存，但内核重载失败：' + r.error, 'error', 5000)
     else toast(r.restarted ? '规则已保存，内核已重载生效' : '规则已保存，内核启动后生效', 'success')
     if (store.status?.running) load()
+    return true
   } catch (e) {
     toast(e.message, 'error')
+    return false
   } finally {
     saving.value = false
   }
@@ -187,33 +223,18 @@ onMounted(() => {
       </n-button>
     </div>
 
-    <!-- 自定义规则：新增即保存，内核运行时自动重载 -->
+    <!-- 自定义规则：弹窗内新增/编辑，内核运行时保存后自动重载 -->
     <n-card>
       <div class="sec-head">
         <h3><AppIcon class="sec-ico" name="layers" :size="15" />自定义规则</h3>
-        <span class="page-sub">按类型 / 值 / 目标合成 clash 规则，越靠前越优先命中</span>
+        <div class="sec-side">
+          <span class="page-sub">合成 clash 规则 · 越靠前越优先命中</span>
+          <n-button size="small" type="primary" @click="openAdd">
+            <template #icon><AppIcon name="plus" :size="13" /></template>添加规则
+          </n-button>
+        </div>
       </div>
-      <div class="add-row">
-        <n-select
-          v-model:value="form.type"
-          class="sel-type"
-          :options="RULE_TYPES"
-          :consistent-menu-width="false"
-        />
-        <n-input
-          v-model:value="form.value"
-          class="in-value"
-          :disabled="form.type === 'MATCH'"
-          :placeholder="valuePlaceholder"
-        />
-        <span class="arrow">→</span>
-        <n-select v-model:value="form.target" class="sel-target" :options="targetOptions" placeholder="目标" />
-        <n-checkbox v-if="noResolveVisible" v-model:checked="form.noResolve">no-resolve</n-checkbox>
-        <n-button type="primary" :loading="saving" :disabled="form.type !== 'MATCH' && !form.value.trim()" @click="addRule">
-          <template #icon><AppIcon name="plus" :size="13" /></template>添加
-        </n-button>
-      </div>
-      <n-empty v-if="!custom.length" description="还没有自定义规则，用上方表单添加" style="padding: 26px 0" />
+      <n-empty v-if="!custom.length" description="还没有自定义规则，点右上角「添加规则」新建" style="padding: 26px 0" />
       <div v-else class="custom-list">
         <div v-for="(c, i) in custom" :key="c" class="rule-row custom">
           <span class="no mono">{{ i + 1 }}</span>
@@ -221,12 +242,55 @@ onMounted(() => {
             <div class="payload mono">{{ c }}</div>
             <div class="rtype">自定义 · 置顶</div>
           </div>
-          <n-button quaternary size="tiny" title="删除该规则" :disabled="saving" @click="removeRule(i)">
-            <template #icon><AppIcon name="trash" :size="14" /></template>
-          </n-button>
+          <div class="row-ops">
+            <n-button quaternary size="tiny" title="编辑该规则" :disabled="saving" @click="openEdit(i)">
+              <template #icon><AppIcon name="edit" :size="14" /></template>
+            </n-button>
+            <n-button quaternary size="tiny" title="删除该规则" :disabled="saving" @click="removeRule(i)">
+              <template #icon><AppIcon name="trash" :size="14" /></template>
+            </n-button>
+          </div>
         </div>
       </div>
     </n-card>
+
+    <!-- 添加/编辑规则弹窗 -->
+    <n-modal
+      preset="card"
+      :title="editIndex >= 0 ? '编辑规则' : '添加规则'"
+      :show="showRuleModal"
+      :style="{ width: '480px', maxWidth: '94vw' }"
+      @update:show="showRuleModal = false"
+    >
+      <div class="rule-form">
+        <div class="f-row">
+          <span class="f-label">类型</span>
+          <n-select v-model:value="form.type" :options="RULE_TYPES" :consistent-menu-width="false" />
+        </div>
+        <div class="f-row" v-if="form.type !== 'MATCH'">
+          <span class="f-label">值</span>
+          <n-input v-model:value="form.value" :placeholder="valuePlaceholder" />
+        </div>
+        <div class="f-row">
+          <span class="f-label">目标</span>
+          <n-select v-model:value="form.target" :options="targetOptions" placeholder="目标" />
+        </div>
+        <div class="f-row" v-if="noResolveVisible">
+          <span class="f-label">选项</span>
+          <n-checkbox v-model:checked="form.noResolve">no-resolve（命中后不做 DNS 解析，路由器上推荐）</n-checkbox>
+        </div>
+        <div class="f-preview mono">预览：{{ composedRule || '—' }}</div>
+        <div class="f-foot">
+          <span class="page-sub">保存后置顶生效，内核运行中自动重载</span>
+          <div class="btn-pair">
+            <n-button size="small" :disabled="saving" @click="showRuleModal = false">取消</n-button>
+            <n-button type="primary" size="small" :loading="saving" :disabled="form.type !== 'MATCH' && !form.value.trim()" @click="saveRule">
+              <template #icon><AppIcon name="check" :size="13" /></template>保存
+            </n-button>
+          </div>
+        </div>
+      </div>
+    </n-modal>
 
     <n-input v-model:value="keyword" placeholder="搜索运行时规则内容、类型或目标…" clearable>
       <template #prefix>
@@ -267,13 +331,23 @@ onMounted(() => {
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .sec-head h3 { font-size: 15px; }
 .sec-ico { color: var(--accent); margin-right: 7px; vertical-align: -2px; }
+.sec-side { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
-/* 新增表单：类型 / 值 / 目标 一行合成 */
-.add-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.sel-type { width: 240px; flex: none; }
-.in-value { flex: 1; min-width: 160px; }
-.arrow { color: var(--text-dim); flex: none; }
-.sel-target { width: 200px; flex: none; }
+/* 弹窗表单：标签在上、控件在下，底部实时预览合成结果 */
+.rule-form { display: flex; flex-direction: column; gap: 14px; }
+.f-row { display: flex; flex-direction: column; gap: 6px; }
+.f-label { font-size: 12.5px; color: var(--text-dim); }
+.f-preview {
+  padding: 9px 12px;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--accent);
+  word-break: break-all;
+}
+.f-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.btn-pair { display: flex; gap: 8px; }
 
 .custom-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .rule-row {
@@ -292,6 +366,7 @@ onMounted(() => {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .rtype { font-size: 11.5px; color: var(--text-dim); }
+.row-ops { display: flex; gap: 2px; flex: none; }
 .rule-scroll { max-height: calc(100vh - 240px); min-height: 200px; overflow-y: auto; }
 .proxy {
   flex: none; max-width: 220px;
@@ -302,12 +377,9 @@ onMounted(() => {
 .proxy.direct { color: var(--green); }
 .proxy.reject { color: var(--red); }
 
-/* ---- 手机/平板：新增表单竖排堆叠，箭头隐藏 ---- */
+/* ---- 手机/平板 ---- */
 @media (max-width: 760px) {
-  .add-row { flex-direction: column; align-items: stretch; }
-  .sel-type, .sel-target { width: 100%; flex: none; }
-  .arrow { display: none; }
-  .add-row :deep(.n-checkbox) { justify-content: flex-start; }
   .proxy { max-width: 40%; }
+  .row-ops { flex-direction: column; }
 }
 </style>

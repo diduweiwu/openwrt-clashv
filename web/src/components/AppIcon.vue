@@ -62,6 +62,7 @@ const ICONS = {
   ],
   'chevron-left': ['m15 18-6-6 6-6'],
   'chevron-right': ['m9 18 6-6-6-6'],
+  edit: ['M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z'],
   server: ['M4 4h16v6H4Z', 'M4 14h16v6H4Z', 'M7 7h.01', 'M7 17h.01'],
 }
 
