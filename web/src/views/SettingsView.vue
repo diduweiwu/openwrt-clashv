@@ -517,4 +517,12 @@ const tab = ref('general')
 .row .n-input-group { width: fit-content; margin-left: auto; }
 .prog { width: 180px; flex-shrink: 0; }
 .save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; padding: 10px 0 2px; }
+
+/* ---- 手机/平板：行内控件换到文案下方铺满，开关保持靠右 ---- */
+@media (max-width: 760px) {
+  .row { flex-wrap: wrap; }
+  .row .ctl, .row .num, .row > .n-input { width: 100% !important; }
+  .row > .n-switch { margin-left: auto; }
+  .prog { width: 100%; }
+}
 </style>

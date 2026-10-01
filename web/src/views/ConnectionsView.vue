@@ -265,4 +265,10 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 :deep(.ul) { color: var(--green); }
 :deep(.addr) { color: var(--text-dim); }
 .inbound { margin-left: 6px; font-size: 10.5px; color: var(--text-dim); }
+
+/* ---- 手机/平板：工具栏换行，搜索框独占一行；表格靠 scroll-x 横向滚动 ---- */
+@media (max-width: 760px) {
+  .toolbar-row { flex-wrap: wrap; }
+  .toolbar-row .search { flex: 1 1 100%; max-width: 100%; }
+}
 </style>

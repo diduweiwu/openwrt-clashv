@@ -229,6 +229,7 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .sidebar {
     width: 100%; flex-direction: row; align-items: center;
     padding: 10px 14px; gap: 12px;
+    flex-wrap: wrap; /* 390px 级窄屏：底部的状态/主题钮换到第二行，避免裁切 */
   }
   .logo { font-size: 15px; gap: 6px; }
   nav { flex-direction: row; flex: 1; }
@@ -238,5 +239,7 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .side-stats { display: none; }
   .status-text { display: none; }
   .theme-btn { width: auto; justify-content: center; padding-left: 0; }
+  /* 折叠是桌面行为，移动端横排侧栏不显示开关 */
+  .collapse-btn { display: none; }
 }
 </style>

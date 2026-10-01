@@ -301,4 +301,13 @@ onMounted(() => {
 .proxy.group { color: var(--orange); }
 .proxy.direct { color: var(--green); }
 .proxy.reject { color: var(--red); }
+
+/* ---- 手机/平板：新增表单竖排堆叠，箭头隐藏 ---- */
+@media (max-width: 760px) {
+  .add-row { flex-direction: column; align-items: stretch; }
+  .sel-type, .sel-target { width: 100%; flex: none; }
+  .arrow { display: none; }
+  .add-row :deep(.n-checkbox) { justify-content: flex-start; }
+  .proxy { max-width: 40%; }
+}
 </style>

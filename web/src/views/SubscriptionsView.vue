@@ -152,4 +152,10 @@ onMounted(() => {
 .p-traffic { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
 .bar { width: 220px; max-width: 45%; }
 .p-actions { display: flex; gap: 8px; flex: none; }
+
+/* ---- 手机/平板：操作按钮允许换行，避免挤压标题区 ---- */
+.p-actions { flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .p-url { white-space: normal; word-break: break-all; }
+}
 </style>

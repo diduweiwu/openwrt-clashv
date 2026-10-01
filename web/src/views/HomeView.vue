@@ -779,7 +779,7 @@ function currentOf(g) {
 .sub-actions { display: flex; gap: 8px; }
 .sub-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .sub-name { font-size: 15px; font-weight: 600; }
-.sub-traffic { display: flex; align-items: center; gap: 12px; margin-top: 9px; }
+.sub-traffic { display: flex; align-items: center; gap: 12px; margin-top: 9px; flex-wrap: wrap; }
 .sub-bar { width: 260px; max-width: 50%; }
 .group-acc {
   display: flex; flex-direction: column; gap: 10px;
@@ -850,5 +850,25 @@ function currentOf(g) {
   border: 1px solid var(--border); border-radius: 10px;
   font-size: 12px; line-height: 1.6;
   white-space: pre; tab-size: 2;
+}
+
+/* ---- 手机/平板：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
+@media (max-width: 760px) {
+  /* 运行卡瓦片占满一行三等分，控制按钮组换行靠右 */
+  .hero-tiles { flex: 1 1 100%; }
+  .hero-tiles .meta-item { min-width: 0; padding: 8px 10px 9px; }
+  /* 订阅卡拉通整行（容器换行 + 0 0 100% 强制快捷卡换到下一行），快捷卡三等分一行并收紧内边距与字号 */
+  .sub-row-cards { flex-wrap: wrap; }
+  .sub-card { flex: 0 0 100%; }
+  .quick-card :deep(.n-card-content) { padding: 10px 12px 12px; }
+  .quick-head { font-size: 11px; gap: 5px; }
+  .quick-head .k { gap: 5px; }
+  .quick-head .tile-gear { width: 16px; height: 16px; }
+  .quick-body { font-size: 16px; }
+  /* 流量瓦片 2×2 */
+  .traffic-nums { gap: 10px; }
+  .traffic-nums .meta-item { flex: 1 1 calc(50% - 5px); height: 62px; }
+  .traffic-nums .meta-item .v { font-size: 14px; }
+  .sub-bar { max-width: 100%; }
 }
 </style>
