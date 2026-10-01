@@ -498,16 +498,17 @@ const tab = ref('general')
 .row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .rt { font-size: 13.5px; font-weight: 500; }
 .rs { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-/* 行描述尾部的「默认/建议」徽章：主题色软底小胶囊，辅助用户对照默认值做选择 */
+/* 行描述下方的「默认/建议」徽章：独立一行左对齐，主题色软底小胶囊 */
 .rec {
-  display: inline-block;
-  margin-left: 4px;
+  display: block;
+  width: fit-content;
+  margin-top: 3px;
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 11px;
-  vertical-align: 1px;
+  white-space: nowrap;
 }
 .num { width: 110px; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
