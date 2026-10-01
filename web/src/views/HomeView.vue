@@ -12,7 +12,7 @@ const busy = ref('')
 
 // hero 控制按钮同高同宽的方形文字钮（icon+文字），启停随状态换图标与文案
 const HERO_H = 62
-const heroBtn = { width: '78px', height: HERO_H + 'px', padding: '0', fontSize: '15px' }
+const heroBtn = { width: '94px', height: HERO_H + 'px', padding: '0', fontSize: '15px' }
 const proxies = ref({})
 const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
 const subBusy = ref(false)
