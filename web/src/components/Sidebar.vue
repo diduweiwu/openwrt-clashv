@@ -1,9 +1,18 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { NButton, NDropdown } from 'naive-ui'
 import { themeMode, resolvedTheme, applyTheme } from '../theme.js'
 import { store } from '../store.js'
 import AppIcon from './AppIcon.vue'
+
+// ---- 侧栏折叠：收起后只留图标导航与 logo 小图，状态记忆在 localStorage ----
+const COLLAPSE_KEY = 'clashv_sidebar_collapsed'
+const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value
+  localStorage.setItem(COLLAPSE_KEY, collapsed.value ? '1' : '0')
+}
 
 const navs = [
   { to: '/', label: '首页', icon: 'home' },
@@ -24,6 +33,7 @@ const themeOptions = [
 
 // 触发按钮上显示当前实际配色：跟随系统时展示解析结果（窄侧栏用短文案）
 const themeLabel = computed(() => {
+  if (collapsed.value) return '◐'
   if (themeMode.value === 'system') {
     return `◐ 系统 · ${resolvedTheme.value === 'dark' ? '深色' : '浅色'}`
   }
@@ -37,7 +47,7 @@ function pickTheme(v) {
 </script>
 
 <template>
-  <aside class="sidebar">
+  <aside class="sidebar" :class="{ collapsed }">
     <div class="logo">
       <!-- ClashV logo：Clash 猫（线条用 currentColor 继承侧栏白色，粗细按小尺寸展示微调） -->
       <svg viewBox="0 0 48 48" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -53,7 +63,7 @@ function pickTheme(v) {
     </div>
 
     <nav>
-      <router-link v-for="n in navs" :key="n.to" :to="n.to" class="nav-item" active-class="active">
+      <router-link v-for="n in navs" :key="n.to" :to="n.to" class="nav-item" active-class="active" :title="collapsed ? n.label : null">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <template v-if="n.icon === 'home'">
             <path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" />
@@ -109,6 +119,13 @@ function pickTheme(v) {
       <n-dropdown trigger="click" placement="top-start" :options="themeOptions" @select="pickTheme">
         <n-button quaternary size="small" class="theme-btn">{{ themeLabel }}</n-button>
       </n-dropdown>
+      <!-- 折叠开关：收起后仅剩箭头图标，logo 区只留小图 -->
+      <n-button quaternary size="small" class="collapse-btn" :title="collapsed ? '展开菜单' : '收起菜单'" @click="toggleCollapsed">
+        <template #icon>
+          <AppIcon :name="collapsed ? 'chevron-right' : 'chevron-left'" :size="14" />
+        </template>
+        <span class="ct-text">收起菜单</span>
+      </n-button>
     </div>
   </aside>
 </template>
@@ -122,6 +139,7 @@ function pickTheme(v) {
   flex-direction: column;
   padding: 20px 26px;
   gap: 24px;
+  transition: width 0.15s ease;
 }
 .logo {
   display: flex; align-items: center; gap: 9px;
@@ -177,6 +195,35 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   color: rgba(255, 255, 255, 0.55);
   font-size: 12px;
   white-space: nowrap;
+}
+/* 折叠开关：与主题按钮同款左对齐排布 */
+.collapse-btn {
+  width: 100%;
+  justify-content: flex-start;
+  padding-left: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.collapse-btn:hover { color: #fff; }
+
+/* ---- 收起态（仅桌面端）：只留图标导航 + logo 小图，底部缩成三枚小圆钮 ---- */
+@media (min-width: 761px) {
+  .sidebar.collapsed {
+    width: 64px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .sidebar.collapsed .logo { justify-content: center; padding: 0; }
+  .sidebar.collapsed .logo span { display: none; }
+  .sidebar.collapsed .nav-item { justify-content: center; gap: 0; padding: 10px 0; }
+  .sidebar.collapsed .nav-item span { display: none; }
+  .sidebar.collapsed .side-stats { display: none; }
+  .sidebar.collapsed .status-line { justify-content: center; padding: 0; }
+  .sidebar.collapsed .status-text { display: none; }
+  .sidebar.collapsed .theme-btn,
+  .sidebar.collapsed .collapse-btn { justify-content: center; padding-left: 0; }
+  .sidebar.collapsed .ct-text { display: none; }
 }
 @media (max-width: 760px) {
   .sidebar {
