@@ -362,7 +362,7 @@ function currentOf(g) {
       </n-flex>
     </n-card>
 
-    <!-- 订阅与快捷卡：订阅卡整行，出站模式 / DNS / 混合端口三张快捷卡在下等分一行 -->
+    <!-- 订阅行：当前订阅与右侧三张快捷卡同行；订阅卡右缘与上/下方瓦片组的第三列竖线对齐 -->
     <div class="sub-row-cards">
       <n-card class="sub-card">
         <div class="sec-head">
@@ -757,10 +757,12 @@ function currentOf(g) {
 .hero-tiles { flex: 0 1 calc(50% + 8px); }
 .hero-tiles .meta-item { flex: 1 1 0; }
 
-/* 订阅卡整行、三张快捷卡在其下等分一行：与运行卡/流量卡/节点卡左右缘垂直对齐 */
-.sub-row-cards { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; }
-.sub-card { flex: 0 0 100%; min-width: 0; }
-.quick-card { flex: 1 1 0; min-width: 0; min-height: 104px; }
+/* 订阅行：订阅卡与三张快捷卡同行。订阅卡右缘取 calc(50% + 8px)——恰好压在
+   运行卡三块瓦片、流量卡前三块瓦片的右缘那条竖线上（卡内容宽 = 页宽 − 48），
+   垂直看下来三处对齐；快捷卡平分剩余宽度 */
+.sub-row-cards { display: flex; gap: 16px; align-items: stretch; }
+.sub-card { flex: 0 0 calc(50% + 8px); min-width: 0; }
+.quick-card { flex: 1 1 0; min-width: 0; }
 /* 快捷卡：标题+齿轮置顶成头部行，下方内容区吃满剩余高度、大字号显示值 */
 .quick-card :deep(.n-card-content) { display: flex; flex-direction: column; }
 .quick-head { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
