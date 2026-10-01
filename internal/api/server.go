@@ -46,6 +46,9 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("GET /api/connections", d.handleConnections)
 	mux.HandleFunc("DELETE /api/connections", d.handleConnectionsClose)
 	mux.HandleFunc("GET /api/rules", d.handleRules)
+	// 自定义规则：置顶并入运行时配置（放 /api/rules 前后皆可，Go 1.22 mux 按最具体路径匹配）
+	mux.HandleFunc("GET /api/rules/custom", d.handleCustomRulesGet)
+	mux.HandleFunc("PUT /api/rules/custom", d.handleCustomRulesPut)
 
 	// 代理（转发 mihomo 控制接口）
 	mux.HandleFunc("GET /api/proxies", d.handleProxies)

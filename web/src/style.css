@@ -50,7 +50,8 @@ body {
 h1, h2, h3, h4 { margin: 0; font-weight: 600; }
 p { margin: 0; }
 
-.page { display: flex; flex-direction: column; gap: 16px; max-width: 1080px; margin: 0 auto; }
+/* 不限最大宽度：内容随视口铺满，左右留白由 .content 的 10px 内边距控制 */
+.page { display: flex; flex-direction: column; gap: 16px; }
 .page-title { font-size: 19px; margin-bottom: 2px; }
 .page-sub { color: var(--text-dim); font-size: 13px; }
 

@@ -73,6 +73,21 @@ func TestRulesRouteAnyProxy(t *testing.T) {
 	}
 }
 
+func TestMergeCustomRules(t *testing.T) {
+	doc := docOf(t, noRulesSub+"\nrules: [\"GEOIP,CN,DIRECT\",\"MATCH,DIRECT\"]\n")
+	mergeCustomRules(doc, []string{"DOMAIN-SUFFIX,x.com,节点选择", "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve"})
+	got, ok := doc["rules"].([]any)
+	if !ok || len(got) != 4 {
+		t.Fatalf("合并后应有 4 条规则, got %v", doc["rules"])
+	}
+	if got[0] != "DOMAIN-SUFFIX,x.com,节点选择" || got[1] != "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve" {
+		t.Errorf("自定义规则应置顶, got %v", got)
+	}
+	if got[2] != "GEOIP,CN,DIRECT" || got[3] != "MATCH,DIRECT" {
+		t.Errorf("订阅规则应保持原顺序跟在后面, got %v", got)
+	}
+}
+
 func TestFirstProxyTarget(t *testing.T) {
 	if got := firstProxyTarget(docOf(t, noRulesSub)); got != "节点选择" {
 		t.Errorf("firstProxyTarget = %q, want 节点选择", got)

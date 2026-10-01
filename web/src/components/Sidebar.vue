@@ -70,14 +70,16 @@ function pickTheme(v) {
             <path d="M3 12h4l2.5-6.5 4.5 13L16.5 12H21" />
           </template>
           <template v-else-if="n.icon === 'profiles'">
-            <path d="M6 3.5h9l3.5 3.5v13.5H6z" /><path d="M9 12h6M9 16h6M9 8h3" />
+            <path d="M14 3.5H7a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7.5Z" />
+            <path d="M14 3.5v4h4" /><path d="M9 12.5h6" /><path d="M9 16h6" />
           </template>
           <template v-else-if="n.icon === 'logs'">
             <path d="M5 4h14v16H5z" /><path d="M8.5 9h7M8.5 13h7M8.5 17h4" />
           </template>
-          <template v-else>
-            <circle cx="12" cy="12" r="3.2" />
-            <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7" />
+          <template v-else-if="n.icon === 'settings'">
+            <!-- 齿轮：lucide settings 外形（齿轮轮廓 + 中孔），避免误认成太阳 -->
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
           </template>
         </svg>
         <span>{{ n.label }}</span>

@@ -46,6 +46,12 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 	for k, v := range managedOverlay(s, proxyTarget) {
 		doc[k] = v
 	}
+	// 用户自定义规则置顶并入：clash 规则自上而下匹配，自定义条目优先于订阅
+	// 规则生效；置顶后同样参与下面的兜底判断——自定义规则已把流量导向代理时
+	// （如「面板直连型订阅 + 自定义规则」），不再注入 MATCH 兜底
+	if custom := m.cfg.CustomRules(); len(custom) > 0 {
+		mergeCustomRules(doc, custom)
+	}
 	if proxyTarget != "" && !rulesRouteAnyProxy(doc) {
 		reason := "订阅未提供规则"
 		if !rulesEmpty(doc) {
@@ -73,6 +79,17 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 func rulesEmpty(doc map[string]any) bool {
 	rules, ok := doc["rules"].([]any)
 	return !ok || len(rules) == 0
+}
+
+// mergeCustomRules 把用户自定义规则置顶并入 doc 的 rules 列表
+// （clash 规则自上而下匹配，排在前面的自定义条目优先命中）。
+func mergeCustomRules(doc map[string]any, custom []string) {
+	orig, _ := doc["rules"].([]any)
+	merged := make([]any, 0, len(custom)+len(orig))
+	for _, r := range custom {
+		merged = append(merged, r)
+	}
+	doc["rules"] = append(merged, orig...)
 }
 
 // rulesRouteAnyProxy 报告规则中是否存在把流量导向代理（目标不是

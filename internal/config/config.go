@@ -116,6 +116,51 @@ func (m *Manager) LogDir() string { return filepath.Join(m.Home(), "logs") }
 // RuntimeConfigPath 返回合成后给 mihomo 使用的运行时配置路径。
 func (m *Manager) RuntimeConfigPath() string { return filepath.Join(m.Home(), "config.yaml") }
 
+// CustomRulesPath 返回用户自定义规则文件路径。一行一条 clash 规则，
+// 不走 UCI/JSON 设置——规则串可含空格与任意字符，独立纯文本文件最稳妥。
+func (m *Manager) CustomRulesPath() string { return filepath.Join(m.Home(), "custom-rules.txt") }
+
+// CustomRules 读取用户自定义规则（一行一条；文件不存在视为空列表）。
+func (m *Manager) CustomRules() []string {
+	data, err := os.ReadFile(m.CustomRulesPath())
+	if err != nil {
+		return nil
+	}
+	return sanitizeRules(strings.Split(string(data), "\n"))
+}
+
+// SetCustomRules 覆写用户自定义规则（去空白、去重后原样落盘）。
+func (m *Manager) SetCustomRules(rules []string) error {
+	clean := sanitizeRules(rules)
+	path := m.CustomRulesPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(strings.Join(clean, "\n")+"\n"), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// sanitizeRules 规整规则列表：修剪首尾空白、剔除空行、按出现顺序去重。
+func sanitizeRules(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, r := range in {
+		r = strings.TrimSpace(r)
+		if r == "" {
+			continue
+		}
+		if _, dup := seen[r]; dup {
+			continue
+		}
+		seen[r] = struct{}{}
+		out = append(out, r)
+	}
+	return out
+}
+
 // CorePath 返回 mihomo 二进制路径（含默认值推导）。
 func (m *Manager) CorePath() string {
 	m.mu.Lock()

@@ -198,6 +198,40 @@ func (d *deps) handleRules(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"rules": rules})
 }
 
+// handleCustomRulesGet 返回用户自定义规则（合成后的 clash 规则串，置顶并入运行时配置）。
+func (d *deps) handleCustomRulesGet(w http.ResponseWriter, r *http.Request) {
+	rules := d.cfg.CustomRules()
+	if rules == nil {
+		rules = []string{}
+	}
+	writeJSON(w, 200, map[string]any{"rules": rules})
+}
+
+// handleCustomRulesPut 覆写用户自定义规则；内核在运行时自动重启加载新规则。
+func (d *deps) handleCustomRulesPut(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Rules []string `json:"rules"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法的规则 JSON"))
+		return
+	}
+	if err := d.cfg.SetCustomRules(body.Rules); err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	restarted := false
+	var restartErr string
+	if d.mgr.Running() {
+		if err := d.mgr.Restart(); err != nil {
+			restartErr = err.Error()
+		} else {
+			restarted = true
+		}
+	}
+	writeJSON(w, 200, map[string]any{"ok": restartErr == "", "restarted": restarted, "error": restartErr})
+}
+
 // ---- 代理 ----
 
 func (d *deps) handleProxies(w http.ResponseWriter, r *http.Request) {

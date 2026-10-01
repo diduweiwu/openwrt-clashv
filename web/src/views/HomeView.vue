@@ -10,10 +10,10 @@ import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
 
-// hero 控制按钮与左侧状态瓦片同高；启停为常驻圆形切换钮，重启为等高长方形文字钮
+// hero 控制按钮与左侧状态瓦片同高；启停为常驻圆形切换钮，重启为与它同高同宽的方形文字钮
 const HERO_H = 62
 const heroCtl = { width: HERO_H + 'px', height: HERO_H + 'px' }
-const heroRestart = { height: HERO_H + 'px', padding: '0 16px', fontSize: '15px' }
+const heroRestart = { width: HERO_H + 'px', height: HERO_H + 'px', padding: '0', fontSize: '15px' }
 const proxies = ref({})
 const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
 const subBusy = ref(false)
@@ -317,8 +317,8 @@ function currentOf(g) {
           <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
         </div>
         <!-- 第二行放瓦片与按钮，align 居中让按钮与瓦片严格水平对齐 -->
-        <n-flex justify="space-between" align="center" :size="18">
-          <n-flex :size="8">
+        <n-flex align="center" :size="18">
+          <n-flex class="hero-tiles" :size="16">
             <div class="meta-item">
               <span class="k"><AppIcon name="cpu" :size="13" />内核版本</span>
               <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
@@ -333,36 +333,9 @@ function currentOf(g) {
               <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
               <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
             </div>
-            <div class="meta-item">
-              <span class="k"><AppIcon name="plug" :size="13" />混合端口
-                <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
-                  <AppIcon name="gear" :size="12" />
-                </button>
-              </span>
-              <span class="v mono">{{ status?.mixed_port || '—' }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="k"><AppIcon name="globe" :size="13" />DNS
-                <button class="tile-gear" title="DNS 设置" @click="openDns">
-                  <AppIcon name="gear" :size="12" />
-                </button>
-              </span>
-              <span class="v mono" :class="{ dim: !status?.dns }">
-                {{ status?.dns ? (status.dns_mode || 'fake-ip') : '未接管' }}
-              </span>
-            </div>
-            <div class="meta-item">
-              <span class="k"><AppIcon name="layers" :size="13" />出站模式
-                <button class="tile-gear" title="切换出站模式" @click="showMode = true">
-                  <AppIcon name="gear" :size="12" />
-                </button>
-              </span>
-              <span class="v">
-                <n-tag size="small" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
-              </span>
-            </div>
           </n-flex>
-          <n-flex :size="12">
+          <!-- margin-left:auto 而非 justify=space-between：窄屏下按钮组换行独占一行时仍贴右缘 -->
+          <n-flex class="hero-actions" :size="12">
             <n-button
               title="重启内核"
               :style="heroRestart"
@@ -391,47 +364,83 @@ function currentOf(g) {
       </n-flex>
     </n-card>
 
-    <!-- 当前订阅 -->
-    <n-card>
-      <div class="sec-head">
-        <h3><AppIcon class="sec-ico" name="file-text" :size="15" />当前订阅</h3>
-        <div class="sub-actions">
-          <n-button size="small" title="刷新当前订阅" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
-            <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
-          </n-button>
-          <n-button v-if="status?.running" size="small" title="查看运行时配置（config.yaml）" @click="viewConfig">
-            <template #icon><AppIcon name="file-code" :size="13" /></template>查看
-          </n-button>
-          <n-button size="small" title="切换订阅" @click="openSwitch">
-            <template #icon><AppIcon name="swap" :size="13" /></template>切换
-          </n-button>
-          <n-button size="small" title="添加订阅" @click="showAdd = true">
-            <template #icon><AppIcon name="plus" :size="13" /></template>添加
-          </n-button>
+    <!-- 订阅行：订阅卡占一半宽，右侧出站模式 / DNS / 混合端口三张快捷卡平分剩余宽度 -->
+    <div class="sub-row-cards">
+      <n-card class="sub-card">
+        <div class="sec-head">
+          <h3><AppIcon class="sec-ico" name="file-text" :size="15" />当前订阅</h3>
+          <div class="sub-actions">
+            <n-button size="small" title="刷新当前订阅" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
+              <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
+            </n-button>
+            <n-button v-if="status?.running" size="small" title="查看运行时配置（config.yaml）" @click="viewConfig">
+              <template #icon><AppIcon name="file-code" :size="13" /></template>查看
+            </n-button>
+            <n-button size="small" title="切换订阅" @click="openSwitch">
+              <template #icon><AppIcon name="swap" :size="13" /></template>切换
+            </n-button>
+            <n-button size="small" title="添加订阅" @click="showAdd = true">
+              <template #icon><AppIcon name="plus" :size="13" /></template>添加
+            </n-button>
+          </div>
         </div>
-      </div>
-      <n-empty v-if="!status?.profile" description="未设置订阅，请先添加并启用" />
-      <template v-else>
-        <div class="sub-row">
-          <span class="sub-name">{{ status.profile }}</span>
-          <span v-if="subExpire" class="page-sub">到期 {{ subExpire }}</span>
+        <n-empty v-if="!status?.profile" description="未设置订阅，请先添加并启用" />
+        <template v-else>
+          <div class="sub-row">
+            <span class="sub-name">{{ status.profile }}</span>
+            <span v-if="subExpire" class="page-sub">到期 {{ subExpire }}</span>
+          </div>
+          <div v-if="subTraffic" class="sub-traffic">
+            <n-progress
+              class="sub-bar"
+              type="line"
+              :percentage="subTraffic.percent"
+              :show-indicator="false"
+              :height="6"
+              border-radius="3px"
+            />
+            <span class="mono page-sub">
+              已用 {{ fmtBytes(subTraffic.used) }} / {{ fmtBytes(subTraffic.total) }}（{{ Math.round(subTraffic.percent) }}%）
+            </span>
+          </div>
+          <div v-else class="page-sub" style="margin-top:4px">机场未提供流量信息</div>
+        </template>
+      </n-card>
+      <n-card class="quick-card">
+        <div class="meta-item">
+          <span class="k"><AppIcon name="plug" :size="13" />混合端口
+            <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
+              <AppIcon name="gear" :size="12" />
+            </button>
+          </span>
+          <span class="v mono">{{ status?.mixed_port || '—' }}</span>
         </div>
-        <div v-if="subTraffic" class="sub-traffic">
-          <n-progress
-            class="sub-bar"
-            type="line"
-            :percentage="subTraffic.percent"
-            :show-indicator="false"
-            :height="6"
-            border-radius="3px"
-          />
-          <span class="mono page-sub">
-            已用 {{ fmtBytes(subTraffic.used) }} / {{ fmtBytes(subTraffic.total) }}（{{ Math.round(subTraffic.percent) }}%）
+      </n-card>
+      <n-card class="quick-card">
+        <div class="meta-item">
+          <span class="k"><AppIcon name="globe" :size="13" />DNS
+            <button class="tile-gear" title="DNS 设置" @click="openDns">
+              <AppIcon name="gear" :size="12" />
+            </button>
+          </span>
+          <span class="v mono" :class="{ dim: !status?.dns }">
+            {{ status?.dns ? (status.dns_mode || 'fake-ip') : '未接管' }}
           </span>
         </div>
-        <div v-else class="page-sub" style="margin-top:4px">机场未提供流量信息</div>
-      </template>
-    </n-card>
+      </n-card>
+      <n-card class="quick-card">
+        <div class="meta-item">
+          <span class="k"><AppIcon name="layers" :size="13" />出站模式
+            <button class="tile-gear" title="切换出站模式" @click="showMode = true">
+              <AppIcon name="gear" :size="12" />
+            </button>
+          </span>
+          <span class="v">
+            <n-tag size="small" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
+          </span>
+        </div>
+      </n-card>
+    </div>
 
     <!-- 流量 -->
     <n-card>
@@ -741,9 +750,26 @@ function currentOf(g) {
 /* 标题独占一行，指标瓦片与清零按钮在标题下方独立成行 */
 .traffic-head { margin-bottom: 0; }
 .traffic-nums { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; margin: 12px 0 8px; }
-.traffic-nums .meta-item { height: 69px; }
+/* 流量瓦片与运行卡/订阅行瓦片同一列宽基准：(50% − 24px) / 3；清零钮靠右 */
+.traffic-nums .meta-item { height: 69px; flex: 0 1 calc((50% - 24px) / 3); }
 .traffic-nums .meta-item .v { font-size: 16px; }
-.trip-reset { flex: none; }
+.trip-reset { flex: none; margin-left: auto; }
+
+/* 运行卡右侧按钮组：靠右且窄屏换行后仍贴右缘 */
+.hero-actions { margin-left: auto; }
+/* 运行卡左瓦片组固定占半行：瓦片列宽与下方订阅行右半区的快捷卡完全对齐
+   （卡片内容宽 = 页宽 − 2×24 内边距，故 50% + 8px 恰好等于页宽的一半） */
+.hero-tiles { flex: 0 1 calc(50% + 8px); }
+.hero-tiles .meta-item { flex: 1 1 0; }
+
+/* 订阅行：订阅卡固定一半宽，三张快捷卡平分剩余；align-items:stretch 让快捷卡与订阅卡同高 */
+.sub-row-cards { display: flex; gap: 16px; align-items: stretch; }
+.sub-card { flex: 0 0 50%; min-width: 0; }
+.quick-card { flex: 1 1 0; min-width: 0; }
+/* 快捷卡外壳由卡片本身提供：内容层垂直居中（卡片根元素是纵向 flex，内容层自带 flex:1），
+   瓦片去掉自带的底色边框内衬只留排版 */
+.quick-card :deep(.n-card-content) { display: flex; flex-direction: column; justify-content: center; }
+.quick-card .meta-item { background: none; border: none; padding: 0; min-width: 0; }
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .sec-head h3 { font-size: 15px; }
@@ -795,7 +821,6 @@ function currentOf(g) {
 .n-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
 .node-card.on .n-name { color: var(--accent); font-weight: 600; }
 .n-delay { font-size: 12px; flex: none; }
-.trip-reset { align-self: center; flex: none; }
 
 .switch-body { display: flex; flex-direction: column; gap: 12px; }
 .switch-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
