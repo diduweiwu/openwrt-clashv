@@ -213,7 +213,7 @@ const trip = computed(() => tripTotals())
 
 function onTripReset() {
   resetTrip()
-  toast('累计流量已清零，重新开始统计', 'success')
+  toast('累计流量已重置，重新开始统计', 'success')
 }
 
 // ---- 出站模式 / DNS 快捷切换（瓦片齿轮 → 弹窗） ----
@@ -461,9 +461,9 @@ function currentOf(g) {
           </div>
           <n-button
             class="trip-reset" quaternary :style="{ height: '69px' }"
-            title="里程清零：丢弃当前累计，从零重新统计" @click="onTripReset"
+            title="重置里程：丢弃当前累计，从零重新统计" @click="onTripReset"
           >
-            <template #icon><AppIcon name="restart" :size="15" /></template>清零
+            <template #icon><AppIcon name="restart" :size="15" /></template>重置
           </n-button>
         </div>
       </div>
@@ -742,10 +742,10 @@ function currentOf(g) {
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 
-/* 标题独占一行，指标瓦片与清零按钮在标题下方独立成行；间隙与顶部卡片行一致（16px） */
+/* 标题独占一行，指标瓦片与重置按钮在标题下方独立成行；间隙与顶部卡片行一致（16px） */
 .traffic-head { margin-bottom: 0; }
 .traffic-nums { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; margin: 12px 0 8px; }
-/* 流量瓦片与运行卡/订阅行瓦片同一列宽基准：(50% − 24px) / 3；清零钮靠右 */
+/* 流量瓦片与运行卡/订阅行瓦片同一列宽基准：(50% − 24px) / 3；重置钮靠右 */
 .traffic-nums .meta-item { height: 69px; flex: 0 1 calc((50% - 24px) / 3); }
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; margin-left: auto; }
