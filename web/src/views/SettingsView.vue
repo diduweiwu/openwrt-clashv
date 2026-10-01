@@ -267,8 +267,8 @@ const tab = ref('general')
       </n-card>
     </template>
 
-    <!-- 网络 -->
-    <n-card v-if="tab === 'network'" title="TUN 与 DNS">
+    <!-- 网络：TUN 与 DNS 拆成两张卡，互不混淆 -->
+    <n-card v-if="tab === 'network'" title="TUN">
       <div class="rows">
         <div class="row">
           <div class="row-text">
@@ -284,6 +284,12 @@ const tab = ref('general')
           </div>
           <n-select v-model:value="form.tun_stack" :options="[{ value: 'mixed', label: 'mixed' }, { value: 'system', label: 'system' }, { value: 'gvisor', label: 'gvisor' }]" class="ctl" style="width: 130px" />
         </div>
+      </div>
+    </n-card>
+
+    <n-card v-if="tab === 'network'" title="DNS">
+      <p class="page-sub card-sub">以下选项已按最常见的组网场景预设，保持默认即可稳定工作；确有需要再调整，保存后自动生效</p>
+      <div class="rows">
         <div class="row">
           <div class="row-text">
             <span class="rt">接管 DNS</span>
@@ -472,6 +478,8 @@ const tab = ref('general')
 .head-card :deep(.n-card-content) { padding: 10px 16px; }
 .tabs { min-width: 0; }
 .rows { display: flex; flex-direction: column; }
+/* 卡片顶部提示行（如 DNS 卡的「保持默认」文案）：标题与选项行之间留出呼吸 */
+.card-sub { margin: 0 0 12px; }
 .row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 11px 0;
