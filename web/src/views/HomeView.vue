@@ -362,7 +362,7 @@ function currentOf(g) {
       </n-flex>
     </n-card>
 
-    <!-- 订阅行：订阅卡占一半宽，右侧出站模式 / DNS / 混合端口三张快捷卡平分剩余宽度 -->
+    <!-- 订阅与快捷卡：订阅卡整行，出站模式 / DNS / 混合端口三张快捷卡在下等分一行 -->
     <div class="sub-row-cards">
       <n-card class="sub-card">
         <div class="sec-head">
@@ -752,15 +752,15 @@ function currentOf(g) {
 
 /* 运行卡右侧按钮组：靠右且窄屏换行后仍贴右缘 */
 .hero-actions { margin-left: auto; }
-/* 运行卡左瓦片组固定占半行：瓦片列宽与下方订阅行右半区的快捷卡完全对齐
+/* 运行卡左瓦片组固定占半行：瓦片列宽与流量卡瓦片完全对齐
    （卡片内容宽 = 页宽 − 2×24 内边距，故 50% + 8px 恰好等于页宽的一半） */
 .hero-tiles { flex: 0 1 calc(50% + 8px); }
 .hero-tiles .meta-item { flex: 1 1 0; }
 
-/* 订阅行：订阅卡固定一半宽，三张快捷卡平分剩余；align-items:stretch 让快捷卡与订阅卡同高 */
-.sub-row-cards { display: flex; gap: 16px; align-items: stretch; }
-.sub-card { flex: 0 0 50%; min-width: 0; }
-.quick-card { flex: 1 1 0; min-width: 0; }
+/* 订阅卡整行、三张快捷卡在其下等分一行：与运行卡/流量卡/节点卡左右缘垂直对齐 */
+.sub-row-cards { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; }
+.sub-card { flex: 0 0 100%; min-width: 0; }
+.quick-card { flex: 1 1 0; min-width: 0; min-height: 104px; }
 /* 快捷卡：标题+齿轮置顶成头部行，下方内容区吃满剩余高度、大字号显示值 */
 .quick-card :deep(.n-card-content) { display: flex; flex-direction: column; }
 .quick-head { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
