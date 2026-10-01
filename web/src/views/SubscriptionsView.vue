@@ -4,7 +4,7 @@ import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   NButton, NCard, NDataTable, NEmpty, NInput, NModal, NProgress,
-  NSelect, NSwitch, NTag, NTimePicker,
+  NSelect, NSwitch, NTimePicker,
 } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtBytes, fmtTime } from '../store.js'
@@ -135,12 +135,7 @@ const hasTraffic = computed(() => profiles.value.some(p => trafficOf(p)))
 const columns = computed(() => [
   {
     title: '名称', key: 'name', width: 190, ellipsis: { tooltip: true },
-    render: p => h('div', { class: 'name-cell' }, [
-      h('span', { class: 'name-txt' }, p.name),
-      p.id === active.value
-        ? h(NTag, { size: 'small', round: true, bordered: false }, { default: () => '✓ 使用中' })
-        : null,
-    ]),
+    render: p => h('span', { class: 'name-txt' }, p.name),
   },
   {
     title: '订阅地址', key: 'url', minWidth: 220, ellipsis: { tooltip: true },
@@ -380,8 +375,7 @@ onMounted(() => {
 .tools { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 
 /* 表格单元格内容（render 函数生成，无 scoped 属性，需 :deep 穿透） */
-:deep(.name-cell) { display: flex; align-items: center; gap: 8px; min-width: 0; }
-:deep(.name-cell .name-txt) { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:deep(.name-txt) { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :deep(.url-txt) { color: var(--text-dim); font-size: 12px; }
 :deep(.row-active > td) { background: var(--accent-soft) !important; }
 :deep(.traf) { display: flex; flex-direction: column; gap: 3px; }
