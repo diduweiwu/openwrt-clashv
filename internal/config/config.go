@@ -33,6 +33,8 @@ type Settings struct {
 	CoreMemLimit     int    `json:"core_mem_limit"`    // 内核内存软上限（GOMEMLIMIT，MB），0 为不限制
 	CoreMode         string `json:"core_mode"`         // 出站模式: rule / global / direct（卡片切换后持久化，重启仍生效）
 	DNSHijack        string `json:"dns_hijack"`        // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
+	DNSHijackIPv4    bool   `json:"dns_hijack_ipv4"`   // DNS 劫持 IPv4：防火墙只重定向 v4 的 53 端口 / TUN dns-hijack 用 0.0.0.0:53
+	DNSHijackIPv6    bool   `json:"dns_hijack_ipv6"`   // DNS 劫持 IPv6：同上作用于 v6（默认关，避免影响无 v6/不想接管的网络）
 	CustomUA         string `json:"custom_ua"`         // 上次使用的自定义订阅 User-Agent（记住，下次预填）
 	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
 	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
@@ -59,6 +61,8 @@ func Defaults() Settings {
 		CoreMemLimit:     0,
 		CoreMode:         "rule",
 		DNSHijack:        "firewall", // 与 OpenClash 一致：默认防火墙转发 DNS
+		DNSHijackIPv4:    true,       // 默认只劫持 IPv4；IPv6 由用户按需打开
+		DNSHijackIPv6:    false,
 		CustomUA:         "",
 		WorkDir:          "",
 		PluginRepo:       "nier/clashv",

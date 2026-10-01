@@ -112,7 +112,7 @@ func (m *Manager) ApplyTrafficHooks(s config.Settings) {
 		slog.Info("TUN 模式由内核 auto-route 接管流量，跳过防火墙重定向")
 	}
 	if dnsFirewall || tcpRedirect {
-		if err := applyFirewallRules(dnsFirewall, tcpRedirect); err != nil {
+		if err := applyFirewallRules(dnsFirewall, tcpRedirect, s.DNSHijackIPv4, s.DNSHijackIPv6); err != nil {
 			slog.Warn("防火墙接管启用失败（DNS 劫持/TCP 透明代理）",
 				"dns", dnsFirewall, "tcp_redirect", tcpRedirect, "err", err)
 		} else {
@@ -120,7 +120,8 @@ func (m *Manager) ApplyTrafficHooks(s config.Settings) {
 				slog.Info("TCP 透明代理已启用", "listen_port", redirPort)
 			}
 			if dnsFirewall {
-				slog.Info("DNS 劫持已启用", "mode", "firewall", "listen_port", dnsListenPort)
+				slog.Info("DNS 劫持已启用", "mode", "firewall", "listen_port", dnsListenPort,
+					"ipv4", s.DNSHijackIPv4, "ipv6", s.DNSHijackIPv6)
 			}
 		}
 	}
@@ -153,35 +154,44 @@ func (m *Manager) RemoveTrafficHooks() {
 	}
 }
 
-// clearFirewallRules 清空自建的 nft 表与 iptables 链（不存在时静默）。
+// clearFirewallRules 清空自建的 nft 表与 iptables/ip6tables 链（不存在时静默）。
 func (m *Manager) clearFirewallRules() {
 	try("nft", "delete", "table", "inet", nftTable)
 	try("iptables", "-t", "nat", "-D", "PREROUTING", "-j", fwChain)
 	try("iptables", "-t", "nat", "-F", fwChain)
 	try("iptables", "-t", "nat", "-X", fwChain)
+	try("ip6tables", "-t", "nat", "-D", "PREROUTING", "-j", fwChain)
+	try("ip6tables", "-t", "nat", "-F", fwChain)
+	try("ip6tables", "-t", "nat", "-X", fwChain)
 }
 
-// applyFirewallRules 用防火墙规则实现 DNS 劫持（dns=true）与 TCP 透明代理
-// （redirect=true），两者可同时启用。优先 nft（OpenWrt 22.03+ / fw4），
-// 失败回退 iptables；两者都失败时必须把 nft 的原始错误一并带出，
-// 否则回退路径会掩盖真正的失败原因（只有 iptables 缺失这一条）。
-func applyFirewallRules(dns, redirect bool) error {
+// applyFirewallRules 用防火墙规则实现 DNS 劫持（dns=true，按 hjV4/hjV6 限定
+// 协议族）与 TCP 透明代理（redirect=true），两者可同时启用。优先 nft
+// （OpenWrt 22.03+ / fw4），失败回退 iptables；两者都失败时必须把 nft 的
+// 原始错误一并带出，否则回退路径会掩盖真正的失败原因（只有 iptables 缺失这一条）。
+func applyFirewallRules(dns, redirect, hjV4, hjV6 bool) error {
 	if !dns && !redirect {
 		return nil
 	}
-	nftErr := nftRules(dns, redirect)
+	nftErr := nftRules(dns, redirect, hjV4, hjV6)
 	if nftErr != nil {
 		// 重建是幂等的；nft/内核不旧时规则写法不该失败，多为瞬时冲突
 		// （fw4 并发提交 netlink 等），稍候重试一次再谈回退
 		time.Sleep(300 * time.Millisecond)
-		nftErr = nftRules(dns, redirect)
+		nftErr = nftRules(dns, redirect, hjV4, hjV6)
 	}
 	if nftErr == nil {
 		return nil
 	}
-	iptErr := iptablesRules(dns, redirect)
+	iptErr := iptablesRules(dns && hjV4, redirect)
 	if iptErr == nil {
 		slog.Warn("nft 规则失败，已回退 iptables", "err", nftErr)
+		if dns && hjV6 {
+			// iptables 只管 v4；v6 的劫持规则尽力单独补（缺 ip6tables 等只告警）
+			if err := ip6tablesDnsRules(); err != nil {
+				slog.Warn("IPv6 DNS 劫持启用失败", "err", err)
+			}
+		}
 		return nil
 	}
 	return fmt.Errorf("nft 失败: %v；iptables 失败: %v", nftErr, iptErr)
@@ -190,7 +200,8 @@ func applyFirewallRules(dns, redirect bool) error {
 // nftRules 用 nft 实现与 iptables 版同构的规则：nat 基础链只挂一个 jump，
 // 具体规则放在普通链 CLASHV_DNS 里，保留网段逐条 return——不使用匿名集合
 // （interval 集合在部分老内核上会被拒绝，且报错难定位）。
-func nftRules(dns, redirect bool) error {
+// DNS 劫持规则按 hjV4/hjV6 用 meta nfproto 限定协议族（inet 表默认两族都命中）。
+func nftRules(dns, redirect, hjV4, hjV6 bool) error {
 	// 先删再建：部分旧版 nft 对已存在的表/链执行 add 会报错
 	try("nft", "delete", "table", "inet", nftTable)
 	if err := run("nft", "add", "table", "inet", nftTable); err != nil {
@@ -208,13 +219,25 @@ func nftRules(dns, redirect bool) error {
 		return err
 	}
 	if dns {
-		if err := run("nft", "add", "rule", "inet", nftTable, fwChain,
-			"udp", "dport", "53", "redirect", "to", ":"+dnsListenPort); err != nil {
-			return err
+		redir := func(family string) error {
+			for _, proto := range []string{"udp", "tcp"} {
+				if err := run("nft", "add", "rule", "inet", nftTable, fwChain,
+					"meta", "nfproto", family, proto, "dport", "53",
+					"redirect", "to", ":"+dnsListenPort); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-		if err := run("nft", "add", "rule", "inet", nftTable, fwChain,
-			"tcp", "dport", "53", "redirect", "to", ":"+dnsListenPort); err != nil {
-			return err
+		if hjV4 {
+			if err := redir("ipv4"); err != nil {
+				return err
+			}
+		}
+		if hjV6 {
+			if err := redir("ipv6"); err != nil {
+				return err
+			}
 		}
 	}
 	if redirect {
@@ -234,6 +257,7 @@ func nftRules(dns, redirect bool) error {
 	return nil
 }
 
+// iptablesRules 实现 IPv4 侧规则（dns 由调用方按 v4 开关决定是否传入 true）。
 func iptablesRules(dns, redirect bool) error {
 	ipt, err := findBin("iptables")
 	if err != nil {
@@ -270,6 +294,33 @@ func iptablesRules(dns, redirect bool) error {
 		}
 	}
 	// 跳转规则已存在则不重复加
+	if err := runIpt("-t", "nat", "-C", "PREROUTING", "-j", fwChain); err == nil {
+		return nil
+	}
+	return runIpt("-t", "nat", "-A", "PREROUTING", "-j", fwChain)
+}
+
+// ip6tablesDnsRules 实现 IPv6 侧的 DNS 劫持（仅 53 重定向；v6 TCP 透明代理
+// 不在劫持开关管辖内）。与 iptables 版同构，独立成链、撤销时一并清理。
+func ip6tablesDnsRules() error {
+	ipt, err := findBin("ip6tables")
+	if err != nil {
+		return fmt.Errorf("ip6tables 不可用: %w", err)
+	}
+	runIpt := func(args ...string) error {
+		out, err := exec.Command(ipt, args...).CombinedOutput()
+		if err != nil {
+			return trimErr(append([]string{"ip6tables"}, args...), out, err)
+		}
+		return nil
+	}
+	_ = runIpt("-t", "nat", "-N", fwChain)
+	for _, p := range []string{"udp", "tcp"} {
+		if err := runIpt("-t", "nat", "-A", fwChain,
+			"-p", p, "--dport", "53", "-j", "REDIRECT", "--to-ports", dnsListenPort); err != nil {
+			return err
+		}
+	}
 	if err := runIpt("-t", "nat", "-C", "PREROUTING", "-j", fwChain); err == nil {
 		return nil
 	}

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"clashv/internal/config"
 )
 
 func TestRuleTarget(t *testing.T) {
@@ -85,6 +87,32 @@ func TestMergeCustomRules(t *testing.T) {
 	}
 	if got[2] != "GEOIP,CN,DIRECT" || got[3] != "MATCH,DIRECT" {
 		t.Errorf("订阅规则应保持原顺序跟在后面, got %v", got)
+	}
+}
+
+func TestTunDnsHijackFollowsToggles(t *testing.T) {
+	cases := []struct {
+		v4, v6 bool
+		want   []any
+	}{
+		{true, true, []any{"any:53"}},
+		{true, false, []any{"0.0.0.0:53"}},
+		{false, true, []any{"[::]:53"}},
+		{false, false, nil},
+	}
+	for _, c := range cases {
+		overlay := managedOverlay(config.Settings{DNSHijackIPv4: c.v4, DNSHijackIPv6: c.v6}, "")
+		tun, _ := overlay["tun"].(map[string]any)
+		got, _ := tun["dns-hijack"].([]any)
+		if len(got) != len(c.want) {
+			t.Errorf("v4=%v v6=%v dns-hijack = %v, want %v", c.v4, c.v6, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("v4=%v v6=%v dns-hijack[%d] = %v, want %v", c.v4, c.v6, i, got[i], c.want[i])
+			}
+		}
 	}
 }
 

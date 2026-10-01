@@ -18,6 +18,8 @@ const form = reactive({
   dns: true,
   dns_mode: 'fake-ip',
   dns_hijack: 'firewall',
+  dns_hijack_ipv4: true,
+  dns_hijack_ipv6: false,
   auto_update: 12,
   token: '',
   core_arch: '',
@@ -80,6 +82,8 @@ async function load() {
       dns: s.dns,
       dns_mode: s.dns_mode || 'fake-ip',
       dns_hijack: s.dns_hijack || 'firewall',
+      dns_hijack_ipv4: s.dns_hijack_ipv4 !== false,
+      dns_hijack_ipv6: !!s.dns_hijack_ipv6,
       auto_update: s.auto_update,
       token: s.token || '',
       core_arch: s.core_arch || '',
@@ -115,6 +119,8 @@ async function save() {
       dns: r.settings.dns,
       dns_mode: r.settings.dns_mode || 'fake-ip',
       dns_hijack: r.settings.dns_hijack || 'firewall',
+      dns_hijack_ipv4: r.settings.dns_hijack_ipv4 !== false,
+      dns_hijack_ipv6: !!r.settings.dns_hijack_ipv6,
       auto_update: r.settings.auto_update,
       token: r.settings.token || '',
       core_arch: r.settings.core_arch || '',
@@ -308,6 +314,20 @@ const tab = ref('general')
             class="ctl"
             style="width: 190px"
           />
+        </div>
+        <div class="row" v-if="form.dns">
+          <div class="row-text">
+            <span class="rt">IPv4 劫持</span>
+            <span class="rs">把局域网 IPv4 的 53 端口查询重定向到内核 DNS；防火墙转发与 TUN 模式均生效，保存后自动应用</span>
+          </div>
+          <n-switch v-model:value="form.dns_hijack_ipv4" />
+        </div>
+        <div class="row" v-if="form.dns">
+          <div class="row-text">
+            <span class="rt">IPv6 劫持</span>
+            <span class="rs">同上，作用于 IPv6；默认关闭——不劫持时 IPv6 设备的域名解析走原路径，可能绕过内核（宽带无 IPv6 可保持关闭）</span>
+          </div>
+          <n-switch v-model:value="form.dns_hijack_ipv6" />
         </div>
       </div>
     </n-card>

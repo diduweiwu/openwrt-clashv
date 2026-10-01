@@ -25,6 +25,8 @@ import (
 //	    option core_arch ''
 //	    option core_mem_limit '0'
 //	    option dns_hijack 'firewall'
+//	    option dns_hijack_ipv4 '1'
+//	    option dns_hijack_ipv6 '0'
 //	    option custom_ua ''
 //	    option workdir ''
 //	    option plugin_repo 'nier/clashv'
@@ -83,6 +85,12 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setInt(&s.CoreMemLimit, "core_mem_limit")
 	setStr(&s.CoreMode, "core_mode")
 	setStr(&s.DNSHijack, "dns_hijack")
+	if _, ok := getOK("dns_hijack_ipv4"); ok {
+		s.DNSHijackIPv4 = isOn("dns_hijack_ipv4")
+	}
+	if _, ok := getOK("dns_hijack_ipv6"); ok {
+		s.DNSHijackIPv6 = isOn("dns_hijack_ipv6")
+	}
 	setStr(&s.CustomUA, "custom_ua")
 	setStr(&s.WorkDir, "workdir")
 	setStr(&s.PluginRepo, "plugin_repo")
@@ -124,6 +132,8 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.core_mem_limit='%d'", uciSection, s.CoreMemLimit)
 	line("set %s.core_mode='%s'", uciSection, s.CoreMode)
 	line("set %s.dns_hijack='%s'", uciSection, s.DNSHijack)
+	line("set %s.dns_hijack_ipv4='%s'", uciSection, onOff(s.DNSHijackIPv4))
+	line("set %s.dns_hijack_ipv6='%s'", uciSection, onOff(s.DNSHijackIPv6))
 	line("set %s.custom_ua='%s'", uciSection, s.CustomUA)
 	line("set %s.workdir='%s'", uciSection, s.WorkDir)
 	line("set %s.plugin_repo='%s'", uciSection, s.PluginRepo)

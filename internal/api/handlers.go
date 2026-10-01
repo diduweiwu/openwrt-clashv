@@ -444,11 +444,15 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	}
 	s, _ := d.cfg.Get()
 
-	// 内核相关设置变化且内核在运行 → 自动重启生效
+	// 内核相关设置变化且内核在运行 → 自动重启生效。
+	// DNS 劫持族（v4/v6）在 TUN 下写进 yaml 的 dns-hijack，也必须重启；
+	// 非 TUN 只影响防火墙规则，走下方钩子重建即可。
+	hijackChanged := old.DNSHijack != s.DNSHijack ||
+		old.DNSHijackIPv4 != s.DNSHijackIPv4 || old.DNSHijackIPv6 != s.DNSHijackIPv6
 	coreChanged := old.MixedPort != s.MixedPort ||
 		old.TUN != s.TUN || old.TUNStack != s.TUNStack || old.DNS != s.DNS ||
 		old.DNSMode != s.DNSMode || old.CoreMemLimit != s.CoreMemLimit ||
-		old.ControllerPort != s.ControllerPort
+		old.ControllerPort != s.ControllerPort || (hijackChanged && s.TUN)
 	restarted := false
 	var restartErr string
 	if coreChanged && d.mgr.Running() {
@@ -458,8 +462,8 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			restarted = true
 		}
 	}
-	// 仅 DNS 劫持模式变化 → 不必重启内核，立即切换
-	if old.DNSHijack != s.DNSHijack && !coreChanged {
+	// 仅 DNS 劫持变化 → 不必重启内核，立即切换
+	if hijackChanged && !coreChanged {
 		if d.mgr.Running() {
 			go d.mgr.ApplyTrafficHooks(s)
 		} else {

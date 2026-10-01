@@ -157,6 +157,17 @@ func firstProxyTarget(doc map[string]any) string {
 // managedOverlay 返回本插件托管的 mihomo 基础配置。
 // proxyTarget 是订阅里首个代理组/节点名，供 redir-host 防污染解析指定出口。
 func managedOverlay(s config.Settings, proxyTarget string) map[string]any {
+	// TUN dns-hijack 的协议族跟随劫持开关：全开用 any:53；只开一族用未指定地址
+	// （0.0.0.0 / [::] 在 sing-tun 中表示「该协议族任意地址」）；全关则不劫持
+	var tunHijack []any
+	switch {
+	case s.DNSHijackIPv4 && s.DNSHijackIPv6:
+		tunHijack = []any{"any:53"}
+	case s.DNSHijackIPv4:
+		tunHijack = []any{"0.0.0.0:53"}
+	case s.DNSHijackIPv6:
+		tunHijack = []any{"[::]:53"}
+	}
 	m := map[string]any{
 		"mixed-port": s.MixedPort,
 		// 路由器插件固定允许 LAN：透明代理把流量 REDIRECT 到本机端口，
@@ -186,7 +197,7 @@ func managedOverlay(s config.Settings, proxyTarget string) map[string]any {
 			"stack":                 s.TUNStack,
 			"auto-route":            s.TUN,
 			"auto-detect-interface": true,
-			"dns-hijack":            []any{"any:53"},
+			"dns-hijack":            tunHijack,
 		},
 	}
 	if s.DNS {
