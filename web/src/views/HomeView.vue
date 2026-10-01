@@ -384,7 +384,7 @@ function currentOf(g) {
             </n-button>
           </div>
         </div>
-        <n-empty v-if="!status?.profile" description="未设置订阅，请先添加并启用" />
+        <n-empty v-if="!status?.profile" description="未设置订阅，请先选择并启用" />
         <template v-else>
           <div class="sub-row">
             <span class="sub-name">{{ status.profile }}</span>
