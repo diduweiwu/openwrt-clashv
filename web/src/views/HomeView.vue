@@ -852,8 +852,8 @@ function currentOf(g) {
   white-space: pre; tab-size: 2;
 }
 
-/* ---- 手机/平板：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
-@media (max-width: 760px) {
+/* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
+@media (max-width: 960px) {
   /* 运行卡瓦片占满一行三等分，控制按钮组换行靠右 */
   .hero-tiles { flex: 1 1 100%; }
   .hero-tiles .meta-item { min-width: 0; padding: 8px 10px 9px; }
