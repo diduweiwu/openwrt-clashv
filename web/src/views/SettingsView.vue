@@ -486,8 +486,8 @@ const tab = ref('general')
 .head-card :deep(.n-card-content) { padding: 10px 16px; }
 .tabs { min-width: 0; }
 .rows { display: flex; flex-direction: column; }
-/* 卡片标题副行（DNS 卡的「保持默认」提示）：继承标题槽的排版，弱化成说明文字 */
-.card-head { display: flex; flex-direction: column; gap: 3px; }
+/* 卡片标题副行（DNS 卡的「保持默认」提示）：与标题同一行、基线对齐，窄屏放不下时自动换行 */
+.card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .card-head .card-sub { color: var(--text-dim); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
