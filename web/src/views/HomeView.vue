@@ -776,7 +776,7 @@ function currentOf(g) {
 .sec-head h3 { font-size: 15px; }
 /* 大卡片标题图标：主题色，行内基线微调对齐文字（sec-head / traffic-head 通用） */
 .sec-ico { color: var(--accent); margin-right: 7px; vertical-align: -2px; }
-.sub-actions { display: flex; gap: 8px; }
+.sub-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .sub-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .sub-name { font-size: 15px; font-weight: 600; }
 .sub-traffic { display: flex; align-items: center; gap: 12px; margin-top: 9px; flex-wrap: wrap; }

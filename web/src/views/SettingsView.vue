@@ -489,13 +489,14 @@ const tab = ref('general')
 .rec {
   display: block;
   width: fit-content;
+  max-width: 100%;
   margin-top: 3px;
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 11px;
-  white-space: nowrap;
+  line-height: 1.6;
 }
 .num { width: 110px; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
