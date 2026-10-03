@@ -434,30 +434,30 @@ function currentOf(g) {
     <n-card>
       <div class="traffic-head">
         <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时流量</h3>
-        <!-- 指标做成小卡片瓦片：图标 + 标签在上、数值在下；连接/CPU/内存移至侧栏底部 -->
-        <div class="traffic-nums">
-          <div class="meta-item">
-            <span class="k"><AppIcon name="upload" :size="13" />上传</span>
-            <span class="v mono" style="color: var(--green)">{{ fmtRate(traffic.up) }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k"><AppIcon name="download" :size="13" />下载</span>
-            <span class="v mono" style="color: var(--accent)">{{ fmtRate(traffic.down) }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k"><AppIcon name="history" :size="13" />累计上传</span>
-            <span class="v mono" style="color: var(--green)">{{ fmtBytes(trip.up) }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="k"><AppIcon name="history" :size="13" />累计下载</span>
-            <span class="v mono" style="color: var(--accent)">{{ fmtBytes(trip.down) }}</span>
-          </div>
-          <n-button
-            class="trip-reset" quaternary :style="{ height: '69px' }"
-            title="重置里程：丢弃当前累计，从零重新统计" @click="onTripReset"
-          >
-            <template #icon><AppIcon name="restart" :size="15" /></template>重置
-          </n-button>
+        <n-button
+          class="trip-reset" quaternary size="small"
+          title="重置里程：丢弃当前累计，从零重新统计" @click="onTripReset"
+        >
+          <template #icon><AppIcon name="restart" :size="15" /></template>重置
+        </n-button>
+      </div>
+      <!-- 指标做成小卡片瓦片：图标 + 标签在上、数值在下；连接/CPU/内存移至侧栏底部 -->
+      <div class="traffic-nums">
+        <div class="meta-item">
+          <span class="k"><AppIcon name="upload" :size="13" />上传</span>
+          <span class="v mono" style="color: var(--green)">{{ fmtRate(traffic.up) }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="k"><AppIcon name="download" :size="13" />下载</span>
+          <span class="v mono" style="color: var(--accent)">{{ fmtRate(traffic.down) }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="k"><AppIcon name="history" :size="13" />累计上传</span>
+          <span class="v mono" style="color: var(--green)">{{ fmtBytes(trip.up) }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="k"><AppIcon name="history" :size="13" />累计下载</span>
+          <span class="v mono" style="color: var(--accent)">{{ fmtBytes(trip.down) }}</span>
         </div>
       </div>
       <Sparkline v-if="status?.running" :series="store.history" :height="130" />
@@ -735,10 +735,10 @@ function currentOf(g) {
 .meta-item .v { font-size: 13.5px; font-weight: 600; }
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 
-/* 标题独占一行，指标瓦片与重置按钮在标题下方独立成行；间隙与顶部卡片行一致（16px） */
-.traffic-head { margin-bottom: 0; }
+/* 标题行：标题居左、重置钮贴右；指标瓦片在标题下方独立成行 */
+.traffic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
 .traffic-nums { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; margin: 12px 0 8px; }
-/* 流量瓦片与运行卡/订阅行瓦片同一列宽基准：(50% − 24px) / 3；重置钮靠右 */
+/* 流量瓦片与运行卡瓦片同一列宽基准：(50% − 24px) / 3 */
 .traffic-nums .meta-item { height: 69px; flex: 0 1 calc((50% - 24px) / 3); }
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; margin-left: auto; }
