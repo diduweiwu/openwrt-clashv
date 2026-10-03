@@ -20,8 +20,6 @@ const form = reactive({
   dns_hijack: 'firewall',
   dns_hijack_ipv4: true,
   dns_hijack_ipv6: false,
-  ip_optimize: true,
-  ip_optimize_interval: 30,
   token: '',
   core_arch: '',
   core_mem_limit: 0,
@@ -85,8 +83,6 @@ async function load() {
       dns_hijack: s.dns_hijack || 'firewall',
       dns_hijack_ipv4: s.dns_hijack_ipv4 !== false,
       dns_hijack_ipv6: !!s.dns_hijack_ipv6,
-      ip_optimize: s.ip_optimize !== false,
-      ip_optimize_interval: s.ip_optimize_interval || 30,
       token: s.token || '',
       core_arch: s.core_arch || '',
       core_mem_limit: s.core_mem_limit || 0,
@@ -122,8 +118,6 @@ async function save() {
       dns_hijack: r.settings.dns_hijack || 'firewall',
       dns_hijack_ipv4: r.settings.dns_hijack_ipv4 !== false,
       dns_hijack_ipv6: !!r.settings.dns_hijack_ipv6,
-      ip_optimize: r.settings.ip_optimize !== false,
-      ip_optimize_interval: r.settings.ip_optimize_interval || 30,
       token: r.settings.token || '',
       core_arch: r.settings.core_arch || '',
       core_mem_limit: r.settings.core_mem_limit || 0,
@@ -333,31 +327,6 @@ const tab = ref('general')
             <span class="rs">同 IPv4 劫持，作用于 IPv6；不劫持时 IPv6 设备的域名解析走原路径，可能绕过内核<span class="rec">默认关闭；宽带无 IPv6 或无需接管时保持关闭</span></span>
           </div>
           <n-switch v-model:value="form.dns_hijack_ipv6" />
-        </div>
-      </div>
-    </n-card>
-
-    <!-- 节点优选：订阅节点 server 为域名时定时测速选最快 IP -->
-    <n-card v-if="tab === 'network'" title="节点优选">
-      <div class="rows">
-        <div class="row">
-          <div class="row-text">
-            <span class="rt">节点域名优选</span>
-            <span class="rs">订阅节点地址是域名时，定时解析出全部 IP 并逐一 TCP 握手测速，把最快的 IP 写进节点配置（SNI/Host 仍用原域名，不影响证书校验）；UDP 协议节点和全部拨不通的域名保留原样，由内核自行解析<span class="rec">默认开启；无改善可在设置页关闭</span></span>
-          </div>
-          <n-switch v-model:value="form.ip_optimize" />
-        </div>
-        <div class="row" v-if="form.ip_optimize">
-          <div class="row-text">
-            <span class="rt">重测间隔</span>
-            <span class="rs">多久重新解析测速一次；测得更优 IP 时才自动重载内核，结果不变则不打扰<span class="rec">默认 30 分钟</span></span>
-          </div>
-          <n-select
-            v-model:value="form.ip_optimize_interval"
-            :options="[{ value: 15, label: '15 分钟' }, { value: 30, label: '30 分钟' }, { value: 60, label: '1 小时' }, { value: 120, label: '2 小时' }]"
-            class="ctl"
-            style="width: 150px"
-          />
         </div>
       </div>
     </n-card>

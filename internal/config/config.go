@@ -17,63 +17,59 @@ import (
 
 // Settings 是全部用户可配置项，字段与 UCI option 一一对应（见 uci.go）。
 type Settings struct {
-	Enabled            bool   `json:"enabled"`              // 开机启动插件服务
-	UIPort             int    `json:"ui_port"`              // 管理界面 / API 端口
-	MixedPort          int    `json:"mixed_port"`           // mihomo 混合代理端口
-	ControllerPort     int    `json:"controller_port"`      // mihomo external-controller 端口（仅监听 127.0.0.1）
-	ControllerSecret   string `json:"controller_secret"`    // mihomo 控制密钥，留空则首次启动自动生成
-	Token              string `json:"token"`                // 管理界面访问令牌，留空表示不启用鉴权
-	TUN                bool   `json:"tun"`                  // TUN 模式（接管全局流量）；关闭时自动用防火墙做 TCP 透明代理
-	TUNStack           string `json:"tun_stack"`            // TUN 协议栈: system / gvisor / mixed
-	DNS                bool   `json:"dns"`                  // 由 mihomo 接管 DNS（TUN 模式建议开启）
-	DNSMode            string `json:"dns_mode"`             // DNS 解析模式: fake-ip / redir-host
-	AutoUpdateDays     string `json:"auto_update_days"`     // 订阅定时更新的星期列表（逗号分隔 0=周日…6=周六），空为关闭
-	AutoUpdateTime     string `json:"auto_update_time"`     // 订阅定时更新的时间点（HH:mm）
-	CorePath           string `json:"core_path"`            // mihomo 二进制路径
-	CoreArch           string `json:"core_arch"`            // 内核下载平台名，留空自动检测（如 linux-arm64）
-	CoreMemLimit       int    `json:"core_mem_limit"`       // 内核内存软上限（GOMEMLIMIT，MB），0 为不限制
-	CoreMode           string `json:"core_mode"`            // 出站模式: rule / global / direct（卡片切换后持久化，重启仍生效）
-	DNSHijack          string `json:"dns_hijack"`           // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
-	DNSHijackIPv4      bool   `json:"dns_hijack_ipv4"`      // DNS 劫持 IPv4：防火墙只重定向 v4 的 53 端口 / TUN dns-hijack 用 0.0.0.0:53
-	DNSHijackIPv6      bool   `json:"dns_hijack_ipv6"`      // DNS 劫持 IPv6：同上作用于 v6（默认关，避免影响无 v6/不想接管的网络）
-	IPOptimize         bool   `json:"ip_optimize"`          // 节点域名优选：定时解析全部 IP 测速，把最快的 IP 写进节点 server（SNI 不变）
-	IPOptimizeInterval int    `json:"ip_optimize_interval"` // 优选重测间隔（分钟）
-	CustomUA           string `json:"custom_ua"`            // 上次使用的自定义订阅 User-Agent（记住，下次预填）
-	WorkDir            string `json:"workdir"`              // 数据目录：订阅、运行时配置、日志
-	PluginRepo         string `json:"plugin_repo"`          // 插件自更新的 GitHub 仓库（owner/repo）
-	DownloadProxy      string `json:"download_proxy"`       // GitHub 下载加速前缀（如 https://gh-proxy.com），留空直连
-	ActiveProfile      string `json:"active_profile"`       // 当前激活的订阅 ID
+	Enabled          bool   `json:"enabled"`           // 开机启动插件服务
+	UIPort           int    `json:"ui_port"`           // 管理界面 / API 端口
+	MixedPort        int    `json:"mixed_port"`        // mihomo 混合代理端口
+	ControllerPort   int    `json:"controller_port"`   // mihomo external-controller 端口（仅监听 127.0.0.1）
+	ControllerSecret string `json:"controller_secret"` // mihomo 控制密钥，留空则首次启动自动生成
+	Token            string `json:"token"`             // 管理界面访问令牌，留空表示不启用鉴权
+	TUN              bool   `json:"tun"`               // TUN 模式（接管全局流量）；关闭时自动用防火墙做 TCP 透明代理
+	TUNStack         string `json:"tun_stack"`         // TUN 协议栈: system / gvisor / mixed
+	DNS              bool   `json:"dns"`               // 由 mihomo 接管 DNS（TUN 模式建议开启）
+	DNSMode          string `json:"dns_mode"`          // DNS 解析模式: fake-ip / redir-host
+	AutoUpdateDays   string `json:"auto_update_days"`  // 订阅定时更新的星期列表（逗号分隔 0=周日…6=周六），空为关闭
+	AutoUpdateTime   string `json:"auto_update_time"`  // 订阅定时更新的时间点（HH:mm）
+	CorePath         string `json:"core_path"`         // mihomo 二进制路径
+	CoreArch         string `json:"core_arch"`         // 内核下载平台名，留空自动检测（如 linux-arm64）
+	CoreMemLimit     int    `json:"core_mem_limit"`    // 内核内存软上限（GOMEMLIMIT，MB），0 为不限制
+	CoreMode         string `json:"core_mode"`         // 出站模式: rule / global / direct（卡片切换后持久化，重启仍生效）
+	DNSHijack        string `json:"dns_hijack"`        // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
+	DNSHijackIPv4    bool   `json:"dns_hijack_ipv4"`   // DNS 劫持 IPv4：防火墙只重定向 v4 的 53 端口 / TUN dns-hijack 用 0.0.0.0:53
+	DNSHijackIPv6    bool   `json:"dns_hijack_ipv6"`   // DNS 劫持 IPv6：同上作用于 v6（默认关，避免影响无 v6/不想接管的网络）
+	CustomUA         string `json:"custom_ua"`         // 上次使用的自定义订阅 User-Agent（记住，下次预填）
+	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
+	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
+	DownloadProxy    string `json:"download_proxy"`    // GitHub 下载加速前缀（如 https://gh-proxy.com），留空直连
+	ActiveProfile    string `json:"active_profile"`    // 当前激活的订阅 ID
 }
 
 // Defaults 返回一份带合理默认值的设置副本。
 func Defaults() Settings {
 	return Settings{
-		Enabled:            true,
-		UIPort:             9097,
-		MixedPort:          7890,
-		ControllerPort:     9090,
-		ControllerSecret:   "",
-		Token:              "",
-		TUN:                false,
-		TUNStack:           "mixed",
-		DNS:                true,
-		DNSMode:            "fake-ip",
-		AutoUpdateDays:     "1,2,3,4,5,6,0", // 默认每天低峰自动更新
-		AutoUpdateTime:     "04:00",
-		CorePath:           "",
-		CoreArch:           "",
-		CoreMemLimit:       0,
-		CoreMode:           "rule",
-		DNSHijack:          "firewall", // 与 OpenClash 一致：默认防火墙转发 DNS
-		DNSHijackIPv4:      true,       // 默认只劫持 IPv4；IPv6 由用户按需打开
-		DNSHijackIPv6:      false,
-		IPOptimize:         true, // 默认开启节点域名优选（无改善可在设置关闭）
-		IPOptimizeInterval: 30,
-		CustomUA:           "",
-		WorkDir:            "",
-		PluginRepo:         "nier/clashv",
-		DownloadProxy:      "https://gh-proxy.com",
-		ActiveProfile:      "",
+		Enabled:          true,
+		UIPort:           9097,
+		MixedPort:        7890,
+		ControllerPort:   9090,
+		ControllerSecret: "",
+		Token:            "",
+		TUN:              false,
+		TUNStack:         "mixed",
+		DNS:              true,
+		DNSMode:          "fake-ip",
+		AutoUpdateDays:   "1,2,3,4,5,6,0", // 默认每天低峰自动更新
+		AutoUpdateTime:   "04:00",
+		CorePath:         "",
+		CoreArch:         "",
+		CoreMemLimit:     0,
+		CoreMode:         "rule",
+		DNSHijack:        "firewall", // 与 OpenClash 一致：默认防火墙转发 DNS
+		DNSHijackIPv4:    true,       // 默认只劫持 IPv4；IPv6 由用户按需打开
+		DNSHijackIPv6:    false,
+		CustomUA:         "",
+		WorkDir:          "",
+		PluginRepo:       "nier/clashv",
+		DownloadProxy:    "https://gh-proxy.com",
+		ActiveProfile:    "",
 	}
 }
 
@@ -279,12 +275,6 @@ func (s *Settings) normalize() {
 	case "fake-ip", "redir-host":
 	default:
 		s.DNSMode = "fake-ip"
-	}
-	// 节点优选间隔白名单（分钟）；非法值回退 30 分钟
-	switch s.IPOptimizeInterval {
-	case 15, 30, 60, 120:
-	default:
-		s.IPOptimizeInterval = 30
 	}
 	// 出站模式白名单；历史配置为空时视为规则模式
 	switch strings.TrimSpace(s.CoreMode) {

@@ -503,11 +503,11 @@ func (d *deps) handleProfilesUpdateAll(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, 200, map[string]any{
-		"results":    results,
-		"ok_count":   okN,
+		"results":   results,
+		"ok_count":  okN,
 		"fail_count": failN,
-		"restarted":  restarted,
-		"error":      restartErr,
+		"restarted": restarted,
+		"error":     restartErr,
 	})
 }
 
@@ -605,8 +605,7 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	coreChanged := old.MixedPort != s.MixedPort ||
 		old.TUN != s.TUN || old.TUNStack != s.TUNStack || old.DNS != s.DNS ||
 		old.DNSMode != s.DNSMode || old.CoreMemLimit != s.CoreMemLimit ||
-		old.ControllerPort != s.ControllerPort || old.IPOptimize != s.IPOptimize ||
-		(hijackChanged && s.TUN)
+		old.ControllerPort != s.ControllerPort || (hijackChanged && s.TUN)
 	restarted := false
 	var restartErr string
 	if coreChanged && d.mgr.Running() {
