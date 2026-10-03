@@ -120,8 +120,9 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .meta-line { margin: 6px 2px; }
 /* 日志页整体精确占满内容区（.content 有 overflow:auto，若页面超高会同时出现
    内外两根滚动条）：page 高度锁死为可视区，卡片吃掉剩余高度，滚动只发生在
-   日志组件内部 */
-.logs-page { height: 100%; }
+   日志组件内部；双类名覆盖全局 .page 的 16px gap——日志页块间呼吸靠 meta-line
+   自身边距提供，0 间隙贴紧 */
+.page.logs-page { height: 100%; gap: 0; }
 .log-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .log-card :deep(.n-card-content) { padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .log-view {
