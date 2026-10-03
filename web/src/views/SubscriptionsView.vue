@@ -185,7 +185,7 @@ const columns = computed(() => [
             onClick: () => activate(p),
           }, { icon: () => h(AppIcon, { name: 'upload', size: 13 }), default: () => '启用' })
         // 已启用的行在启用钮位置展示状态 tag，保持操作列等宽对齐
-        : h(NTag, { size: 'small', round: true, bordered: false }, { default: () => '已启用' }),
+        : h(NTag, { size: 'small', round: true, bordered: false, type: 'success' }, { default: () => '已启用' }),
     ]),
   },
 ])
@@ -384,7 +384,7 @@ onMounted(() => {
 :deep(.upd-cell) { display: flex; flex-direction: column; gap: 2px; }
 :deep(.t2) { font-size: 11.5px; }
 :deep(.t2.ua) { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:deep(.ops-cell) { display: flex; gap: 8px; }
+:deep(.ops-cell) { display: flex; gap: 8px; align-items: center; }
 
 /* 定时更新弹窗 */
 .sched-form { display: flex; flex-direction: column; gap: 14px; }
