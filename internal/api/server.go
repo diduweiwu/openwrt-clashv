@@ -39,6 +39,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 		return err
 	}
 	go d.scheduleLoop()
+	go d.ipOptimizeLoop()
 
 	mux := http.NewServeMux()
 
@@ -199,5 +200,23 @@ func (d *deps) scheduleLoop() {
 		} else if restarted {
 			slog.Info("订阅定时更新完成，内核已重载")
 		}
+	}
+}
+
+// ipOptimizeLoop 按设置间隔重测节点域名对应 IP 的连通延迟（TCP 握手）。
+// 只有测得更优 IP 才重启内核使新 server 生效，结果不变时静默跳过。
+func (d *deps) ipOptimizeLoop() {
+	lastRun := time.Now() // 服务刚启动时 Start 已做过一轮优选，从下一个间隔起再复测
+	for {
+		time.Sleep(time.Minute)
+		s, err := d.cfg.Get()
+		if err != nil || !s.IPOptimize {
+			continue
+		}
+		if time.Since(lastRun) < time.Duration(s.IPOptimizeInterval)*time.Minute {
+			continue
+		}
+		lastRun = time.Now()
+		d.mgr.OptimizeTick()
 	}
 }

@@ -67,6 +67,8 @@ type Manager struct {
 	pollErr  string // 最近一次连接轮询失败的错误（空 = 正常）
 	pollLog  string // 上次已告警的错误，用于去重
 	polling  atomic.Bool
+
+	opt optState // 节点域名优选：已应用结果与测速缓存
 }
 
 // NewManager 创建内核管理器。
@@ -76,6 +78,10 @@ func NewManager(cfg *config.Manager, prof *profiles.Manager, pluginVersion strin
 		prof:          prof,
 		PluginVersion: pluginVersion,
 		hc:            &controllerClient{},
+		opt: optState{
+			applied:    map[string]string{},
+			probeCache: map[string]probeEntry{},
+		},
 	}
 }
 

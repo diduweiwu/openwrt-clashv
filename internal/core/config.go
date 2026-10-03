@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -55,10 +56,27 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 	if proxyTarget != "" && !rulesRouteAnyProxy(doc) {
 		reason := "订阅未提供规则"
 		if !rulesEmpty(doc) {
-			reason = "订阅规则未将任何流量导向代理（目标全是 DIRECT/REJECT）"
+			reason = "订阅规则未将任何流量导向代理（目标全是 DIRECT/REJECT 族）"
 		}
 		doc["rules"] = []any{"MATCH," + proxyTarget}
 		slog.Info("已注入兜底规则，保证默认流量走代理", "reason", reason, "rule", "MATCH,"+proxyTarget)
+	}
+	// 节点域名优选：测速后把最快 IP 写进 server（开关关闭时清记录回到纯域名）。
+	// 优选任何异常都不阻断启动——recover 兜底按「未优选」继续。
+	if s.IPOptimize {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Warn("节点 IP 优选异常，本次按未优选继续", "err", r)
+				}
+			}()
+			best := m.probeBestServers(doc, time.Duration(s.IPOptimizeInterval)*time.Minute)
+			if n := m.applyBestServers(doc, best); n > 0 {
+				slog.Info("节点 IP 优选已写入配置", "nodes", n)
+			}
+		}()
+	} else {
+		m.resetApplied()
 	}
 	out, err := yaml.Marshal(doc)
 	if err != nil {
@@ -172,8 +190,8 @@ func managedOverlay(s config.Settings, proxyTarget string) map[string]any {
 		"mixed-port": s.MixedPort,
 		// 路由器插件固定允许 LAN：透明代理把流量 REDIRECT 到本机端口，
 		// 以及局域网设备直连混合端口，都要求监听 0.0.0.0（127.0.0.1 会拒收）
-		"allow-lan":           true,
-		"bind-address":        "*",
+		"allow-lan":    true,
+		"bind-address": "*",
 		// 出站模式跟随设置（首页出站模式卡片可切，运行时 PATCH + 持久化）
 		"mode":                config.NormalizeCoreMode(s.CoreMode),
 		"log-level":           "info",
