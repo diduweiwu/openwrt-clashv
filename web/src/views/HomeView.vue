@@ -854,17 +854,22 @@ function currentOf(g) {
 
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
-  /* 运行卡瓦片占满一行三等分，控制按钮组换行靠右 */
+  /* 瓦片标题与值不再折行：按内容取宽（basis auto），一行放不下由容器换行成 2+1 */
   .hero-tiles { flex: 1 1 100%; }
-  .hero-tiles .meta-item { min-width: 0; padding: 8px 10px 9px; }
-  /* 订阅卡拉通整行（容器换行 + 0 0 100% 强制快捷卡换到下一行），快捷卡三等分一行并收紧内边距与字号 */
+  .hero-tiles .meta-item { flex: 1 1 auto; min-width: 0; padding: 8px 10px 9px; }
+  .hero-tiles .meta-item .k,
+  .hero-tiles .meta-item .v { white-space: nowrap; }
+  /* 订阅卡拉通整行（容器换行 + 0 0 100% 强制快捷卡换到下一行），快捷卡按内容取宽放不下自动换行 */
   .sub-row-cards { flex-wrap: wrap; }
   .sub-card { flex: 0 0 100%; }
+  /* ⚠ n-card 自带 width:100%，basis:auto 会解析成整行宽导致每卡独占一行；
+     用 basis:0 + min-width:max-content 按内容定宽，一行放不下由容器换行成 2+1 */
+  .quick-card { flex: 1 1 0; min-width: max-content; }
   .quick-card :deep(.n-card-content) { padding: 10px 12px 12px; }
   .quick-head { font-size: 11px; gap: 5px; }
-  .quick-head .k { gap: 5px; }
+  .quick-head .k { gap: 5px; white-space: nowrap; }
   .quick-head .tile-gear { width: 16px; height: 16px; }
-  .quick-body { font-size: 16px; }
+  .quick-body { font-size: 16px; white-space: nowrap; }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; }
   .traffic-nums .meta-item { flex: 1 1 calc(50% - 5px); height: 62px; }
