@@ -10,9 +10,6 @@ import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
 
-// hero 控制按钮同高同宽的方形文字钮（icon+文字），启停随状态换图标与文案
-const HERO_H = 62
-const heroBtn = { width: '94px', height: HERO_H + 'px', padding: '0', fontSize: '15px' }
 const proxies = ref({})
 const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
 const subBusy = ref(false)
@@ -311,53 +308,50 @@ function currentOf(g) {
     <!-- 运行状态 -->
     <n-card>
       <n-flex vertical :size="16">
-        <div class="run-badge" :class="{ on: status?.running, starting: !status?.running && status?.starting }">
-          <span class="pulse"></span>
-          <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
-        </div>
-        <!-- 第二行放瓦片与按钮，align 居中让按钮与瓦片严格水平对齐 -->
-        <n-flex align="center" :size="18">
-          <n-flex class="hero-tiles" :size="16">
-            <div class="meta-item">
-              <span class="k"><AppIcon name="cpu" :size="13" />内核版本</span>
-              <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
-            </div>
-            <div class="meta-item">
-              <span class="k"><AppIcon name="server" :size="13" />平台架构</span>
-              <span class="v mono" :class="{ dim: !status?.core?.platform }">
-                {{ status?.core?.platform ? status.core.platform.replace(/^linux-/, '') : '不支持' }}
-              </span>
-            </div>
-            <div class="meta-item">
-              <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
-              <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
-            </div>
-          </n-flex>
-          <!-- margin-left:auto 而非 justify=space-between：窄屏下按钮组换行独占一行时仍贴右缘 -->
-          <n-flex class="hero-actions" :size="12">
+        <!-- 运行状态与控制按钮同行（普通尺寸小按钮贴右），瓦片独占下一行 -->
+        <div class="hero-top">
+          <div class="run-badge" :class="{ on: status?.running, starting: !status?.running && status?.starting }">
+            <span class="pulse"></span>
+            <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
+          </div>
+          <n-flex class="hero-actions" :size="10">
             <n-button
               title="重启内核"
-              :style="heroBtn"
               :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
             >
-              <template #icon><AppIcon name="restart" :size="18" /></template>重启
+              <template #icon><AppIcon name="restart" :size="14" /></template>重启
             </n-button>
             <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态红色幽灵「停止」 -->
             <n-button
               :type="status?.running ? 'error' : 'primary'"
               :ghost="!!status?.running"
               :title="status?.running ? '停止内核' : '启动内核'"
-              :style="heroBtn"
               :loading="busy === 'start' || busy === 'stop'"
               :disabled="busy === 'restart'"
               @click="coreAction(status?.running ? 'stop' : 'start')"
             >
               <template #icon>
-                <AppIcon v-if="!status?.running" name="play" :size="18" />
-                <AppIcon v-else name="stop" :size="16" :stroke-width="2.4" />
+                <AppIcon v-if="!status?.running" name="play" :size="14" />
+                <AppIcon v-else name="stop" :size="14" :stroke-width="2.4" />
               </template>{{ status?.running ? '停止' : '启动' }}
             </n-button>
           </n-flex>
+        </div>
+        <n-flex class="hero-tiles" :size="16">
+          <div class="meta-item">
+            <span class="k"><AppIcon name="cpu" :size="13" />内核版本</span>
+            <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="server" :size="13" />平台架构</span>
+            <span class="v mono" :class="{ dim: !status?.core?.platform }">
+              {{ status?.core?.platform ? status.core.platform.replace(/^linux-/, '') : '不支持' }}
+            </span>
+          </div>
+          <div class="meta-item">
+            <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
+            <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
+          </div>
         </n-flex>
       </n-flex>
     </n-card>
@@ -750,11 +744,9 @@ function currentOf(g) {
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; margin-left: auto; }
 
-/* 运行卡右侧按钮组：靠右且窄屏换行后仍贴右缘 */
+/* 运行状态行：状态居左、控制按钮贴右；瓦片独占下一行拉通三等分 */
+.hero-top { display: flex; align-items: center; gap: 12px; }
 .hero-actions { margin-left: auto; }
-/* 运行卡左瓦片组固定占半行：瓦片列宽与流量卡瓦片完全对齐
-   （卡片内容宽 = 页宽 − 2×24 内边距，故 50% + 8px 恰好等于页宽的一半） */
-.hero-tiles { flex: 0 1 calc(50% + 8px); }
 .hero-tiles .meta-item { flex: 1 1 0; }
 
 /* 订阅行：订阅卡与三张快捷卡同行。订阅卡右缘取 calc(50% + 8px)——恰好压在
@@ -855,7 +847,6 @@ function currentOf(g) {
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
   /* 瓦片标题与值不再折行：按内容取宽（basis auto），一行放不下由容器换行成 2+1 */
-  .hero-tiles { flex: 1 1 100%; }
   .hero-tiles .meta-item { flex: 1 1 auto; min-width: 0; padding: 8px 10px 9px; }
   .hero-tiles .meta-item .k,
   .hero-tiles .meta-item .v { white-space: nowrap; }
