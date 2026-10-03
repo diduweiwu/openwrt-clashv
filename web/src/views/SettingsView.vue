@@ -200,6 +200,25 @@ async function restartService() {
   }
 }
 
+// 恢复出厂：除订阅配置（含激活项）外全部回到安装初始状态，二次确认防误触
+const resetting = ref(false)
+
+async function resetAll() {
+  if (!(await ask('重置所有配置', '将停止内核，并把设置、自定义规则、运行状态、日志全部恢复到插件安装时的初始状态；订阅配置会保留。此操作不可恢复，确定继续？'))) return
+  if (!(await ask('最终确认', '再次确认：立即重置所有配置？'))) return
+  resetting.value = true
+  try {
+    await api.post('/api/plugin/reset')
+    toast('已恢复出厂设置（订阅配置保留），内核已停止', 'success', 5000)
+    await load()
+    store.status = await api.get('/api/status')
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    resetting.value = false
+  }
+}
+
 onMounted(load)
 onBeforeUnmount(stopProgPoll)
 
@@ -456,6 +475,21 @@ const tab = ref('general')
           </div>
           <n-button size="small" @click="restartService">
             <template #icon><AppIcon name="restart" :size="13" /></template>重启
+          </n-button>
+        </div>
+      </div>
+    </n-card>
+
+    <!-- 恢复出厂：除订阅配置外全部数据回到安装初始状态，二次确认后执行 -->
+    <n-card v-if="tab === 'plugin'">
+      <div class="rows">
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">重置所有配置</span>
+            <span class="rs">停止内核，把设置、自定义规则、运行状态、日志全部恢复到插件安装时的初始状态；订阅配置（含当前激活项）与内核程序保留。操作不可恢复，需两次确认</span>
+          </div>
+          <n-button type="error" ghost size="small" :loading="resetting" @click="resetAll">
+            <template #icon><AppIcon name="trash" :size="13" /></template>重置
           </n-button>
         </div>
       </div>

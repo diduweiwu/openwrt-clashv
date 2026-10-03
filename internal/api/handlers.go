@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"clashv/internal/config"
@@ -772,4 +773,51 @@ func (d *deps) handleServiceRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+// ---- 恢复出厂 ----
+
+// handlePluginReset 把除订阅配置（含当前激活项）外的全部数据恢复到安装初始
+// 状态：停内核、清自定义规则/运行状态文件/日志，设置回默认值。
+// 内核二进制与订阅文件是用户资产，不删。
+func (d *deps) handlePluginReset(w http.ResponseWriter, r *http.Request) {
+	// 先停内核（Stop 内部会撤 DNS 劫持/透明代理钩子），失败不阻断重置
+	if err := d.mgr.Stop(); err != nil {
+		slog.Warn("恢复出厂：停止内核失败，继续重置", "err", err)
+	}
+	// 运行状态与内核缓存（core.state 运行记忆 / cache.db 选中节点与 fakeip
+	// 映射）、旧运行时配置：下次启动全部按默认重新生成
+	for _, f := range []string{"core.state", "cache.db", "config.yaml"} {
+		if err := os.Remove(filepath.Join(d.cfg.Home(), f)); err != nil && !os.IsNotExist(err) {
+			slog.Warn("恢复出厂：清理状态文件失败", "file", f, "err", err)
+		}
+	}
+	// 自定义规则
+	if err := os.Remove(d.cfg.CustomRulesPath()); err != nil && !os.IsNotExist(err) {
+		slog.Warn("恢复出厂：删除自定义规则失败", "err", err)
+	}
+	// 日志（诊断数据一并清空）
+	if entries, err := os.ReadDir(d.cfg.LogDir()); err == nil {
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") {
+				continue
+			}
+			if err := os.Remove(filepath.Join(d.cfg.LogDir(), e.Name())); err != nil {
+				slog.Warn("恢复出厂：清理日志失败", "file", e.Name(), "err", err)
+			}
+		}
+	}
+	// 设置回默认；订阅选择与数据目录保留
+	if err := d.cfg.Update(func(u *config.Settings) {
+		keepProfile, keepWorkdir := u.ActiveProfile, u.WorkDir
+		*u = config.Defaults()
+		u.ActiveProfile = keepProfile
+		u.WorkDir = keepWorkdir
+	}); err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	slog.Info("已恢复出厂设置（订阅配置保留）")
+	s, _ := d.cfg.Get()
+	writeJSON(w, 200, map[string]any{"ok": true, "settings": s})
 }

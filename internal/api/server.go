@@ -90,6 +90,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	// 插件自更新
 	mux.HandleFunc("GET /api/plugin/latest", d.handlePluginLatest)
 	mux.HandleFunc("POST /api/plugin/upgrade", d.handlePluginUpgrade)
+	mux.HandleFunc("POST /api/plugin/reset", d.handlePluginReset)
 	mux.HandleFunc("POST /api/service/restart", d.handleServiceRestart)
 
 	// 升级进度（内核/插件共用）
