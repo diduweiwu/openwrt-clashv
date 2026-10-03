@@ -352,84 +352,83 @@ function currentOf(g) {
             <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
             <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
           </div>
+          <!-- 快捷瓦片：标题行齿轮贴右，点击弹对应设置弹窗 -->
+          <div class="meta-item">
+            <span class="k">
+              <AppIcon name="plug" :size="13" />混合端口
+              <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
+                <AppIcon name="gear" :size="12" />
+              </button>
+            </span>
+            <span class="v mono">{{ status?.mixed_port || '—' }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="k">
+              <AppIcon name="globe" :size="13" />DNS
+              <button class="tile-gear" title="DNS 设置" @click="openDns">
+                <AppIcon name="gear" :size="12" />
+              </button>
+            </span>
+            <span class="v mono" :class="{ dim: !status?.dns }">
+              {{ status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管' }}
+            </span>
+          </div>
+          <div class="meta-item">
+            <span class="k">
+              <AppIcon name="layers" :size="13" />出站模式
+              <button class="tile-gear" title="切换出站模式" @click="showMode = true">
+                <AppIcon name="gear" :size="12" />
+              </button>
+            </span>
+            <span class="v">
+              <n-tag size="small" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
+            </span>
+          </div>
         </n-flex>
       </n-flex>
     </n-card>
 
-    <!-- 订阅行：当前订阅与右侧三张快捷卡同行；订阅卡右缘与上/下方瓦片组的第三列竖线对齐 -->
-    <div class="sub-row-cards">
-      <n-card class="sub-card">
-        <div class="sec-head">
-          <h3><AppIcon class="sec-ico" name="file-text" :size="15" />当前订阅</h3>
-          <div class="sub-actions">
-            <n-button size="small" title="刷新当前订阅" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
-              <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
-            </n-button>
-            <n-button v-if="status?.running" size="small" title="查看运行时配置（config.yaml）" @click="viewConfig">
-              <template #icon><AppIcon name="file-code" :size="13" /></template>查看
-            </n-button>
-            <n-button size="small" title="切换订阅" @click="openSwitch">
-              <template #icon><AppIcon name="swap" :size="13" /></template>切换
-            </n-button>
-            <n-button size="small" title="添加订阅" @click="showAdd = true">
-              <template #icon><AppIcon name="plus" :size="13" /></template>添加
-            </n-button>
-          </div>
+    <!-- 当前订阅：快捷瓦片已并入运行卡瓦片行，订阅卡独占一行 -->
+    <n-card>
+      <div class="sec-head">
+        <h3><AppIcon class="sec-ico" name="file-text" :size="15" />当前订阅</h3>
+        <div class="sub-actions">
+          <n-button size="small" title="刷新当前订阅" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
+            <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
+          </n-button>
+          <n-button v-if="status?.running" size="small" title="查看运行时配置（config.yaml）" @click="viewConfig">
+            <template #icon><AppIcon name="file-code" :size="13" /></template>查看
+          </n-button>
+          <n-button size="small" title="切换订阅" @click="openSwitch">
+            <template #icon><AppIcon name="swap" :size="13" /></template>切换
+          </n-button>
+          <n-button size="small" title="添加订阅" @click="showAdd = true">
+            <template #icon><AppIcon name="plus" :size="13" /></template>添加
+          </n-button>
         </div>
-        <n-empty v-if="!status?.profile" description="未设置订阅，请先选择并启用" />
-        <template v-else>
-          <div class="sub-row">
-            <span class="sub-name">{{ status.profile }}</span>
-            <span v-if="subExpire" class="page-sub">到期 {{ subExpire }}</span>
-          </div>
-          <div v-if="subTraffic" class="sub-traffic">
-            <n-progress
-              class="sub-bar"
-              type="line"
-              :percentage="subTraffic.percent"
-              :show-indicator="false"
-              :height="6"
-              border-radius="3px"
-            />
-            <span class="mono page-sub">
-              已用 {{ fmtBytes(subTraffic.used) }} / {{ fmtBytes(subTraffic.total) }}（{{ Math.round(subTraffic.percent) }}%）
-            </span>
-          </div>
-          <div v-else class="page-sub" style="margin-top:4px">机场未提供流量信息</div>
-        </template>
-      </n-card>
-      <n-card class="quick-card">
-        <div class="quick-head">
-          <span class="k"><AppIcon name="plug" :size="13" />混合端口</span>
-          <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
-            <AppIcon name="gear" :size="12" />
-          </button>
+      </div>
+      <n-empty v-if="!status?.profile" description="未设置订阅，请先选择并启用" />
+      <template v-else>
+        <div class="sub-row">
+          <span class="sub-name">{{ status.profile }}</span>
+          <span v-if="subExpire" class="page-sub">到期 {{ subExpire }}</span>
         </div>
-        <div class="quick-body mono">{{ status?.mixed_port || '—' }}</div>
-      </n-card>
-      <n-card class="quick-card">
-        <div class="quick-head">
-          <span class="k"><AppIcon name="globe" :size="13" />DNS</span>
-          <button class="tile-gear" title="DNS 设置" @click="openDns">
-            <AppIcon name="gear" :size="12" />
-          </button>
+        <div v-if="subTraffic" class="sub-traffic">
+          <n-progress
+            class="sub-bar"
+            type="line"
+            :percentage="subTraffic.percent"
+            :show-indicator="false"
+            :height="6"
+            border-radius="3px"
+          />
+          <span class="mono page-sub">
+            已用 {{ fmtBytes(subTraffic.used) }} / {{ fmtBytes(subTraffic.total) }}（{{ Math.round(subTraffic.percent) }}%）
+          </span>
         </div>
-        <div class="quick-body mono" :class="{ dim: !status?.dns }">
-          {{ status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管' }}
-        </div>
-      </n-card>
-      <n-card class="quick-card">
-        <div class="quick-head">
-          <span class="k"><AppIcon name="layers" :size="13" />出站模式</span>
-          <button class="tile-gear" title="切换出站模式" @click="showMode = true">
-            <AppIcon name="gear" :size="12" />
-          </button>
-        </div>
-        <div class="quick-body">
-          <n-tag size="medium" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
-        </div>
-      </n-card>
-    </div>
+        <div v-else class="page-sub" style="margin-top:4px">机场未提供流量信息</div>
+      </template>
+    </n-card>
 
     <!-- 流量 -->
     <n-card>
@@ -744,25 +743,13 @@ function currentOf(g) {
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; margin-left: auto; }
 
-/* 运行状态行：状态居左、控制按钮贴右；瓦片独占下一行拉通三等分 */
+/* 运行状态行：状态居左、控制按钮贴右；瓦片行六块（含快捷瓦片）独占下一行等分 */
 .hero-top { display: flex; align-items: center; gap: 12px; }
 .hero-actions { margin-left: auto; }
 .hero-tiles .meta-item { flex: 1 1 0; }
 
-/* 订阅行：订阅卡与三张快捷卡同行。订阅卡右缘取 calc(50% + 8px)——恰好压在
-   运行卡三块瓦片、流量卡前三块瓦片的右缘那条竖线上（卡内容宽 = 页宽 − 48），
-   垂直看下来三处对齐；快捷卡平分剩余宽度 */
-.sub-row-cards { display: flex; gap: 16px; align-items: stretch; }
-.sub-card { flex: 0 0 calc(50% + 8px); min-width: 0; }
-.quick-card { flex: 1 1 0; min-width: 0; }
-/* 快捷卡：标题+齿轮置顶成头部行，下方内容区吃满剩余高度、大字号显示值 */
-.quick-card :deep(.n-card-content) { display: flex; flex-direction: column; }
-.quick-head { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
-/* 行内 SVG 默认按基线对齐会偏低：icon 与标题用 flex 垂直居中 */
-.quick-head .k { display: inline-flex; align-items: center; gap: 6px; }
-.quick-head .tile-gear { margin-left: auto; }
-.quick-body { flex: 1; display: flex; align-items: center; font-size: 20px; font-weight: 600; min-width: 0; }
-.quick-body .dim, .quick-body.dim { color: var(--text-dim); font-weight: 500; }
+/* 快捷瓦片（混合端口/DNS/出站模式）标题行的齿轮贴右 */
+.meta-item .k .tile-gear { margin-left: auto; }
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .sec-head h3 { font-size: 15px; }
@@ -846,25 +833,20 @@ function currentOf(g) {
 
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
-  /* 瓦片标题与值不再折行：按内容取宽（basis auto），一行放不下由容器换行成 2+1 */
-  .hero-tiles .meta-item { flex: 1 1 auto; min-width: 0; padding: 8px 10px 9px; }
+  /* 六块瓦片固定每行三块（等分而非按内容取宽，避免出现 5+1 之类不齐排布） */
+  .hero-tiles .meta-item { flex: 1 1 calc((100% - 32px) / 3); min-width: 0; padding: 8px 10px 9px; }
   .hero-tiles .meta-item .k,
   .hero-tiles .meta-item .v { white-space: nowrap; }
-  /* 订阅卡拉通整行（容器换行 + 0 0 100% 强制快捷卡换到下一行），快捷卡按内容取宽放不下自动换行 */
-  .sub-row-cards { flex-wrap: wrap; }
-  .sub-card { flex: 0 0 100%; }
-  /* ⚠ n-card 自带 width:100%，basis:auto 会解析成整行宽导致每卡独占一行；
-     用 basis:0 + min-width:max-content 按内容定宽，一行放不下由容器换行成 2+1 */
-  .quick-card { flex: 1 1 0; min-width: max-content; }
-  .quick-card :deep(.n-card-content) { padding: 10px 12px 12px; }
-  .quick-head { font-size: 11px; gap: 5px; }
-  .quick-head .k { gap: 5px; white-space: nowrap; }
-  .quick-head .tile-gear { width: 16px; height: 16px; }
-  .quick-body { font-size: 16px; white-space: nowrap; }
+  .hero-tiles .meta-item .k { gap: 4px; }
+  .hero-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; }
   .traffic-nums .meta-item { flex: 1 1 calc(50% - 5px); height: 62px; }
   .traffic-nums .meta-item .v { font-size: 14px; }
   .sub-bar { max-width: 100%; }
+}
+/* ≤420 三等分放不下「标题+齿轮」，收到每行两块 */
+@media (max-width: 420px) {
+  .hero-tiles .meta-item { flex: 1 1 calc(50% - 8px); }
 }
 </style>
