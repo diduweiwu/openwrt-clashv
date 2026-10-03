@@ -497,7 +497,7 @@ const tab = ref('general')
 
     <div class="save-bar" v-if="tab !== 'plugin'">
       <n-button type="primary" :loading="saving" :disabled="!loaded" @click="save">
-        <template #icon><AppIcon name="save" :size="14" /></template>保存设置
+        <template #icon><AppIcon name="save" :size="14" /></template>保存
       </n-button>
     </div>
   </div>
