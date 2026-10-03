@@ -3,7 +3,7 @@
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  NButton, NCard, NDataTable, NEmpty, NInput, NModal, NProgress,
+  NButton, NCard, NDataTable, NEmpty, NInput, NModal, NProgress, NTag,
   NSelect, NSwitch, NTimePicker,
 } from 'naive-ui'
 import { api } from '../api.js'
@@ -184,7 +184,8 @@ const columns = computed(() => [
             type: 'primary', size: 'small', disabled: busyId.value === p.id || updatingAll.value,
             onClick: () => activate(p),
           }, { icon: () => h(AppIcon, { name: 'upload', size: 13 }), default: () => '启用' })
-        : null,
+        // 已启用的行在启用钮位置展示状态 tag，保持操作列等宽对齐
+        : h(NTag, { size: 'small', round: true, bordered: false }, { default: () => '已启用' }),
     ]),
   },
 ])
