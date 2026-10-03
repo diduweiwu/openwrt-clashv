@@ -93,6 +93,12 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("POST /api/plugin/reset", d.handlePluginReset)
 	mux.HandleFunc("POST /api/service/restart", d.handleServiceRestart)
 
+	// 备份与恢复
+	mux.HandleFunc("GET /api/backup/list", d.handleBackupList)
+	mux.HandleFunc("POST /api/backup/create", d.handleBackupCreate)
+	mux.HandleFunc("POST /api/backup/restore", d.handleBackupRestore)
+	mux.HandleFunc("DELETE /api/backup/{name}", d.handleBackupDelete)
+
 	// 升级进度（内核/插件共用）
 	mux.HandleFunc("GET /api/upgrade/progress", d.handleUpgradeProgress)
 

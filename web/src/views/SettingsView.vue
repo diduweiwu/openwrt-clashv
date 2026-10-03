@@ -1,13 +1,20 @@
 <script setup>
 // 设置页：基础设置、TUN/DNS、内核更新（mihomo）、插件更新
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { NButton, NCard, NInput, NInputGroup, NInputNumber, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane } from 'naive-ui'
+import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, ask } from '../store.js'
+import { store, toast, ask, fmtTime } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
 
 function fmtMB(n) {
   return (n / 1048576).toFixed(1) + ' MB'
+}
+
+// 备份列表用的小体积格式化（B/KB/MB 自适应）
+function fmtSize(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB'
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB'
+  return n + ' B'
 }
 
 const form = reactive({
@@ -219,7 +226,95 @@ async function resetAll() {
   }
 }
 
-onMounted(load)
+// ---- 备份与恢复：全部设置+订阅+自定义规则打包为 zip，支持多份 ----
+const backups = ref([])
+const backupsLoading = ref(false)
+const showBackupList = ref(false)
+const restoringName = ref('')
+const deletingName = ref('')
+const showBackupCreate = ref(false)
+const backupName = ref('')
+const backupCreating = ref(false)
+
+// 自动备份名：时间格式 + 随机串，用户可在弹窗里改名
+function genBackupName() {
+  const d = new Date()
+  const p = n => String(n).padStart(2, '0')
+  const rand = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+    .map(b => b.toString(16).padStart(2, '0')).join('')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_${rand}`
+}
+
+async function refreshBackups() {
+  backupsLoading.value = true
+  try {
+    const r = await api.get('/api/backup/list')
+    backups.value = r.backups || []
+  } catch { /* 静默，列表打开时会重试 */ } finally {
+    backupsLoading.value = false
+  }
+}
+
+function openBackupCreate() {
+  backupName.value = genBackupName()
+  showBackupCreate.value = true
+}
+
+async function createBackup() {
+  if (!backupName.value.trim()) {
+    toast('请填写备份名称', 'error')
+    return
+  }
+  backupCreating.value = true
+  try {
+    await api.post('/api/backup/create', { name: backupName.value })
+    toast('备份已创建', 'success')
+    showBackupCreate.value = false
+    refreshBackups()
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    backupCreating.value = false
+  }
+}
+
+function openBackupList() {
+  showBackupList.value = true
+  refreshBackups()
+}
+
+async function restoreBackup(b) {
+  const running = store.status?.running
+  if (!(await ask('恢复备份', `将用「${b.name}」覆盖当前全部设置、订阅配置与自定义规则${running ? '，内核会自动重启' : ''}。确定恢复？`))) return
+  restoringName.value = b.name
+  try {
+    const r = await api.post('/api/backup/restore', { name: b.name })
+    toast(r.restarted ? '备份已恢复，内核已重启生效' : '备份已恢复；内核当前未运行，可到首页启动', 'success', 5000)
+    showBackupList.value = false
+    await load()
+    store.status = await api.get('/api/status')
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    restoringName.value = ''
+  }
+}
+
+async function deleteBackup(b) {
+  if (!(await ask('删除备份', `确认删除备份「${b.name}」？删除后不可恢复`))) return
+  deletingName.value = b.name
+  try {
+    await api.del('/api/backup/' + encodeURIComponent(b.name))
+    toast('备份已删除', 'success')
+    refreshBackups()
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    deletingName.value = ''
+  }
+}
+
+onMounted(() => { load(); refreshBackups() })
 onBeforeUnmount(stopProgPoll)
 
 // 设置分区 tab：通用（代理基础+访问控制）/ 网络 / 内核 / 插件
@@ -480,6 +575,30 @@ const tab = ref('general')
       </div>
     </n-card>
 
+    <!-- 备份与恢复：全部可持久化状态打包为 zip，支持多份与恢复 -->
+    <n-card v-if="tab === 'plugin'" title="备份与恢复">
+      <div class="rows">
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">备份当前状态</span>
+            <span class="rs">打包全部设置、订阅配置与列表、自定义规则为一个备份文件（不含内核程序与日志），支持创建多份</span>
+          </div>
+          <n-button size="small" type="primary" secondary @click="openBackupCreate">
+            <template #icon><AppIcon name="save" :size="13" /></template>备份
+          </n-button>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">备份列表</span>
+            <span class="rs">查看已有备份，选择一份恢复或删除</span>
+          </div>
+          <n-button size="small" @click="openBackupList">
+            <template #icon><AppIcon name="clock" :size="13" /></template>管理{{ backups.length ? `（${backups.length}）` : '' }}
+          </n-button>
+        </div>
+      </div>
+    </n-card>
+
     <!-- 恢复出厂：除订阅配置外全部数据回到安装初始状态，二次确认后执行 -->
     <n-card v-if="tab === 'plugin'">
       <div class="rows">
@@ -494,6 +613,48 @@ const tab = ref('general')
         </div>
       </div>
     </n-card>
+
+    <!-- 创建备份弹窗：自动名可编辑 -->
+    <n-modal
+      preset="card" title="创建备份" :show="showBackupCreate"
+      :style="{ width: '480px', maxWidth: '94vw' }"
+      @update:show="showBackupCreate = false"
+    >
+      <div class="backup-body">
+        <div class="page-sub">备份内容：全部设置、订阅配置与列表、自定义规则（不含内核程序、运行缓存与日志）</div>
+        <n-input v-model:value="backupName" placeholder="备份名称（可编辑）" @keyup.enter="createBackup" />
+        <div class="backup-foot">
+          <span class="page-sub">同名备份会被拒绝，换个名字即可</span>
+          <n-button type="primary" size="small" :loading="backupCreating" @click="createBackup">开始备份</n-button>
+        </div>
+      </div>
+    </n-modal>
+
+    <!-- 备份列表弹窗：恢复 / 删除 -->
+    <n-modal
+      preset="card" title="备份列表" :show="showBackupList"
+      :style="{ width: '620px', maxWidth: '94vw' }"
+      @update:show="showBackupList = false"
+    >
+      <n-spin :show="backupsLoading">
+        <n-empty v-if="!backups.length" description="还没有备份，先创建一个吧" style="padding: 30px 0" />
+        <div v-else class="backup-list">
+          <div v-for="b in backups" :key="b.name" class="backup-row">
+            <div class="row-text">
+              <span class="rt mono">{{ b.name }}</span>
+              <span class="rs">{{ fmtTime(b.created_at) }} · {{ fmtSize(b.size) }}</span>
+            </div>
+            <div class="btn-pair">
+              <n-button size="small" type="primary" :loading="restoringName === b.name" @click="restoreBackup(b)">恢复</n-button>
+              <n-button size="small" type="error" ghost :loading="deletingName === b.name" @click="deleteBackup(b)">删除</n-button>
+            </div>
+          </div>
+        </div>
+      </n-spin>
+      <div class="backup-foot" style="margin-top: 10px">
+        <span class="page-sub">恢复会覆盖当前全部设置、订阅与自定义规则；内核在运行时会自动重启</span>
+      </div>
+    </n-modal>
 
     <div class="save-bar" v-if="tab !== 'plugin'">
       <n-button type="primary" :loading="saving" :disabled="!loaded" @click="save">
@@ -540,6 +701,11 @@ const tab = ref('general')
 .prog { width: 180px; flex-shrink: 0; }
 /* 常规流式布局：跟在卡片后面，不再悬浮遮挡内容 */
 .save-bar { display: flex; justify-content: flex-end; padding: 2px 0 10px; }
+/* 备份弹窗：内容列 + 弹窗底部说明/按钮行；列表行左右分布 */
+.backup-body { display: flex; flex-direction: column; gap: 12px; }
+.backup-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.backup-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; }
+.backup-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg-card-2); border: 1px solid var(--border); }
 
 /* ---- 手机/平板：行内控件换到文案下方铺满，开关保持靠右 ---- */
 @media (max-width: 760px) {

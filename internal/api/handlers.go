@@ -821,3 +821,52 @@ func (d *deps) handlePluginReset(w http.ResponseWriter, r *http.Request) {
 	s, _ := d.cfg.Get()
 	writeJSON(w, 200, map[string]any{"ok": true, "settings": s})
 }
+
+// ---- 备份与恢复 ----
+
+func (d *deps) handleBackupList(w http.ResponseWriter, r *http.Request) {
+	list, err := d.mgr.ListBackups()
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"backups": list})
+}
+
+func (d *deps) handleBackupCreate(w http.ResponseWriter, r *http.Request) {
+	var body struct{ Name string `json:"name"` }
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法的 JSON"))
+		return
+	}
+	info, err := d.mgr.CreateBackup(body.Name)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "backup": info})
+}
+
+func (d *deps) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
+	var body struct{ Name string `json:"name"` }
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法的 JSON"))
+		return
+	}
+	restarted, err := d.mgr.RestoreBackup(body.Name)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	slog.Info("备份恢复完成", "name", body.Name, "restarted", restarted)
+	s, _ := d.cfg.Get()
+	writeJSON(w, 200, map[string]any{"ok": true, "restarted": restarted, "settings": s})
+}
+
+func (d *deps) handleBackupDelete(w http.ResponseWriter, r *http.Request) {
+	if err := d.mgr.DeleteBackup(r.PathValue("name")); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
