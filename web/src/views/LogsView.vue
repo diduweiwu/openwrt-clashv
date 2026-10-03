@@ -1,7 +1,7 @@
 <script setup>
 // 日志页：内核日志 + 插件日志（连接明细已独立为「连接」页）
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { NButton, NCard, NCheckbox, NEmpty, NTabs, NTabPane } from 'naive-ui'
+import { NButton, NCard, NCheckbox, NEmpty, NTabs, NTab } from 'naive-ui'
 import { api } from '../api.js'
 import { toast } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -90,9 +90,8 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   <div class="page logs-page">
     <div class="head-row">
       <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
-        <n-tab-pane v-for="k in TABS" :key="k.key" :name="k.key">
-          <template #tab>{{ k.label }}</template>
-        </n-tab-pane>
+        <!-- NTab 纯展示标签：NTabPane 会渲染空内容区，在标签下多出一大块高度 -->
+        <n-tab v-for="k in TABS" :key="k.key" :name="k.key">{{ k.label }}</n-tab>
       </n-tabs>
       <div class="opts">
         <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
@@ -118,7 +117,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .tabs { width: 260px; flex: none; }
 .opts { display: flex; align-items: center; gap: 14px; }
-.meta-line { margin: 8px 2px 10px; }
+.meta-line { margin: 6px 2px; }
 /* 日志页整体精确占满内容区（.content 有 overflow:auto，若页面超高会同时出现
    内外两根滚动条）：page 高度锁死为可视区，卡片吃掉剩余高度，滚动只发生在
    日志组件内部 */
