@@ -246,7 +246,7 @@ const tab = ref('general')
               <span class="rt">混合代理端口</span>
               <span class="rs">HTTP 与 SOCKS5 共用的代理端口，局域网设备手动配置代理时填它<span class="rec">默认 7890，建议保持，端口被占用再改</span></span>
             </div>
-            <n-input-number v-model:value="form.mixed_port" :show-button="false" :min="1" :max="65535" class="num" />
+            <n-input-number v-model:value="form.mixed_port" :min="1" :max="65535" class="num" />
           </div>
           <div class="row">
             <div class="row-text">
@@ -538,7 +538,8 @@ const tab = ref('general')
 /* n-input-group 默认 flex 拉伸占满剩余宽度，收缩并靠右与行内其他控件一致 */
 .row .n-input-group { width: fit-content; margin-left: auto; }
 .prog { width: 180px; flex-shrink: 0; }
-.save-bar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; padding: 10px 0 2px; }
+/* 常规流式布局：跟在卡片后面，不再悬浮遮挡内容 */
+.save-bar { display: flex; justify-content: flex-end; padding: 2px 0 10px; }
 
 /* ---- 手机/平板：行内控件换到文案下方铺满，开关保持靠右 ---- */
 @media (max-width: 760px) {
