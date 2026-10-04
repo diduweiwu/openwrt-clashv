@@ -337,7 +337,7 @@ function currentOf(g) {
             </n-button>
           </n-flex>
         </div>
-        <n-flex class="hero-tiles" :size="16">
+        <div class="hero-tiles">
           <div class="meta-item">
             <span class="k"><AppIcon name="cpu" :size="13" />内核版本</span>
             <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
@@ -384,7 +384,7 @@ function currentOf(g) {
               <n-tag size="small" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
             </span>
           </div>
-        </n-flex>
+        </div>
       </n-flex>
     </n-card>
 
@@ -737,16 +737,18 @@ function currentOf(g) {
 
 /* 标题行：标题居左、重置钮贴右；指标瓦片在标题下方独立成行 */
 .traffic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
-.traffic-nums { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; margin: 12px 0 8px; }
-/* 流量瓦片与运行卡瓦片同一列宽基准：(50% − 24px) / 3 */
-.traffic-nums .meta-item { height: 69px; flex: 0 1 calc((50% - 24px) / 3); }
+/* 与运行卡瓦片行同规格：同 6 列等宽网格 + 同 16px 间距，四块流量瓦片占前四列，
+   竖向分隔线与上行逐列对齐 */
+.traffic-nums { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
+.traffic-nums .meta-item { height: 69px; }
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; margin-left: auto; }
 
 /* 运行状态行：状态居左、控制按钮贴右；瓦片行六块（含快捷瓦片）独占下一行等分 */
 .hero-top { display: flex; align-items: center; gap: 12px; }
 .hero-actions { margin-left: auto; }
-.hero-tiles .meta-item { flex: 1 1 0; }
+/* 瓦片行网格：6 列等宽 + 16px 间距（与流量瓦片行同一套列规格，保证上下两卡对齐） */
+.hero-tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
 
 /* 快捷瓦片（混合端口/DNS/出站模式）标题行的齿轮贴右 */
 .meta-item .k .tile-gear { margin-left: auto; }
@@ -834,19 +836,20 @@ function currentOf(g) {
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
   /* 六块瓦片固定每行三块（等分而非按内容取宽，避免出现 5+1 之类不齐排布） */
-  .hero-tiles .meta-item { flex: 1 1 calc((100% - 32px) / 3); min-width: 0; padding: 8px 10px 9px; }
+  .hero-tiles { grid-template-columns: repeat(3, 1fr); }
+  .hero-tiles .meta-item { min-width: 0; padding: 8px 10px 9px; }
   .hero-tiles .meta-item .k,
   .hero-tiles .meta-item .v { white-space: nowrap; }
   .hero-tiles .meta-item .k { gap: 4px; }
   .hero-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
   /* 流量瓦片 2×2 */
-  .traffic-nums { gap: 10px; }
-  .traffic-nums .meta-item { flex: 1 1 calc(50% - 5px); height: 62px; }
+  .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
+  .traffic-nums .meta-item { height: 62px; }
   .traffic-nums .meta-item .v { font-size: 14px; }
   .sub-bar { max-width: 100%; }
 }
 /* ≤420 三等分放不下「标题+齿轮」，收到每行两块 */
 @media (max-width: 420px) {
-  .hero-tiles .meta-item { flex: 1 1 calc(50% - 8px); }
+  .hero-tiles { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
