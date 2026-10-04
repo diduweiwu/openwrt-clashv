@@ -45,19 +45,13 @@ function pickTheme(v) {
   applyTheme()
 }
 
-// ---- 移动端「更多」下拉：状态行 + 主题切换（桌面端隐藏，这些在侧栏底部） ----
-const moreOptions = computed(() => [
-  {
-    label: store.status?.running ? '● 运行中' : store.status?.starting ? '◐ 启动中…' : '○ 已停止',
-    key: 'status',
-    disabled: true,
-  },
-  { type: 'divider', key: 'divider-status-theme' },
-  ...themeOptions.map(o => ({
+// ---- 移动端「更多」下拉：主题切换（运行状态点已直接显示在导航行；桌面端这些在侧栏底部） ----
+const moreOptions = computed(() =>
+  themeOptions.map(o => ({
     ...o,
     label: (themeMode.value === o.key ? '✓ ' : '') + o.label,
-  })),
-])
+  }))
+)
 
 function onMoreSelect(key) {
   if (key === 'dark' || key === 'light' || key === 'system') pickTheme(key)
@@ -113,7 +107,10 @@ function onMoreSelect(key) {
         <span>{{ n.label }}</span>
       </router-link>
 
-      <!-- 移动端「更多」：状态 + 主题切换收进下拉，替代侧栏底部独占一行的按钮组 -->
+      <!-- 移动端运行状态点：紧挨「设置」右侧显示，不随底部区一起隐藏 -->
+      <span class="dot nav-dot" :class="{ on: store.status?.running, wait: !store.status?.running && store.status?.starting }"></span>
+
+      <!-- 移动端「更多」：主题切换收进下拉（桌面端隐藏，这些在侧栏底部） -->
       <n-dropdown trigger="click" placement="bottom-end" :options="moreOptions" @select="onMoreSelect">
         <button class="nav-item more-btn" title="更多">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" stroke="none">
@@ -198,6 +195,8 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   cursor: pointer;
   flex: none;
 }
+/* 运行状态点：仅移动端在导航行显示（桌面端在侧栏底部状态行里） */
+.nav-dot { display: none; }
 .bottom { display: flex; flex-direction: column; gap: 10px; }
 /* 连接/CPU/内存迷你卡：细分隔线 + 三行小卡，置于运行状态上方 */
 .side-stats {
@@ -272,9 +271,10 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   /* 一行要容下 logo + 7 个页面 + 「更多」共 8 项（320px 极窄屏也不换行），图标项收紧到 27px 宽 */
   .nav-item { padding: 7px 5px; }
   .nav-item span { display: none; }
-  /* 底部区（状态点/主题钮/折叠钮）整体收进导航行尾的「更多」下拉 */
+  /* 底部区（状态行/主题钮/折叠钮）隐藏：状态点显示在导航行，主题进「更多」下拉 */
   .bottom { display: none; }
   .more-btn { display: flex; }
+  .nav-dot { display: block; flex: none; align-self: center; }
 }
 @media (max-width: 420px) {
   /* 极窄屏：logo 文字让位，只留小猫 */
