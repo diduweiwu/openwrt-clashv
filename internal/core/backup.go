@@ -56,7 +56,7 @@ func sanitizeBackupName(name string) (string, error) {
 // backupsDir 返回备份目录。
 func (m *Manager) backupsDir() string { return filepath.Join(m.cfg.Home(), "backups") }
 
-// CreateBackup 把当前设置、订阅文件、自定义规则打包为 <name>.zip。
+// CreateBackup 把当前设置、订阅文件、自定义规则、内核二进制打包为 <name>.zip。
 func (m *Manager) CreateBackup(name string) (BackupInfo, error) {
 	name, err := sanitizeBackupName(name)
 	if err != nil {
@@ -94,8 +94,47 @@ func (m *Manager) CreateBackup(name string) (BackupInfo, error) {
 		files["custom-rules.txt"] = data
 	}
 
+	// 内核二进制（十几~几十 MB）流式写入，不整块进内存
 	tmp := path + ".tmp"
-	if err := writeZip(tmp, files); err != nil {
+	f, err := os.Create(tmp)
+	if err != nil {
+		return BackupInfo{}, err
+	}
+	zw := zip.NewWriter(f)
+	for n, data := range files {
+		w, err := zw.Create(n)
+		if err == nil {
+			_, err = w.Write(data)
+		}
+		if err != nil {
+			zw.Close()
+			f.Close()
+			_ = os.Remove(tmp)
+			return BackupInfo{}, err
+		}
+	}
+	cf, err := os.Open(m.cfg.CorePath())
+	if err != nil {
+		slog.Info("内核未安装，备份不含内核程序", "path", m.cfg.CorePath())
+	} else {
+		w, err := zw.Create("core.bin")
+		if err == nil {
+			_, err = io.Copy(w, cf)
+		}
+		cf.Close()
+		if err != nil {
+			zw.Close()
+			f.Close()
+			_ = os.Remove(tmp)
+			return BackupInfo{}, err
+		}
+	}
+	if err := zw.Close(); err != nil {
+		f.Close()
+		_ = os.Remove(tmp)
+		return BackupInfo{}, err
+	}
+	if err := f.Close(); err != nil {
 		_ = os.Remove(tmp)
 		return BackupInfo{}, err
 	}
@@ -107,7 +146,7 @@ func (m *Manager) CreateBackup(name string) (BackupInfo, error) {
 	if st != nil {
 		info.Size = st.Size()
 	}
-	slog.Info("已创建备份", "name", name, "profiles", len(profiles), "size", info.Size)
+	slog.Info("已创建备份", "name", name, "profiles", len(profiles), "with_core", cf == nil, "size", info.Size)
 	return info, nil
 }
 
@@ -170,27 +209,39 @@ func (m *Manager) RestoreBackup(name string) (bool, error) {
 	}
 	defer zr.Close()
 
-	// 先完整读出并校验 meta，再动手改状态——坏包不能造成「半恢复」
+	// 先完整读出并校验 meta，再动手改状态——坏包不能造成「半恢复」。
+	// 内核二进制只记句柄，校验通过后流式解出，不整块占内存
 	var meta backupMeta
 	var profileFiles, otherFiles map[string][]byte
+	var coreEntry *zip.File
 	otherFiles = map[string][]byte{}
 	for _, f := range zr.File {
-		data, err := readZipFile(f)
-		if err != nil {
-			return false, fmt.Errorf("读取备份内容失败: %w", err)
-		}
 		switch {
 		case f.Name == "meta.json":
+			data, err := readZipFile(f)
+			if err != nil {
+				return false, fmt.Errorf("读取备份内容失败: %w", err)
+			}
 			if err := json.Unmarshal(data, &meta); err != nil {
 				return false, errors.New("备份元数据损坏，不是有效的备份文件")
 			}
 		case strings.HasPrefix(f.Name, "profiles/"):
+			data, err := readZipFile(f)
+			if err != nil {
+				return false, fmt.Errorf("读取备份内容失败: %w", err)
+			}
 			if profileFiles == nil {
 				profileFiles = map[string][]byte{}
 			}
 			profileFiles[strings.TrimPrefix(f.Name, "profiles/")] = data
 		case f.Name == "custom-rules.txt":
+			data, err := readZipFile(f)
+			if err != nil {
+				return false, fmt.Errorf("读取备份内容失败: %w", err)
+			}
 			otherFiles[f.Name] = data
+		case f.Name == "core.bin":
+			coreEntry = f
 		}
 	}
 	if meta.CreatedAt.IsZero() {
@@ -224,6 +275,16 @@ func (m *Manager) RestoreBackup(name string) (bool, error) {
 			return false, err
 		}
 	}
+	// 备份里带了内核就写回当前内核路径（0o755 可执行）；旧备份没有则保留现状
+	if coreEntry != nil {
+		corePath := m.cfg.CorePath()
+		if err := os.MkdirAll(filepath.Dir(corePath), 0o755); err != nil {
+			return false, err
+		}
+		if err := extractZipFile(coreEntry, corePath, 0o755); err != nil {
+			return false, fmt.Errorf("恢复内核程序失败: %w", err)
+		}
+	}
 	if data, ok := otherFiles["custom-rules.txt"]; ok {
 		if err := m.cfg.SetCustomRules(strings.Split(string(data), "\n")); err != nil {
 			return false, err
@@ -252,25 +313,6 @@ func (m *Manager) RestoreBackup(name string) (bool, error) {
 	return false, nil
 }
 
-func writeZip(path string, files map[string][]byte) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	zw := zip.NewWriter(f)
-	for name, data := range files {
-		w, err := zw.Create(name)
-		if err != nil {
-			return err
-		}
-		if _, err := w.Write(data); err != nil {
-			return err
-		}
-	}
-	return zw.Close()
-}
-
 func readZipFile(f *zip.File) ([]byte, error) {
 	rc, err := f.Open()
 	if err != nil {
@@ -278,4 +320,28 @@ func readZipFile(f *zip.File) ([]byte, error) {
 	}
 	defer rc.Close()
 	return io.ReadAll(rc)
+}
+
+// extractZipFile 把 zip 条目流式解到目标路径（大文件如内核二进制不占内存）。
+func extractZipFile(f *zip.File, dst string, mode os.FileMode) error {
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	tmp := dst + ".restore.tmp"
+	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, rc); err != nil {
+		out.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, dst)
 }

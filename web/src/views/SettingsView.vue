@@ -581,7 +581,7 @@ const tab = ref('general')
         <div class="row">
           <div class="row-text">
             <span class="rt">备份当前状态</span>
-            <span class="rs">打包全部设置、订阅配置与列表、自定义规则为一个备份文件（不含内核程序与日志），支持创建多份</span>
+            <span class="rs">打包全部设置、订阅配置与列表、自定义规则和内核程序为一个备份文件（不含运行缓存与日志），支持创建多份</span>
           </div>
           <n-button size="small" type="primary" secondary @click="openBackupCreate">
             <template #icon><AppIcon name="save" :size="13" /></template>备份
@@ -621,7 +621,7 @@ const tab = ref('general')
       @update:show="showBackupCreate = false"
     >
       <div class="backup-body">
-        <div class="page-sub">备份内容：全部设置、订阅配置与列表、自定义规则（不含内核程序、运行缓存与日志）</div>
+        <div class="page-sub">备份内容：全部设置、订阅配置与列表、自定义规则、内核程序（不含运行缓存与日志）</div>
         <n-input v-model:value="backupName" placeholder="备份名称（可编辑）" @keyup.enter="createBackup" />
         <div class="backup-foot">
           <span class="page-sub">同名备份会被拒绝，换个名字即可</span>
