@@ -186,11 +186,23 @@ make linux        # 交叉编译 7 种 Linux 架构 bin/clashv-{arm64,armv7,mips
 
 ### 打包发布（GitHub Actions）
 
+**推 tag 才触发构建**（push master 不出包），一键发版唯一入口是 `scripts/release.sh`：
+
+```bash
+./scripts/release.sh            # 升 patch 版本号（默认），如 0.1.0 → 0.1.1
+./scripts/release.sh minor      # 升 minor：0.1.0 → 0.2.0
+./scripts/release.sh major      # 升 major：0.1.0 → 1.0.0
+./scripts/release.sh 0.3.0      # 直接指定版本号
+./scripts/release.sh --dry-run  # 只预览要做什么，不改任何文件
+```
+
+脚本自动完成：同步升级 4 处版本号（`openwrt/Makefile` 的 `PKG_VERSION`、根 `Makefile` 的 `VERSION`、`web/package.json` 与 lock 文件）→ 提交 → 打 tag `v<版本>` → 推送 master + tag，推送 tag 即触发 Actions 打包并发布 GitHub Release。遇到以下情况会直接拦截、不做任何改动：工作区有未提交改动、新版本号与当前相同、本地或远端已存在同版本 tag。
+
 `.github/workflows/compile_packages.yml`（参照 OpenClash 的方案）：
 
 - **单包全平台**：`luci-app-clashv` 为 `PKGARCH:=all`，内含 7 种架构的 Go 二进制，安装后 `/usr/bin/clashv` 启动器按设备 `DISTRIB_ARCH` 自动选择执行，`postinst` 删除其余架构（安装后仅占 7~9MB，包体约 22MB）
 - 双 SDK matrix：22.03 SDK 出 **ipk**（OpenWrt 22.03/23.05，opkg）、snapshot SDK 出 **apk**（OpenWrt 24.10+/snapshot）
-- **推 tag 才构建**：`./scripts/release.sh` 一键升版本号（默认升 patch，可带 `minor`/`major`/`x.y.z` 参数；4 处版本号同步）→ 提交 → 打 tag → 推送，推送 tag `v*` 自动打包并发布 Release（tag = `v<PKG_VERSION>`，版本号取自 `openwrt/Makefile`，tag 与版本号不一致时构建直接报错拦下）；也可在 Actions 页面手动触发
+- 触发方式：推 `v*` tag，或 Actions 页面手动 Run workflow；构建时校验 tag 名与 `openwrt/Makefile` 的 `PKG_VERSION` 一致，不一致直接报错拦下
 
 ## 📡 API 一览（供二开）
 
