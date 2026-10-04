@@ -124,6 +124,10 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
    日志组件内部；双类名覆盖全局 .page 的 16px gap——块间呼吸靠 head-row 的
    margin-bottom 提供，0 间隙贴紧 */
 .page.logs-page { height: 100%; gap: 0; }
+/* 手机端与设置页对齐：tabs 换行后靠左（桌面的 margin-left:auto 只是把它推到标题行右侧） */
+@media (max-width: 760px) {
+  .tabs { margin-left: 0; }
+}
 .log-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .log-card :deep(.n-card-content) { padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .log-view {
