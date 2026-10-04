@@ -72,6 +72,9 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setInt(&s.ControllerPort, "controller_port")
 	setStr(&s.ControllerSecret, "controller_secret")
 	setStr(&s.Token, "token")
+	if _, ok := getOK("luci_auth"); ok {
+		s.LuciAuth = isOn("luci_auth")
+	}
 	if _, ok := getOK("tun"); ok {
 		s.TUN = isOn("tun")
 	}
@@ -124,6 +127,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.controller_port='%d'", uciSection, s.ControllerPort)
 	line("set %s.controller_secret='%s'", uciSection, s.ControllerSecret)
 	line("set %s.token='%s'", uciSection, s.Token)
+	line("set %s.luci_auth='%s'", uciSection, onOff(s.LuciAuth))
 	line("set %s.tun='%s'", uciSection, onOff(s.TUN))
 	line("set %s.tun_stack='%s'", uciSection, s.TUNStack)
 	line("set %s.dns='%s'", uciSection, onOff(s.DNS))

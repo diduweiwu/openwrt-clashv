@@ -245,6 +245,14 @@ make linux        # 交叉编译 7 种 Linux 架构 bin/clashv-{arm64,armv7,mips
 4. **无担保**：本插件按「现状」提供，不附带任何明示或默示的担保。作者不保证功能不中断、无错误或适合任何特定用途，使用风险完全由使用者自行评估与承担。
 5. **侵权处理**：本项目引用的第三方组件版权归原作者所有；若本项目内容侵犯了您的合法权益，请通过 Issue 联系，作者将第一时间核实并处理。
 
+## 🙏 鸣谢
+
+本项目从以下优秀的开源项目中获得了灵感与设计启发，特此感谢：
+
+- [mihomo](https://github.com/MetaCubeX/mihomo) —— 强大的代理内核，本插件所管理的核心
+- [OpenClash](https://github.com/vernesong/OpenClash) —— OpenWrt 代理插件的先行者，打包与集成方案多有参考
+- [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev) —— 桌面端的优秀实践，界面交互设计的灵感来源
+
 ## 📄 License
 
 [MIT](LICENSE)

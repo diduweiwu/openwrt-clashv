@@ -28,6 +28,7 @@ const form = reactive({
   dns_hijack_ipv4: true,
   dns_hijack_ipv6: false,
   token: '',
+  luci_auth: true,
   core_arch: '',
   core_mem_limit: 0,
   download_proxy: 'https://gh-proxy.com',
@@ -91,6 +92,7 @@ async function load() {
       dns_hijack_ipv4: s.dns_hijack_ipv4 !== false,
       dns_hijack_ipv6: !!s.dns_hijack_ipv6,
       token: s.token || '',
+      luci_auth: s.luci_auth !== false,
       core_arch: s.core_arch || '',
       core_mem_limit: s.core_mem_limit || 0,
       download_proxy: s.download_proxy || '',
@@ -126,6 +128,7 @@ async function save() {
       dns_hijack_ipv4: r.settings.dns_hijack_ipv4 !== false,
       dns_hijack_ipv6: !!r.settings.dns_hijack_ipv6,
       token: r.settings.token || '',
+      luci_auth: r.settings.luci_auth !== false,
       core_arch: r.settings.core_arch || '',
       core_mem_limit: r.settings.core_mem_limit || 0,
       download_proxy: r.settings.download_proxy || '',
@@ -367,6 +370,13 @@ const tab = ref('general')
                 <template #icon><AppIcon name="trash" :size="14" /></template>
               </n-button>
             </n-input-group>
+          </div>
+          <div class="row" v-if="store.status?.openwrt">
+            <div class="row-text">
+              <span class="rt">OpenWrt 登录校验</span>
+              <span class="rs">开启后需持有已登录的 LuCI 会话才能访问界面：从 LuCI 菜单进入自动放行，直接访问 路由器IP:9097 会被拒绝，防止绕过路由器管理密码单独打开 ClashV<span class="rec">默认开启，建议保持；本机访问与访问令牌不受影响</span></span>
+            </div>
+            <n-switch v-model:value="form.luci_auth" />
           </div>
         </div>
       </n-card>

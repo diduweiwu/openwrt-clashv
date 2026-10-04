@@ -23,6 +23,7 @@ type Settings struct {
 	ControllerPort   int    `json:"controller_port"`   // mihomo external-controller 端口（仅监听 127.0.0.1）
 	ControllerSecret string `json:"controller_secret"` // mihomo 控制密钥，留空则首次启动自动生成
 	Token            string `json:"token"`             // 管理界面访问令牌，留空表示不启用鉴权
+	LuciAuth         bool   `json:"luci_auth"`         // OpenWrt 登录校验：非本机访问需持有效 LuCI 会话（无 ubus 环境自动关闭）
 	TUN              bool   `json:"tun"`               // TUN 模式（接管全局流量）；关闭时自动用防火墙做 TCP 透明代理
 	TUNStack         string `json:"tun_stack"`         // TUN 协议栈: system / gvisor / mixed
 	DNS              bool   `json:"dns"`               // 由 mihomo 接管 DNS（TUN 模式建议开启）
@@ -52,6 +53,7 @@ func Defaults() Settings {
 		ControllerPort:   9090,
 		ControllerSecret: "",
 		Token:            "",
+		LuciAuth:         true, // 默认要求 LuCI 登录态，防止路由器 IP:9097 被任意访问
 		TUN:              false,
 		TUNStack:         "mixed",
 		DNS:              true,
