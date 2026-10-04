@@ -44,6 +44,24 @@ function pickTheme(v) {
   themeMode.value = v
   applyTheme()
 }
+
+// ---- 移动端「更多」下拉：状态行 + 主题切换（桌面端隐藏，这些在侧栏底部） ----
+const moreOptions = computed(() => [
+  {
+    label: store.status?.running ? '● 运行中' : store.status?.starting ? '◐ 启动中…' : '○ 已停止',
+    key: 'status',
+    disabled: true,
+  },
+  { type: 'divider', key: 'divider-status-theme' },
+  ...themeOptions.map(o => ({
+    ...o,
+    label: (themeMode.value === o.key ? '✓ ' : '') + o.label,
+  })),
+])
+
+function onMoreSelect(key) {
+  if (key === 'dark' || key === 'light' || key === 'system') pickTheme(key)
+}
 </script>
 
 <template>
@@ -94,6 +112,16 @@ function pickTheme(v) {
         </svg>
         <span>{{ n.label }}</span>
       </router-link>
+
+      <!-- 移动端「更多」：状态 + 主题切换收进下拉，替代侧栏底部独占一行的按钮组 -->
+      <n-dropdown trigger="click" placement="bottom-end" :options="moreOptions" @select="onMoreSelect">
+        <button class="nav-item more-btn" title="更多">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" stroke="none">
+            <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
+          </svg>
+          <span>更多</span>
+        </button>
+      </n-dropdown>
     </nav>
 
     <div class="bottom">
@@ -161,6 +189,15 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item span { letter-spacing: 0.5em; }
 .nav-item:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
 .nav-item.active { background: var(--accent); color: #fff; }
+/* 「更多」下拉触发钮：仅移动端显示（桌面端这些入口在侧栏底部），样式对齐 nav 图标项 */
+.more-btn {
+  display: none;
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  flex: none;
+}
 .bottom { display: flex; flex-direction: column; gap: 10px; }
 /* 连接/CPU/内存迷你卡：细分隔线 + 三行小卡，置于运行状态上方 */
 .side-stats {
@@ -227,18 +264,20 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 @media (max-width: 760px) {
   .sidebar {
     width: 100%; flex-direction: row; align-items: center;
-    padding: 10px 14px; gap: 12px;
-    flex-wrap: wrap; /* 390px 级窄屏：底部的状态/主题钮换到第二行，避免裁切 */
+    padding: 10px 14px; gap: 8px;
+    flex-wrap: wrap; /* 兜底：放不下时换行而不是裁切 */
   }
   .logo { font-size: 15px; gap: 6px; }
-  nav { flex-direction: row; flex: 1; }
-  .nav-item { padding: 7px 10px; }
+  nav { flex-direction: row; flex: 1; gap: 2px; }
+  /* 一行要容下 logo + 7 个页面 + 「更多」共 8 项（320px 极窄屏也不换行），图标项收紧到 27px 宽 */
+  .nav-item { padding: 7px 5px; }
   .nav-item span { display: none; }
-  .bottom { flex-direction: row; align-items: center; }
-  .side-stats { display: none; }
-  .status-text { display: none; }
-  .theme-btn { width: auto; justify-content: center; padding-left: 0; }
-  /* 折叠是桌面行为，移动端横排侧栏不显示开关 */
-  .collapse-btn { display: none; }
+  /* 底部区（状态点/主题钮/折叠钮）整体收进导航行尾的「更多」下拉 */
+  .bottom { display: none; }
+  .more-btn { display: flex; }
+}
+@media (max-width: 420px) {
+  /* 极窄屏：logo 文字让位，只留小猫 */
+  .sidebar .logo span { display: none; }
 }
 </style>
