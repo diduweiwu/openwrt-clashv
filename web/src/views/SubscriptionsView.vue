@@ -44,6 +44,9 @@ async function load() {
   }
 }
 
+// 当前使用中的订阅名（标题下描述行）
+const activeName = computed(() => profiles.value.find(x => x.id === active.value)?.name || '')
+
 // 过滤：名称 / 地址 / UA 任一命中即保留
 const filtered = computed(() => {
   const k = keyword.value.trim().toLowerCase()
@@ -273,11 +276,11 @@ onMounted(() => {
 <template>
   <div class="page">
     <div class="head-row">
-      <div class="title-line">
-        <h1 class="page-title">订阅</h1>
-        <span class="count-chip">
-          {{ profiles.length }} 个订阅<template v-if="keyword"> · 命中 {{ filtered.length }}</template>
-        </span>
+      <div>
+        <h2 class="page-title">订阅</h2>
+        <p class="page-sub">
+          {{ profiles.length }} 个订阅<template v-if="activeName"> · 当前使用：{{ activeName }}</template><template v-if="keyword"> · 命中 {{ filtered.length }}</template>
+        </p>
       </div>
       <n-button type="primary" @click="openAdd"><template #icon><AppIcon name="plus" :size="14" /></template>添加</n-button>
     </div>
@@ -366,9 +369,6 @@ onMounted(() => {
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-/* 统计数据与页面标题同行：基线对齐，窄屏放不下时换行 */
-.title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.count-chip { color: var(--text-dim); font-size: 12.5px; }
 .pad :deep(.n-empty) { padding: 34px 0; }
 
 .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }

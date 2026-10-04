@@ -89,6 +89,13 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 <template>
   <div class="page logs-page">
     <div class="head-row">
+      <div>
+        <h2 class="page-title">日志</h2>
+        <p class="page-sub">
+          {{ TABS.find(k => k.key === tab)?.hint }} ·
+          {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template>
+        </p>
+      </div>
       <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
         <!-- NTab 纯展示标签：NTabPane 会渲染空内容区，在标签下多出一大块高度 -->
         <n-tab v-for="k in TABS" :key="k.key" :name="k.key">{{ k.label }}</n-tab>
@@ -100,11 +107,6 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       </div>
     </div>
 
-    <p class="page-sub meta-line">
-      {{ TABS.find(k => k.key === tab)?.hint }} ·
-      {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template>
-    </p>
-
     <n-card class="log-card">
       <pre v-if="exists && content" ref="preRef" class="log-view">{{ content }}</pre>
       <n-empty v-else-if="exists" description="日志为空，启动内核后这里会有输出" style="padding: 60px 0" />
@@ -114,14 +116,13 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </template>
 
 <style scoped>
-.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.tabs { width: 260px; flex: none; }
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.tabs { width: 260px; flex: none; margin-left: auto; }
 .opts { display: flex; align-items: center; gap: 14px; }
-.meta-line { margin: 6px 2px; }
 /* 日志页整体精确占满内容区（.content 有 overflow:auto，若页面超高会同时出现
    内外两根滚动条）：page 高度锁死为可视区，卡片吃掉剩余高度，滚动只发生在
-   日志组件内部；双类名覆盖全局 .page 的 16px gap——日志页块间呼吸靠 meta-line
-   自身边距提供，0 间隙贴紧 */
+   日志组件内部；双类名覆盖全局 .page 的 16px gap——块间呼吸靠 head-row 的
+   margin-bottom 提供，0 间隙贴紧 */
 .page.logs-page { height: 100%; gap: 0; }
 .log-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .log-card :deep(.n-card-content) { padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }

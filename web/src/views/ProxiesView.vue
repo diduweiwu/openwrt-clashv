@@ -114,7 +114,7 @@ onMounted(load)
   <div class="page">
     <div class="head-row">
       <div>
-        <h1 class="page-title">代理</h1>
+        <h2 class="page-title">代理</h2>
         <span class="page-sub">点击节点切换 · {{ groups.length }} 个代理组</span>
       </div>
       <n-button :loading="loading" @click="load">
