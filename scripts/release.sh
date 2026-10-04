@@ -7,7 +7,6 @@
 #   ./scripts/release.sh major      # +1.0.0
 #   ./scripts/release.sh 0.2.0      # 指定版本号
 #   ./scripts/release.sh --dry-run  # 只预览要做什么，不改任何文件
-#   make release [BUMP=minor]       # 同上（走 Makefile）
 #
 # 会同步更新 4 处版本号（当前值必须一致）：
 #   openwrt/Makefile  PKG_VERSION   ← CI 读取，Release tag 的来源
@@ -31,7 +30,7 @@ for arg in "$@"; do
   case "${arg}" in
     --dry-run) DRY_RUN=1 ;;
     major|minor|patch) BUMP="${arg}" ;;
-    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) awk 'NR==1 {next} /^#/ {sub(/^# ?/,""); print; next} {exit}' "$0"; exit 0 ;;
     *)
       echo "${arg}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
         || die "无法识别的参数「${arg}」（可用：major/minor/patch、x.y.z、--dry-run）"
