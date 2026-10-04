@@ -666,7 +666,10 @@ const tab = ref('general')
 
 <style scoped>
 .head-card :deep(.n-card-content) { padding: 10px 16px; }
-.tabs { min-width: 0; }
+/* segment tabs 自带 width:100% + tab 平分拉伸，这里收成内容宽度（与日志页同款不占满），窄屏兜底不溢出；
+   naive segment tab 默认左右 padding 为 0（设计上靠拉伸撑宽），收窄后必须补横向内边距否则文字挤在一起 */
+.tabs { width: fit-content; max-width: 100%; min-width: 0; }
+.tabs :deep(.n-tabs-tab) { padding: 6px 16px; }
 .rows { display: flex; flex-direction: column; }
 /* 卡片标题副行（DNS 卡的「保持默认」提示）：与标题同一行、基线对齐，窄屏放不下时自动换行 */
 .card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
