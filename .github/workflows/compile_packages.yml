@@ -128,18 +128,25 @@ jobs:
         run: |
           ls -lh ./release
           # 「更新内容」= 上一个 tag（不含）到本 tag 的提交，剔除版本号提交本身；
-          # 手动触发时可能还没有任何 tag/提交区间，留空兜底
+          # 手动触发时可能还没有任何 tag/提交区间，留空兜底。
+          # 提交说明习惯用「；」分句，按它拆成子列表逐条换行，避免渲染成一整坨
           PREV=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
           if [ -n "$PREV" ]; then RANGE="$PREV..$TAG"; else RANGE="$TAG"; fi
-          CHANGES=$(git log $RANGE --oneline --no-decorate 2>/dev/null | grep -v 'chore: 版本号升至' | sed 's/^/- /')
+          CHANGES=$(git log $RANGE --format='%h %s' --no-decorate 2>/dev/null \
+            | grep -v 'chore: 版本号升至' \
+            | awk '{
+                hash = $1; sub(/^[^ ]+ +/, ""); msg = $0
+                n = split(msg, part, /；/)
+                printf "- **%s** %s\n", hash, part[1]
+                for (i = 2; i <= n; i++) {
+                  gsub(/^ +| +$/, "", part[i])
+                  if (part[i] != "") printf "  - %s\n", part[i]
+                }
+              }')
           {
             echo "## 📝 更新内容"
             echo
             if [ -n "$CHANGES" ]; then echo "$CHANGES"; else echo "- 本次发版无功能提交"; fi
-            echo
-            echo "---"
-            echo
-            echo "每个 SDK 产出 8 个包：luci-app-clashv 通用版（内置 7 种架构二进制，任意设备直接安装）+ 7 个架构精简版 luci-app-clashv-<arch>（arm64/armv7/mips/mipsle/amd64/riscv64/loong64，只含单一架构二进制，包体约为通用版 1/7）。8 包互斥，同一设备装一个即可；架构版可在装机前按设备 DISTRIB_ARCH 选择。ipk 适用于 opkg 系统（OpenWrt 22.03/23.05）；apk 适用于 apk 系统（OpenWrt 24.10+/snapshot）。mihomo 内核请在插件「设置 → 内核」中一键下载。"
           } > notes.md
           gh release create "$TAG" --title "clashv v${{ needs.Version.outputs.version }}" \
             --notes-file notes.md --latest || true

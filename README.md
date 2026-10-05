@@ -91,7 +91,10 @@ scripts/             交叉编译脚本
 
 ### 方式一：opkg / apk 包（推荐）
 
-直接从 GitHub Release 下载（Actions 构建自动发布）。单包全平台（`luci-app-` 前缀表明是 LuCI 插件包）：内置 7 种架构二进制，任意设备直接安装，装后自动保留当前架构。
+直接从 GitHub Release 下载（Actions 构建自动发布）。每个 SDK 产出 8 个包，8 包互斥、同一设备装一个即可：
+
+- `luci-app-clashv` **通用版**：内置 7 种架构二进制（`luci-app-` 前缀表明是 LuCI 插件包），任意设备直接安装，装后自动保留当前架构
+- `luci-app-clashv-<arch>` **架构精简版** ×7（arm64/armv7/mips/mipsle/amd64/riscv64/loong64）：只含单一架构二进制，包体约为通用版 1/7，装机前按设备 `DISTRIB_ARCH` 选择
 
 ```bash
 # opkg 系统（OpenWrt 22.03 / 23.05）
@@ -200,7 +203,7 @@ make linux        # 交叉编译 7 种 Linux 架构 bin/clashv-{arm64,armv7,mips
 
 `.github/workflows/compile_packages.yml`（参照 OpenClash 的方案）：
 
-- **单包全平台**：`luci-app-clashv` 为 `PKGARCH:=all`，内含 7 种架构的 Go 二进制，安装后 `/usr/bin/clashv` 启动器按设备 `DISTRIB_ARCH` 自动选择执行，`postinst` 删除其余架构（安装后仅占 7~9MB，包体约 22MB）
+- **单包全平台 + 7 架构精简版**：`luci-app-clashv` 为 `PKGARCH:=all`，内含 7 种架构的 Go 二进制，安装后 `/usr/bin/clashv` 启动器按设备 `DISTRIB_ARCH` 自动选择执行，`postinst` 删除其余架构（安装后仅占 7~9MB，包体约 22MB）；另出 7 个架构精简版 `luci-app-clashv-<arch>`，8 包互相 CONFLICTS
 - 双 SDK matrix：22.03 SDK 出 **ipk**（OpenWrt 22.03/23.05，opkg）、snapshot SDK 出 **apk**（OpenWrt 24.10+/snapshot）
 - 触发方式：推 `v*` tag，或 Actions 页面手动 Run workflow；构建时校验 tag 名与 `openwrt/Makefile` 的 `PKG_VERSION` 一致，不一致直接报错拦下
 
