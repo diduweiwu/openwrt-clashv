@@ -84,6 +84,8 @@ LOCK_HITS="$(grep -c "\"version\": \"${OLD}\"" web/package-lock.json || true)"
 [ "${LOCK_HITS}" = "2" ] || die "web/package-lock.json 中 version:${OLD} 出现 ${LOCK_HITS} 次（预期 2），请手动检查"
 [ "$(grep -c "\"version\": \"${OLD}\"" web/package.json || true)" = "1" ] \
   || die "web/package.json 中旧版本号出现次数异常，请手动检查"
+# 新版本号也可能恰好是某个依赖的版本（如 vdirs@0.1.8），校验只看「净增 2 次」
+NEW_HITS_BEFORE="$(grep -c "\"version\": \"${NEW}\"" web/package-lock.json || true)"
 
 sed_edit openwrt/Makefile       "s/^PKG_VERSION:=.*/PKG_VERSION:=${NEW}/"
 sed_edit Makefile               "s/^VERSION ?= .*/VERSION ?= ${NEW}/"
@@ -94,8 +96,9 @@ sed_edit web/package-lock.json  "s/^\( *\"version\": \"\)\(${OLD}\)\(\",\)$/\1${
 grep -q "PKG_VERSION:=${NEW}"  openwrt/Makefile      || die "openwrt/Makefile 版本号未更新"
 grep -q "^VERSION ?= ${NEW}"   Makefile              || die "Makefile 版本号未更新"
 grep -q "\"version\": \"${NEW}\"" web/package.json   || die "web/package.json 版本号未更新"
-[ "$(grep -c "\"version\": \"${NEW}\"" web/package-lock.json || true)" = "2" ] \
-  || die "web/package-lock.json 版本号未正确更新"
+NEW_HITS_AFTER="$(grep -c "\"version\": \"${NEW}\"" web/package-lock.json || true)"
+[ "$(( ${NEW_HITS_AFTER} - ${NEW_HITS_BEFORE} ))" = "2" ] \
+  || die "web/package-lock.json 版本号未正确更新（${NEW} 净增 ${NEW_HITS_AFTER}−${NEW_HITS_BEFORE}≠2）"
 if grep -q "\"version\": \"${OLD}\"" web/package.json web/package-lock.json; then
   die "仍有旧版本号残留"
 fi
