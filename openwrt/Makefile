@@ -20,7 +20,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-clashv
 PKG_VERSION:=0.1.7
-PKG_RELEASE:=9
+PKG_RELEASE:=10
 PKG_MAINTAINER:=Nier
 PKG_LICENSE:=MIT
 
@@ -107,9 +107,29 @@ fi
 	rm -f /tmp/luci-indexcache* 2>/dev/null
 	/etc/init.d/rpcd reload 2>/dev/null || killall -HUP rpcd 2>/dev/null
 	# 前端内嵌在插件二进制里：升级后旧进程仍运行旧二进制，界面不会更新，
-	# 必须重启服务加载新 UI（内核由 clashv 自管，core.state 会让它自动拉起）
+	# 必须重启服务加载新 UI。
+	#
+	# 内核运行记忆（core.state）不能指望原样活过这次重启：这里停掉的是旧
+	# 版本插件，旧版本（≤v0.1.5）被 procd 杀死时其退出回收会先删掉
+	# core.state，init 脚本 stop_service 的快照发生在杀进程之前、必然被它
+	# 覆盖。所以在停服务前先把「内核在运行」记到 /tmp 独立标记文件（旧
+	# 二进制不认识它），等旧实例死透后再翻译回 core.state，新实例的
+	# autoStartCore 才能据此恢复内核。
 	if [ -x /etc/init.d/clashv ] && /etc/init.d/clashv enabled; then
-		/etc/init.d/clashv restart 2>/dev/null
+		core="$$(uci -q get clashv.main.core_path)"
+		[ -n "$$core" ] || core=/usr/bin/mihomo
+		if pidof "$${core##*/}" >/dev/null 2>&1; then
+			: > /tmp/clashv-upgrade-running
+		fi
+		/etc/init.d/clashv stop 2>/dev/null
+		if [ -f /tmp/clashv-upgrade-running ]; then
+			rm -f /tmp/clashv-upgrade-running
+			workdir="$$(uci -q get clashv.main.workdir)"
+			[ -n "$$workdir" ] || workdir=/etc/clashv
+			mkdir -p "$$workdir" 2>/dev/null
+			echo running > "$$workdir/core.state" 2>/dev/null
+		fi
+		/etc/init.d/clashv start 2>/dev/null
 		echo "clashv: 服务已重启以加载新版本"
 	fi
 }

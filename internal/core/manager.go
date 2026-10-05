@@ -455,11 +455,14 @@ func sysProcAttr() *syscall.SysProcAttr { return &syscall.SysProcAttr{} }
 // ---- 内核运行状态记忆 ----
 //
 // 状态写在 <home>/core.state：Start 成功置 "running"；用户主动停止清除，
-// 外部死亡（升级/重启服务时被 procd 连环杀、killall、崩溃）保留。init 脚本
-// 的 stop_service 还会在杀服务前按 mihomo 进程是否存活补写一次，作为升级/
-// 重启窗口的权威快照。插件服务重启（procd respawn）或路由器重启后，
-// autoStartCore 据此判断「重启前内核是否在运行」，是则自动恢复。不用 UCI
-// 存储：内核启停是高频事件，避免反复写 flash 里的 /etc/config。
+// 外部死亡（升级/重启服务时被 procd 连环杀、killall、崩溃）保留。升级窗口
+// 有个本文件赢不了的时序：停掉的是旧版本二进制，它的退出回收会删掉本文件，
+// 快照写在杀进程之前必然被覆盖，所以 postinst 停服务前把内核存活记到 /tmp
+// 标记、停透后补写本文件兜底（见 openwrt/Makefile）；init 脚本 stop_service
+// 也在杀服务前按 mihomo 是否存活补写一道，覆盖重启服务/关机路径。插件服务
+// 重启（procd respawn）或路由器重启后，autoStartCore 据此判断「重启前内核
+// 是否在运行」，是则自动恢复。不用 UCI 存储：内核启停是高频事件，避免反复
+// 写 flash 里的 /etc/config。
 
 func (m *Manager) coreStatePath() string {
 	return filepath.Join(m.cfg.Home(), "core.state")

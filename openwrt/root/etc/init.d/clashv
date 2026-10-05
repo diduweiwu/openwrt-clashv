@@ -27,16 +27,15 @@ start_service() {
 
 stop_service() {
 	# procd 杀服务进程前，记下内核是否还在运行（写 core.state 运行记忆）。
-	# 升级/重启服务/关机都走这里：插件进程马上会被杀，它自己来不及可靠记账
-	# （退出回收可能来不及执行，也可能错把「外部被杀」当成主动停止清掉记忆），
-	# 由 init 脚本在杀进程前快照最可靠。新服务实例启动后 autoStartCore
-	# 据此自动恢复内核。
+	# 重启服务/关机都走这里，给运行记忆上一道保险。升级窗口例外：停掉的
+	# 旧版本插件被杀时会先删掉这份快照，快照写在杀进程之前、时序上赢不了，
+	# 升级路径由 postinst 记 /tmp 标记、停透后补写兜底（见 openwrt/Makefile）。
 	local workdir core
 	workdir="$(uci -q get clashv.main.workdir)"
 	[ -n "$workdir" ] || workdir=/etc/clashv
 	core="$(uci -q get clashv.main.core_path)"
 	[ -n "$core" ] || core=/usr/bin/mihomo
-	if pgrep -f "$core" >/dev/null 2>&1; then
+	if pidof "${core##*/}" >/dev/null 2>&1; then
 		mkdir -p "$workdir"
 		echo running > "$workdir/core.state"
 	fi

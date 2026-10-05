@@ -77,10 +77,10 @@ func main() {
 }
 
 // autoStartCore 在服务启动后按运行状态记忆自动拉起内核：重启前内核在运行
-// （core.state == running，由 Manager 与 init 脚本 stop_service 共同维护）
-// 才恢复，手动停过的不动。前置不满足（内核还没下载、没有任何订阅）时静默
-// 跳过；升级/重启服务后的首拉常赶上系统繁忙（opkg 收尾、孤儿内核退出），
-// 失败时重试几次再放弃，不影响插件本身运行。
+// （core.state == running，由 Manager、init 脚本 stop_service 与升级 postinst
+// 共同维护）才恢复，手动停过的不动。前置不满足（内核还没下载、没有任何
+// 订阅）时静默跳过；升级/重启服务后的首拉常赶上系统繁忙（opkg 收尾、孤儿
+// 内核退出），失败时重试几次再放弃，不影响插件本身运行。
 func autoStartCore(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager) {
 	// init 脚本 START=99 已在开机尾声，这里再留几秒让网络/防火墙稳定
 	time.Sleep(3 * time.Second)
