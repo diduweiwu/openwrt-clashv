@@ -12,10 +12,19 @@ name: Build clashv (ipk & apk)
 #                           选择，postinst 删除其余架构节省空间）
 #   luci-app-clashv-<arch>  架构精简版 ×7（只内置对应架构二进制，包体约为通用版 1/7）
 # 8 包互相 CONFLICTS，同一设备只能装一个；mihomo 内核由插件在界面上按架构一键下载。
+#
+# 缓存说明：OpenWrt SDK（含编译状态，kmod 重打包等大头）缓存在默认分支 master 名下，
+# 由每周调度 / master 手动触发时保存；tag 发版运行从 master 读取（GitHub 缓存按分支
+# 隔离，tag 运行保存的缓存别人读不到，所以 tag 运行不保存，避免白传几个 GB）。
+# tag 运行的缓存读取量不计入 10GB 配额，保存才计入。
 
 on:
   # push trigger disabled during identity rewrite (restored at master tip)
   workflow_dispatch:
+  schedule:
+    # 每周一跑一次：① 保活 master 名下的 SDK 缓存（GitHub 缓存 7 天无人使用自动清理），
+    # ② 跟进上游 snapshot SDK 文件名变化自动重建缓存。公开仓库不计费。
+    - cron: '17 3 * * 1'
 
 permissions:
   contents: write
@@ -59,6 +68,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
 
       - uses: actions/setup-go@v5
         with:
@@ -66,11 +77,27 @@ jobs:
           cache: true
 
       - name: Install Dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get -y install curl git tar zstd rsync python3 python3-pyelftools python3-setuptools build-essential
+          # curl/git/tar/zstd/rsync/python3/build-essential 在 runner 镜像里已预装，
+          # 只装镜像缺的 python 包（也省掉 apt-get update 的十来秒）
+          sudo apt-get -y install python3-pyelftools python3-setuptools
+
+      # 解析 SDK 压缩包文件名作缓存 key（snapshot SDK 文件名随上游更新变化，自动失效）
+      - name: Resolve SDK Name
+        id: sdkname
+        env:
+          TARGET: ${{ matrix.target.name }}
+          STAGE: sdkname
+        run: echo "name=$(./scripts/ci-build.sh | grep -v '^==>' | head -n 1)" >> "$GITHUB_OUTPUT"
+
+      # SDK 目录含解压后的完整构建状态：命中后跳过 1.4GB 下载 + 数百个预置 kmod
+      # 的重新打包（该步骤占包编译阶段 8 成以上耗时），只剩插件本体 ~25s
+      - name: Restore OpenWrt SDK Cache
+        id: sdkcache
+        uses: actions/cache/restore@v4
+        with:
+          path: tmp/${{ matrix.target.name == 'ipk' && 'SDK' || 'SNAPSDK' }}
+          key: openwrt-sdk-${{ matrix.target.name }}-${{ steps.sdkname.outputs.name }}
 
       # 构建流程抽在 scripts/ci-build.sh，与本地 scripts/build-local-docker.sh 共用同一条
       # 流水线，按阶段拆步保证日志可读、耗时可查
@@ -98,6 +125,15 @@ jobs:
           STAGE: package
         run: ./scripts/ci-build.sh
 
+      # 只在默认分支保存：tag 运行保存的缓存按分支隔离，其他运行读不到，
+      # 白白上传几个 GB。缓存完整命中时 key 不可覆盖，跳过保存。
+      - name: Save OpenWrt SDK Cache
+        if: github.ref == 'refs/heads/master' && steps.sdkcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: tmp/${{ matrix.target.name == 'ipk' && 'SDK' || 'SNAPSDK' }}
+          key: openwrt-sdk-${{ matrix.target.name }}-${{ steps.sdkname.outputs.name }}
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -107,7 +143,8 @@ jobs:
   Release:
     runs-on: ubuntu-latest
     needs: [Version, Compile]
-    if: ${{ always() && contains(needs.Compile.result, 'success') }}
+    # 只在 tag 发版时创建 Release：每周调度/master 手动预热也会跑 Compile，不能发版
+    if: ${{ always() && contains(needs.Compile.result, 'success') && github.ref_type == 'tag' }}
     steps:
       # gh release create 需要从 git remote 推断仓库，必须先 checkout；
       # fetch-depth: 0 拉全量历史与 tag，才能生成上一个 tag 以来的提交列表

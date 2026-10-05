@@ -4,11 +4,12 @@
 # CI  入口: .github/workflows/compile_packages.yml 的 Compile job（按 STAGE 分步调用）
 # 本地入口: scripts/build-local-docker.sh（一次跑完所有阶段）
 #
-# 用法: TARGET=ipk|apk [STAGE=frontend|go|sdk|package|all] ./scripts/ci-build.sh
+# 用法: TARGET=ipk|apk [STAGE=frontend|go|sdkname|sdk|package|all] ./scripts/ci-build.sh
 #
 # 环境变量:
 #   TARGET        构建目标: ipk（22.03 SDK）或 apk（snapshot SDK），必填
-#   STAGE         只跑某个阶段（CI 分步用，日志按步展示）；默认 all 顺序全部执行
+#   STAGE         只跑某个阶段（CI 分步用，日志按步展示）；sdkname 只解析 SDK
+#                 压缩包文件名不下载，供 CI 缓存 key 使用；默认 all 顺序全部执行
 #   VERSION       包版本号，默认读 openwrt/Makefile 的 PKG_VERSION
 #   SDK_URL       覆盖 ipk 目标的 SDK 下载地址（默认与 CI 相同）
 #   SDK_CACHE_DIR SDK 下载/解压目录，默认 ./tmp（本地构建可指向持久缓存卷）
@@ -29,7 +30,7 @@ PKG_NAME=luci-app-clashv
 
 STAGE="${STAGE:-all}"
 case "$STAGE" in
-  frontend|go|sdk|package|all) ;;
+  frontend|go|sdkname|sdk|package|all) ;;
   *) echo "ERROR: STAGE 必须是 frontend|go|sdk|package|all，当前为 $STAGE" >&2; exit 1 ;;
 esac
 
@@ -52,6 +53,11 @@ if [ "$STAGE" = "frontend" ] || [ "$STAGE" = "all" ]; then
   rm -rf internal/web/dist/assets
   mkdir -p internal/web/dist
   cp -r "$WEB_BUILD"/dist/* internal/web/dist/
+  # build-linux.sh 以 web/dist/assets 判断前端是否已构建，同步一份过去，
+  # 避免 Go 阶段把整个 npm install + vite build 再白跑一遍（约 13 秒）
+  rm -rf web/dist
+  mkdir -p web/dist
+  cp -r "$WEB_BUILD"/dist/. web/dist/
 fi
 
 # ---------- Go 二进制 ----------
@@ -62,6 +68,26 @@ fi
 
 SDK_CACHE_DIR="${SDK_CACHE_DIR:-$REPO_ROOT/tmp}"
 OUT_DIR="${OUT_DIR:-$REPO_ROOT/tmp/out}"
+
+# ipk 目标用 22.03.7 最终版 SDK（版本已冻结，URL 恒定 → 缓存 key 永不失效）；SDK_URL 可覆盖
+IPK_SDK_URL="${SDK_URL:-https://downloads.openwrt.org/releases/22.03.7/targets/x86/64/openwrt-sdk-22.03.7-x86-64_gcc-11.2.0_musl.Linux-x86_64.tar.xz}"
+
+# ---------- 解析 SDK 压缩包文件名（不下载，供 CI 缓存 key 用） ----------
+# snapshot SDK 的文件名随上游更新变化，以它作 key 可在上游换 SDK 时自动失效重建
+if [ "$STAGE" = "sdkname" ]; then
+  if [ "$TARGET" = "ipk" ]; then
+    basename "$IPK_SDK_URL"
+  else
+    BASE_URL="https://downloads.openwrt.org/snapshots/targets/x86/64/"
+    SDK_TARBALL=$(curl -sf --connect-timeout 30 --retry 3 "$BASE_URL" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
+    if [ -z "$SDK_TARBALL" ]; then
+      BASE_URL2="https://mirrors.pku.edu.cn/files/openwrt/snapshots/targets/x86/64/"
+      SDK_TARBALL=$(curl -sf --connect-timeout 30 --retry 3 "$BASE_URL2" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
+    fi
+    [ -n "$SDK_TARBALL" ] || { echo "ERROR: 无法解析 snapshot SDK 文件名" >&2; exit 1; }
+    echo "$SDK_TARBALL"
+  fi
+fi
 
 # ---------- OpenWrt SDK ----------
 if [ "$STAGE" = "sdk" ] || [ "$STAGE" = "all" ]; then
@@ -79,9 +105,7 @@ if [ "$STAGE" = "sdk" ] || [ "$STAGE" = "all" ]; then
   if [ ! -d "$SDK_NAME" ]; then
     echo "==> [sdk] 下载 OpenWrt SDK ($TARGET)"
     if [ "$TARGET" = "ipk" ]; then
-      curl -SLfk --connect-timeout 30 --retry 3 \
-        "${SDK_URL:-https://downloads.openwrt.org/releases/22.03.7/targets/x86/64/openwrt-sdk-22.03.7-x86-64_gcc-11.2.0_musl.Linux-x86_64.tar.xz}" \
-        -o ./SDK.tar.xz
+      curl -SLfk --connect-timeout 30 --retry 3 "$IPK_SDK_URL" -o ./SDK.tar.xz
       tar xf SDK.tar.xz
       rm -f SDK.tar.xz
       rm -rf "$SDK_NAME"
@@ -121,7 +145,7 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   # --delete 保证 SDK 缓存复用时不会残留已删除的旧源文件
   rsync -a --delete \
     --exclude .git --exclude tmp --exclude build --exclude .devdata \
-    --exclude .DS_Store --exclude web/node_modules \
+    --exclude .DS_Store --exclude web/node_modules --exclude web/dist \
     "$REPO_ROOT/" "$PKG_SRC/"
   # 包 Makefile 放到包目录根（SDK 约定）
   cp "$PKG_SRC/openwrt/Makefile" "$PKG_SRC/Makefile"

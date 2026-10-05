@@ -21,16 +21,6 @@ export PATH="$HOME/.local/go/bin:$PATH"
 export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
 export CGO_ENABLED=0
 
-TARGETS="
-linux:arm64::
-linux:arm:GOARM=7:armv7
-linux:mips::
-linux:mipsle::
-linux:amd64::
-linux:riscv64::
-linux:loong64::
-"
-
 mkdir -p "$OUT"
 
 # 前端产物缺失时先构建（正式打包需要；CI 会显式构建）
@@ -43,16 +33,37 @@ fi
 
 LDFLAGS="-s -w -X main.Version=$VERSION"
 
-echo "$TARGETS" | while IFS=: read -r goos goarch extra suffix; do
-	[ -z "$goarch" ] && continue
-	name="$goarch"
-	[ -n "$suffix" ] && name="$suffix"
-	echo "==> ${goos}/${goarch} ${extra} -> clashv-$name"
+# 7 架构并行编译（4 核 CI runner 上串行 ~90s → 并行 ~30s；go build 缓存并发安全）。
+# 各架构输出重定向到独立日志，成功后删掉，失败时统一倒出，避免并行输出穿插难读
+build_arch() {
+	arch_name=$4
+	[ -n "$arch_name" ] || arch_name=$2
+	echo "==> $1/$2 $3 -> clashv-$arch_name"
 	# shellcheck disable=SC2086
-	env GOOS="$goos" GOARCH="$goarch" $extra \
+	env GOOS="$1" GOARCH="$2" $3 \
 		go build -trimpath -ldflags "$LDFLAGS" \
-		-o "$OUT/clashv-$name" ./cmd/clashv
+		-o "$OUT/clashv-$arch_name" ./cmd/clashv \
+		>"$OUT/.build-$arch_name.log" 2>&1
+}
+
+rc=0
+pids=""
+build_arch linux arm64 "" "" & pids="$pids $!"
+build_arch linux arm GOARM=7 armv7 & pids="$pids $!"
+build_arch linux mips "" "" & pids="$pids $!"
+build_arch linux mipsle "" "" & pids="$pids $!"
+build_arch linux amd64 "" "" & pids="$pids $!"
+build_arch linux riscv64 "" "" & pids="$pids $!"
+build_arch linux loong64 "" "" & pids="$pids $!"
+for p in $pids; do
+	wait "$p" || rc=1
 done
+if [ "$rc" -ne 0 ]; then
+	echo "ERROR: Go 构建失败，各架构日志:"
+	cat "$OUT"/.build-*.log
+	exit 1
+fi
+rm -f "$OUT"/.build-*.log
 
 echo "==> 完成:"
 ls -lh "$OUT"/clashv-*
