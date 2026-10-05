@@ -25,6 +25,23 @@ start_service() {
 	procd_close_instance
 }
 
+stop_service() {
+	# procd 杀服务进程前，记下内核是否还在运行（写 core.state 运行记忆）。
+	# 升级/重启服务/关机都走这里：插件进程马上会被杀，它自己来不及可靠记账
+	# （退出回收可能来不及执行，也可能错把「外部被杀」当成主动停止清掉记忆），
+	# 由 init 脚本在杀进程前快照最可靠。新服务实例启动后 autoStartCore
+	# 据此自动恢复内核。
+	local workdir core
+	workdir="$(uci -q get clashv.main.workdir)"
+	[ -n "$workdir" ] || workdir=/etc/clashv
+	core="$(uci -q get clashv.main.core_path)"
+	[ -n "$core" ] || core=/usr/bin/mihomo
+	if pgrep -f "$core" >/dev/null 2>&1; then
+		mkdir -p "$workdir"
+		echo running > "$workdir/core.state"
+	fi
+}
+
 reload_service() {
 	# 设置里改了界面端口/令牌后，用 /etc/init.d/clashv reload 重新拉起
 	stop

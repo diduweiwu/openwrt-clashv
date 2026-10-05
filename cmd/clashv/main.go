@@ -77,8 +77,10 @@ func main() {
 }
 
 // autoStartCore 在服务启动后按运行状态记忆自动拉起内核：重启前内核在运行
-// （core.state == running）才恢复，手动停过的不动。前置不满足（内核还没
-// 下载、没有任何订阅）时静默跳过；启动失败只记日志，不影响插件本身运行。
+// （core.state == running，由 Manager 与 init 脚本 stop_service 共同维护）
+// 才恢复，手动停过的不动。前置不满足（内核还没下载、没有任何订阅）时静默
+// 跳过；升级/重启服务后的首拉常赶上系统繁忙（opkg 收尾、孤儿内核退出），
+// 失败时重试几次再放弃，不影响插件本身运行。
 func autoStartCore(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager) {
 	// init 脚本 START=99 已在开机尾声，这里再留几秒让网络/防火墙稳定
 	time.Sleep(3 * time.Second)
@@ -91,9 +93,16 @@ func autoStartCore(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manage
 	if list, _ := prof.List(); len(list) == 0 {
 		return // 尚未添加订阅
 	}
-	if err := mgr.Start(); err != nil {
-		slog.Warn("内核自动恢复启动失败，请到界面手动启动", "err", err)
-		return
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if err = mgr.Start(); err == nil {
+			slog.Info("内核已随服务自动恢复运行")
+			return
+		}
+		slog.Warn("内核自动恢复启动失败", "attempt", fmt.Sprintf("%d/3", attempt), "err", err)
+		if attempt < 3 {
+			time.Sleep(5 * time.Second)
+		}
 	}
-	slog.Info("内核已随服务自动恢复运行")
+	slog.Warn("内核自动恢复启动已放弃，请到界面手动启动", "err", err)
 }

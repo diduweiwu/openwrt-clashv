@@ -51,6 +51,10 @@ type Manager struct {
 	// 期间 Running() 仍为 false：没就绪就不能算「运行中」，否则界面在
 	// 重启窗口里显示运行中、启动失败时还会跳回已停止，误导用户。
 	starting atomic.Bool
+	// stopping 表示本次内核退出由用户主动停止（Stop）发起。外部死亡——
+	// 升级/重启服务时 procd 连服务带内核一起杀、killall、内核自身崩溃——
+	// 不得清除运行记忆，否则新服务实例起来后无法按「之前在运行」自动恢复。
+	stopping atomic.Bool
 
 	hc *controllerClient
 
@@ -104,6 +108,9 @@ func (m *Manager) Start() error {
 	}
 	// 任意返回路径都要清掉启动中标记
 	defer m.starting.Store(false)
+	// 新一轮启动：上一次 Stop 的「主动停止」标记到此失效，之后内核若被
+	// 外部杀掉应保留运行记忆
+	m.stopping.Store(false)
 	s, err := m.cfg.Get()
 	if err != nil {
 		return err
@@ -193,7 +200,11 @@ func (m *Manager) Start() error {
 		close(m.exited)
 		m.running.Store(false)
 		m.polling.Store(false)
-		m.markCoreState(false) // 无论正常停止还是异常退出，运行记忆都清掉
+		// 用户主动停止才清运行记忆；外部死亡（升级/重启服务/崩溃）保留，
+		// 否则升级或重启服务后无法按原状态自动恢复（见 stopping 注释）
+		if m.stopping.Load() {
+			m.markCoreState(false)
+		}
 		slog.Info("mihomo 进程已退出")
 	}()
 
@@ -260,6 +271,9 @@ func (m *Manager) Stop() error {
 		}
 		return nil
 	}
+	// 用户主动停止：置标记并清除运行记忆（外部死亡不清，见 stopping 注释）
+	m.stopping.Store(true)
+	m.markCoreState(false)
 	// 直接 SIGKILL，不等优雅退出：内核没有必须优雅关停才能落盘的状态——
 	// TUN/监听端口随进程消失由内核回收，代理选择/fakeip 走 bbolt 事务即时落盘；
 	// 防火墙与 dnsmasq 劫持已在上面先撤。SIGTERM 会被 mihomo 的信号处理器接住
@@ -440,10 +454,12 @@ func sysProcAttr() *syscall.SysProcAttr { return &syscall.SysProcAttr{} }
 
 // ---- 内核运行状态记忆 ----
 //
-// 状态写在 <home>/core.state：Start 成功置 "running"，进程退出即清除。
-// 插件服务重启（procd respawn）或路由器重启后，autoStartCore 据此判断
-// 「重启前内核是否在运行」，是则自动恢复。不用 UCI 存储：内核启停是高频
-// 事件，避免反复写 flash 里的 /etc/config。
+// 状态写在 <home>/core.state：Start 成功置 "running"；用户主动停止清除，
+// 外部死亡（升级/重启服务时被 procd 连环杀、killall、崩溃）保留。init 脚本
+// 的 stop_service 还会在杀服务前按 mihomo 进程是否存活补写一次，作为升级/
+// 重启窗口的权威快照。插件服务重启（procd respawn）或路由器重启后，
+// autoStartCore 据此判断「重启前内核是否在运行」，是则自动恢复。不用 UCI
+// 存储：内核启停是高频事件，避免反复写 flash 里的 /etc/config。
 
 func (m *Manager) coreStatePath() string {
 	return filepath.Join(m.cfg.Home(), "core.state")
