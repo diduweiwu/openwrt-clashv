@@ -105,6 +105,8 @@ apk add --allow-untrusted luci-app-clashv-0.1.0-6.apk
 
 安装时启动器按设备架构自动选择；mihomo 内核装完后在「设置 → 内核」里一键下载。
 
+> 文件名后缀怎么读：ipk 是 `包名_版本-发布号_架构.ipk`，apk 是 `包名-版本-r发布号.apk`。`-8` / `-r8` 是打包发布号（`openwrt/Makefile` 的 `PKG_RELEASE`，仅打包内容变化时 +1，与代码版本号无关）；架构位统一是 `all`（安装器不校验设备 CPU 架构，好让一个包适配全部同系设备），所以架构精简版请认包名中间的架构词——`luci-app-clashv-amd64` 就是 amd64 包，与末段的 `all` 不矛盾。
+
 > 从旧版本升级：首个发布版的包名叫 `clashv`（无前缀），安装新包前先卸载它 —— `opkg remove clashv` 或 `apk del clashv`。
 
 自己用 SDK 打包：
