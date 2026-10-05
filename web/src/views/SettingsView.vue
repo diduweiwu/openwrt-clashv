@@ -474,10 +474,11 @@ const tab = ref('general')
         <div class="row">
           <div class="row-text">
             <span class="rt">平台</span>
-            <span class="rs">
-              自动识别设备架构，无需配置<template v-if="coreInfo.platform">，当前为 <span class="mono">{{ coreInfo.platform }}</span></template><template v-else>，当前设备<span style="color: var(--orange)">不支持自动下载</span></template>
-            </span>
+            <span class="rs">自动识别设备架构，无需配置，下载内核时按此平台名匹配文件</span>
           </div>
+          <span class="mono" :style="{ color: coreInfo.platform ? 'var(--green)' : 'var(--orange)' }">
+            {{ coreInfo.platform || '不支持自动下载' }}
+          </span>
         </div>
         <div class="row">
           <div class="row-text">
