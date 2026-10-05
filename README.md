@@ -127,7 +127,7 @@ ssh root@router "/etc/uci-defaults/99-clashv; /etc/init.d/clashv start"
 
 安装完成后：
 
-- LuCI → 服务 → ClashV，或直接访问 `http://<路由器IP>:9097`
+- LuCI → 服务 → ClashV；直接访问 `http://<路由器IP>:9097` 会自动跳转到该页（需已登录 OpenWrt，退出路由器登录后界面同步失效）
 - 首次使用：订阅页添加订阅 → 启用 → 首页启动内核
 
 ### 架构映射表
@@ -224,14 +224,14 @@ make linux        # 交叉编译 7 种 Linux 架构 bin/clashv-{arm64,armv7,mips
 | GET/POST | /api/plugin/latest·upgrade | 插件检查更新/升级 |
 | POST | /api/service/restart | 重启服务（OpenWrt） |
 
-设置令牌后，非本机请求需带 `X-Clashv-Token` 头。
+设置令牌后，非本机的 API 请求需带 `X-Clashv-Token` 头（页面上首次访问会弹框输入，自动重试）。
 
 ## ⚠️ 使用注意
 
 - 📌 **代理生效**：其他设备把**网关和 DNS** 指向本路由器 IP 即可，插件启动内核后自动接管（防火墙 DNS 劫持 + TCP 透明代理）；局域网设备也可手动把代理设为 `<路由器IP>:7890`。开启「TUN 模式」后路由器自身流量也被接管（依赖 `kmod-tun`）
 - 🧭 **DNS**：TUN 模式建议保持「接管 DNS」开启（fake-ip）；非 TUN 模式默认「防火墙转发」劫持 LAN 的 53 端口到内核 DNS，dnsmasq 联动可在设置中切换为「dnsmasq 转发」
 - 🔍 **架构识别**：内核更新默认按 Go 运行时推导 mihomo 平台名，MIPS 硬浮点等特殊设备在「设置 → 平台」手动填（如 `linux-mips-hardfloat`）
-- 🔐 **安全**：界面默认局域网开放；建议在「设置 → 访问控制」配置访问令牌；控制器仅监听本机，外部无法直连内核
+- 🔐 **安全**：默认开启「OpenWrt 登录校验」——必须先登录 LuCI 才能打开界面，直连 9097 会自动跳到 LuCI 登录；可另在「设置 → 代理基础」配置访问令牌保护 API；控制器仅监听本机，外部无法直连内核
 - 💾 **配置持久化**：设置存 UCI（`/etc/config/clashv`），订阅存 `/etc/clashv/profiles/`，两者都在 conffiles 列表中，升级不丢
 
 ## 📜 免责声明

@@ -26,8 +26,18 @@ async function request(method, url, body) {
   try { data = await res.json() } catch { /* 空响应 */ }
 
   if (res.status === 401) {
-    // OpenWrt 登录校验未通过：去 LuCI 登录才能解决，不该弹令牌输入框
-    if (data.auth === 'luci') throw new Error(data.error || '请先登录 OpenWrt 管理后台（LuCI）')
+    // OpenWrt 登录校验未通过：整页跳去 LuCI（未登录落在登录表单，登录后自动回到界面）
+    if (data.auth === 'luci') {
+      const target = data.login_url ||
+        `${location.protocol}//${location.hostname}/cgi-bin/luci/admin/services/clashv`
+      let last = 0
+      try { last = +sessionStorage.getItem('clashv_auth_redirect') || 0 } catch { /* 隐私模式等 */ }
+      if (Date.now() - last > 10000) {
+        try { sessionStorage.setItem('clashv_auth_redirect', String(Date.now())) } catch { /* 忽略 */ }
+        window.top.location.href = target
+      }
+      throw new Error(data.error || '请先登录 OpenWrt 管理后台（LuCI）')
+    }
     const input = prompt('请输入访问令牌（设置中配置的 Token）')
     if (input) {
       setToken(input)

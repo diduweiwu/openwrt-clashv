@@ -374,7 +374,7 @@ const tab = ref('general')
           <div class="row" v-if="store.status?.openwrt">
             <div class="row-text">
               <span class="rt">OpenWrt 登录校验</span>
-              <span class="rs">开启后需持有已登录的 LuCI 会话才能访问界面：从 LuCI 菜单进入自动放行，直接访问 路由器IP:9097 会被拒绝，防止绕过路由器管理密码单独打开 ClashV<span class="rec">默认开启，建议保持；本机访问与访问令牌不受影响</span></span>
+              <span class="rs">开启后必须先登录 OpenWrt 才能使用界面：从 LuCI 菜单进入自动放行；直接访问 路由器IP:9097 会自动跳转到 LuCI 的 ClashV 页（未登录 LuCI 时是登录页），退出 OpenWrt 登录后界面立即失效<span class="rec">默认开启，建议保持；本机访问与访问令牌不受影响</span></span>
             </div>
             <n-switch v-model:value="form.luci_auth" />
           </div>

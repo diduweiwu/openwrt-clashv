@@ -152,16 +152,19 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 }
 
 // auth 管理界面访问鉴权，两层独立开关：
-//  1) 访问令牌：设置了 Token 时，除本机访问外都要求 X-Clashv-Token；
-//  2) OpenWrt 登录校验（luci_auth，默认开）：非本机请求需持有有效的 LuCI 登录会话。
-//     LuCI 入口页会把 rpcd 会话 id 以 luci_sid 参数带进 iframe，校验通过后下发本服务
-//     自己的 clashv_auth cookie（后续请求凭 cookie，sid 每 2 分钟经 ubus 复验）；
-//     直接访问 路由器IP:9097 而未登录 LuCI 时返回 401。非 OpenWrt 环境（无 ubus）自动关闭。
+//  1) 访问令牌：设置了 Token 时，API 请求需带 X-Clashv-Token（页面本身放行，
+//     首次未带令牌的 API 调用会触发前端输入令牌后自动重试）；
+//  2) OpenWrt 登录校验（luci_auth，默认开）：非本机访问必须先登录 OpenWrt。
+//     LuCI 入口页把 rpcd 会话 id 以 luci_sid 参数带进 iframe，校验通过后换发本服务
+//     自己的 clashv_auth cookie；未通过时页面请求 302 跳到 LuCI 的 ClashV 菜单页
+//     （未登录 LuCI 会先落在登录表单，登录后回到该页自动带 sid 完成校验），
+//     退出 OpenWrt 登录后页面刷新立即失效。非 OpenWrt 环境（无 ubus）自动关闭。
 func (d *deps) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s, err := d.cfg.Get()
 		if err == nil && !isLocal(r) {
-			if s.Token != "" && r.Header.Get("X-Clashv-Token") != s.Token {
+			if s.Token != "" && strings.HasPrefix(r.URL.Path, "/api/") &&
+				r.Header.Get("X-Clashv-Token") != s.Token {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "访问令牌错误，请在登录框输入设置中配置的令牌"})
@@ -185,7 +188,7 @@ func (d *deps) luciAuthed(w http.ResponseWriter, r *http.Request) bool {
 	}
 	d.authMu.Unlock()
 
-	if c, err := r.Cookie(authCookieName); err == nil && c.Value != "" && d.sessionValid(c.Value) {
+	if c, err := r.Cookie(authCookieName); err == nil && c.Value != "" && d.sessionValid(c.Value, isPageRequest(r)) {
 		return true
 	}
 	sid := r.URL.Query().Get("luci_sid")
@@ -197,8 +200,14 @@ func (d *deps) luciAuthed(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	token := hex.EncodeToString(val)
+	now := time.Now()
 	d.authMu.Lock()
-	d.authed[token] = luciAuthed{sid: sid, checked: time.Now()}
+	d.authed[token] = luciAuthed{sid: sid, checked: now}
+	for t, e := range d.authed { // 顺手清掉一天未复验过的旧会话
+		if now.Sub(e.checked) > 24*time.Hour {
+			delete(d.authed, t)
+		}
+	}
 	d.authMu.Unlock()
 	http.SetCookie(w, &http.Cookie{
 		Name: authCookieName, Value: token, Path: "/",
@@ -207,12 +216,12 @@ func (d *deps) luciAuthed(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// sessionValid 校验已换发的 cookie： sid 在 2 分钟内验过直接放行（界面每秒轮询，
-// 不能每个请求都 fork ubus），过期则重新调 ubus 验证 LuCI 会话仍存活。
-func (d *deps) sessionValid(token string) bool {
+// sessionValid 校验已换发的 cookie：页面请求当场经 ubus 复验 LuCI 会话仍存活
+// （退出登录后刷新页面立即失效），API 轮询密集，2 分钟内验过直接放行。
+func (d *deps) sessionValid(token string, fresh bool) bool {
 	d.authMu.Lock()
 	e, ok := d.authed[token]
-	if ok && time.Since(e.checked) < 2*time.Minute {
+	if ok && !fresh && time.Since(e.checked) < 2*time.Minute {
 		d.authMu.Unlock()
 		return true
 	}
@@ -253,35 +262,39 @@ func (d *deps) hasUBUS() bool {
 	return d.ubusOK
 }
 
-// denyUnauthorized 未通过 OpenWrt 登录校验：API 回 JSON 供前端提示；
-// 页面请求直接回一个自带样式的 401 页（此时静态资源也未放行，不能依赖 SPA）。
+// denyUnauthorized 未通过 OpenWrt 登录校验：页面请求 302 到 LuCI 的 ClashV 菜单页，
+// 未登录 LuCI 时该页就是登录表单，登录后回到这里由 iframe 带 sid 自动完成校验，
+// 界面因此无法脱离 OpenWrt 登录直接访问；API 回 JSON（带 login_url）供前端整页跳转。
 func (d *deps) denyUnauthorized(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "请先登录 OpenWrt 管理后台（LuCI），再从菜单进入 ClashV；或登录后刷新本页",
-			"auth":  "luci",
+			"error":     "请先登录 OpenWrt 管理后台（LuCI）",
+			"auth":      "luci",
+			"login_url": luciEntryURL(r),
 		})
 		return
 	}
-	luciHost := r.Host
-	if i := hostRuneIndex(luciHost, ':'); i > 0 { // 去掉端口，LuCI 在 80/443
-		luciHost = luciHost[:i]
+	http.Redirect(w, r, luciEntryURL(r), http.StatusFound)
+}
+
+// luciEntryURL 拼出 LuCI 里 ClashV 菜单页地址：同主机去掉端口（LuCI 在 80/443）。
+func luciEntryURL(r *http.Request) string {
+	host := r.Host
+	if i := strings.LastIndexByte(host, ':'); i > 0 {
+		host = host[:i]
 	}
-	luciURL := "http://" + luciHost + "/cgi-bin/luci/"
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusUnauthorized)
-	fmt.Fprintf(w, `<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>需要登录 OpenWrt</title></head>
-<body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#14161c;color:#e8eaf0;font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif">
-<div style="max-width:420px;padding:32px;text-align:center;line-height:1.7">
-<div style="font-size:40px">🔒</div>
-<h1 style="font-size:18px;margin:12px 0 8px">需要登录 OpenWrt 管理后台</h1>
-<p style="font-size:13.5px;color:#9aa0ae;margin:0 0 20px">ClashV 界面已开启登录校验：<br>请先登录 LuCI，再从菜单进入 ClashV，或登录后刷新本页。</p>
-<a href="%s" style="display:inline-block;padding:9px 22px;border-radius:8px;background:#5b5bd6;color:#fff;text-decoration:none;font-size:13.5px">前往 LuCI 登录</a>
-</div></body></html>`, luciURL)
+	return "http://" + host + "/cgi-bin/luci/admin/services/clashv"
+}
+
+// isPageRequest 判断是否页面类请求（SPA 文档或路由路径，非 API、非静态资源文件）。
+func isPageRequest(r *http.Request) bool {
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		return false
+	}
+	base := r.URL.Path[strings.LastIndexByte(r.URL.Path, '/')+1:]
+	return !strings.Contains(base, ".")
 }
 
 func isLocal(r *http.Request) bool {

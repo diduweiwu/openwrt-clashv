@@ -13,8 +13,9 @@ return L.view.extend({
 		var host = window.location.hostname;
 		/*
 		 * 把当前 LuCI 会话 id 传给 clashv：界面开启「OpenWrt 登录校验」时，
-		 * clashv 用它经 ubus 验证确实是已登录的 LuCI 会话后才放行，
-		 * 直接访问 路由器IP:9097 会被拒绝。全 0 表示未登录，不带参数。
+		 * clashv 用它经 ubus 验证确实是已登录的 LuCI 会话后才放行；
+		 * 直接访问 路由器IP:9097 会被 302 跳回本页（未登录 LuCI 时是登录页）。
+		 * 全 0 表示未登录，不带参数。
 		 */
 		var src = 'http://' + host + ':' + port + '/';
 		var sid = (L.env && L.env.sessionid) || '';
