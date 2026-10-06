@@ -132,20 +132,19 @@ function fmtExpire(ts) {
 }
 
 // ---- 表格列 ----
-// 流量列：整个列表都没有流量信息时收窄到标题宽度（只显示横杠没必要占宽），有流量才展开
-const hasTraffic = computed(() => profiles.value.some(p => trafficOf(p)))
-
+// 宽度策略：auto 布局按内容自适应，只给名称/地址/流量设列级 max-width 上限（ellipsis 属性会把
+// 整表强制成 fixed 布局、宽度退回均分，所以截断用内容 span 自己做，title 提示完整内容）
 const columns = computed(() => [
   {
-    title: '名称', key: 'name', width: 190, ellipsis: { tooltip: true },
-    render: p => h('span', { class: 'name-txt' }, p.name),
+    title: '名称', key: 'name', className: 'col-name',
+    render: p => h('span', { class: 'name-txt', title: p.name }, p.name),
   },
   {
-    title: '订阅地址', key: 'url', minWidth: 220, ellipsis: { tooltip: true },
-    render: p => h('span', { class: 'mono url-txt' }, p.url),
+    title: '订阅地址', key: 'url', className: 'col-url',
+    render: p => h('span', { class: 'mono url-txt', title: p.url }, p.url),
   },
   {
-    title: '流量', key: 'traffic', width: hasTraffic.value ? 180 : 64,
+    title: '流量', key: 'traffic', className: 'col-traffic',
     render: p => {
       const t = trafficOf(p)
       if (!t) return h('span', { class: 'dim' }, '—')
@@ -161,33 +160,35 @@ const columns = computed(() => [
     },
   },
   {
-    title: '更新时间', key: 'updated_at', width: 170,
+    title: '更新时间', key: 'updated_at',
     render: p => h('div', { class: 'upd-cell' }, [
       h('span', null, fmtTime(p.updated_at)),
       h('span', { class: 'dim t2 ua' }, `${fmtBytes(p.size)}${p.ua ? ' · ' + p.ua : ''}`),
     ]),
   },
   {
-    title: '操作', key: 'ops', width: 330,
+    // 图标按钮 + title 提示；已启用行在启用钮位置展示状态 tag（比图标钮宽，列宽自动取较宽态）
+    title: '操作', key: 'ops',
     render: p => h('div', { class: 'ops-cell' }, [
       h(NButton, {
-        size: 'small', loading: busyId.value === p.id,
+        size: 'small', title: '更新',
+        loading: busyId.value === p.id,
         disabled: updatingAll.value, onClick: () => update(p),
-      }, { icon: () => h(AppIcon, { name: 'refresh', size: 13 }), default: () => '更新' }),
+      }, { icon: () => h(AppIcon, { name: 'refresh', size: 13 }) }),
       h(NButton, {
-        size: 'small', type: 'error', ghost: true,
+        size: 'small', type: 'error', ghost: true, title: '删除',
         disabled: busyId.value === p.id || updatingAll.value, onClick: () => remove(p),
-      }, { icon: () => h(AppIcon, { name: 'trash', size: 13 }), default: () => '删除' }),
+      }, { icon: () => h(AppIcon, { name: 'trash', size: 13 }) }),
       h(NButton, {
-        size: 'small',
+        size: 'small', title: '编辑',
         disabled: busyId.value === p.id || updatingAll.value, onClick: () => openEdit(p),
-      }, { icon: () => h(AppIcon, { name: 'edit', size: 13 }), default: () => '编辑' }),
+      }, { icon: () => h(AppIcon, { name: 'edit', size: 13 }) }),
       p.id !== active.value
         ? h(NButton, {
-            type: 'primary', size: 'small', disabled: busyId.value === p.id || updatingAll.value,
+            type: 'primary', size: 'small', title: '启用',
+            disabled: busyId.value === p.id || updatingAll.value,
             onClick: () => activate(p),
-          }, { icon: () => h(AppIcon, { name: 'upload', size: 13 }), default: () => '启用' })
-        // 已启用的行在启用钮位置展示状态 tag，保持操作列等宽对齐
+          }, { icon: () => h(AppIcon, { name: 'upload', size: 13 }) })
         : h(NTag, { size: 'small', round: true, bordered: false, type: 'success' }, { default: () => '已启用' }),
     ]),
   },
@@ -316,7 +317,6 @@ onMounted(() => {
         :data="filtered"
         :row-key="p => p.id"
         :row-class-name="p => (p.id === active ? 'row-active' : '')"
-        :scroll-x="974"
       >
         <template #empty>
           <n-empty description="没有匹配的订阅" style="padding: 30px 0" />
@@ -376,8 +376,11 @@ onMounted(() => {
 .tools { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 
 /* 表格单元格内容（render 函数生成，无 scoped 属性，需 :deep 穿透） */
-:deep(.name-txt) { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:deep(.url-txt) { color: var(--text-dim); font-size: 12px; }
+:deep(.col-name) { max-width: 220px; }
+:deep(.col-url) { max-width: 300px; }
+:deep(.col-traffic) { max-width: 190px; }
+:deep(.name-txt) { font-weight: 500; display: inline-block; vertical-align: bottom; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:deep(.url-txt) { color: var(--text-dim); font-size: 12px; display: inline-block; vertical-align: bottom; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :deep(.row-active > td) { background: var(--accent-soft) !important; }
 :deep(.traf) { display: flex; flex-direction: column; gap: 3px; }
 :deep(.t-usage) { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -397,7 +400,7 @@ onMounted(() => {
 .s-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .btn-pair { display: flex; gap: 8px; }
 
-/* ---- 手机/平板：工具栏换行、搜索独占一行；表格靠 scroll-x 横向滚动 ---- */
+/* ---- 手机/平板：工具栏换行、搜索独占一行；表格内容超宽时在表格内部横向滚动（auto 布局自带） ---- */
 @media (max-width: 760px) {
   .toolbar .search { flex: 1 1 100%; max-width: 100%; }
   .tools { margin-left: 0; }
