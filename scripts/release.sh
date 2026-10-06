@@ -78,19 +78,23 @@ sed_edit() {
   if sed --version >/dev/null 2>&1; then sed -i "$2" "$1"; else sed -i '' "$2" "$1"; fi
 }
 
-# lock 文件里有各依赖包自己的 version 字段，动它之前先确认旧版本号恰好出现 2 次
-# （根条目 + packages."" 条目），次数不对说明撞上了依赖的版本号，不能盲替
-LOCK_HITS="$(grep -c "\"version\": \"${OLD}\"" web/package-lock.json || true)"
-[ "${LOCK_HITS}" = "2" ] || die "web/package-lock.json 中 version:${OLD} 出现 ${LOCK_HITS} 次（预期 2），请手动检查"
+# lock 文件里各依赖包也有自己的 version 字段，可能恰好与项目版本号相同（如
+# vdirs@0.1.8——发 v0.1.8 时撞新号、发 v0.1.9 时撞旧号，两侧都踩过）。根条目
+# 和 packages."" 条目固定在文件头部（lockfileVersion 2/3 都把 "" 排在 packages
+# 首位），所以校验与替换一律限定在头部区域，依赖条目永不触碰；头部次数不对
+# 或净增不为 2 都说明结构异常，宁可失败也不盲替。
+LOCK_HEAD="1,20"
+LOCK_HITS="$(sed -n "${LOCK_HEAD}p" web/package-lock.json | grep -c "\"version\": \"${OLD}\"" || true)"
+[ "${LOCK_HITS}" = "2" ] || die "web/package-lock.json 头部根条目区 version:${OLD} 出现 ${LOCK_HITS} 次（预期 2），请手动检查"
 [ "$(grep -c "\"version\": \"${OLD}\"" web/package.json || true)" = "1" ] \
   || die "web/package.json 中旧版本号出现次数异常，请手动检查"
-# 新版本号也可能恰好是某个依赖的版本（如 vdirs@0.1.8），校验只看「净增 2 次」
+# 新版本号全文件计数可能含依赖条目，校验只看「净增 2 次」
 NEW_HITS_BEFORE="$(grep -c "\"version\": \"${NEW}\"" web/package-lock.json || true)"
 
 sed_edit openwrt/Makefile       "s/^PKG_VERSION:=.*/PKG_VERSION:=${NEW}/"
 sed_edit Makefile               "s/^VERSION ?= .*/VERSION ?= ${NEW}/"
 sed_edit web/package.json       "s/^\(  \"version\": \"\)\(${OLD}\)\(\",\)$/\1${NEW}\3/"
-sed_edit web/package-lock.json  "s/^\( *\"version\": \"\)\(${OLD}\)\(\",\)$/\1${NEW}\3/"
+sed_edit web/package-lock.json  "${LOCK_HEAD}s/^\( *\"version\": \"\)\(${OLD}\)\(\",\)$/\1${NEW}\3/"
 
 # ---------- 校验 ----------
 grep -q "PKG_VERSION:=${NEW}"  openwrt/Makefile      || die "openwrt/Makefile 版本号未更新"
@@ -99,7 +103,9 @@ grep -q "\"version\": \"${NEW}\"" web/package.json   || die "web/package.json �
 NEW_HITS_AFTER="$(grep -c "\"version\": \"${NEW}\"" web/package-lock.json || true)"
 [ "$(( ${NEW_HITS_AFTER} - ${NEW_HITS_BEFORE} ))" = "2" ] \
   || die "web/package-lock.json 版本号未正确更新（${NEW} 净增 ${NEW_HITS_AFTER}−${NEW_HITS_BEFORE}≠2）"
-if grep -q "\"version\": \"${OLD}\"" web/package.json web/package-lock.json; then
+# 旧号在锁文件依赖条目里允许残留（如 vdirs@0.1.8），只查头部根条目区和 package.json
+LOCK_OLD_LEFT="$(sed -n "${LOCK_HEAD}p" web/package-lock.json | grep -c "\"version\": \"${OLD}\"" || true)"
+if grep -q "\"version\": \"${OLD}\"" web/package.json || [ "${LOCK_OLD_LEFT}" != "0" ]; then
   die "仍有旧版本号残留"
 fi
 echo "✓ 4 处版本号已更新为 ${NEW}"
