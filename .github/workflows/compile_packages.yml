@@ -139,6 +139,10 @@ jobs:
         with:
           name: luci-app-clashv-${{ matrix.target.name }}
           path: tmp/out/*
+          # artifact 只是本次 run 内传给 Release job 的中转，持久拷贝在 Release
+          # 资产上；默认保留 90 天会把账号级制品存储配额（Free 500MB，所有私有
+          # 仓库共享）吃满，导致后续 run 上传被拒（v0.1.9 踩过）
+          retention-days: 1
 
   Release:
     runs-on: ubuntu-latest
