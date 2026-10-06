@@ -284,7 +284,7 @@ onMounted(() => {
       <div>
         <h2 class="page-title">订阅</h2>
         <p class="page-sub">
-          {{ profiles.length }} 个订阅<template v-if="activeName"> · 当前使用：{{ activeName }}</template><template v-if="keyword"> · 命中 {{ filtered.length }}</template>
+          {{ profiles.length }} 个订阅<template v-if="activeName"> · 当前使用：{{ activeName }}</template>
         </p>
       </div>
       <n-button type="primary" @click="openAdd"><template #icon><AppIcon name="plus" :size="14" /></template>添加</n-button>
@@ -295,16 +295,17 @@ onMounted(() => {
     </n-card>
 
     <n-card v-else>
-      <!-- 工具栏：过滤 + 定时更新摘要/入口 + 一键全部更新 -->
-      <div class="toolbar">
-        <n-input v-model:value="keyword" size="small" placeholder="过滤订阅名称、地址或 UA…" clearable class="search">
+      <!-- 筛选/操作条：关键字过滤 + 命中计数 + 定时/全部更新（日志页同款布局） -->
+      <div class="filter-bar">
+        <n-input v-model:value="keyword" size="small" placeholder="过滤订阅名称、地址或 UA…" clearable class="f-kw">
           <template #prefix>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" />
             </svg>
           </template>
         </n-input>
-        <div class="tools">
+        <span v-if="keyword" class="hit-count mono">命中 {{ filtered.length }}/{{ profiles.length }}</span>
+        <div class="bar-btns">
           <n-button size="small" :title="`定时更新：${schedSummary}，点击配置`" @click="openSchedule">
             <template #icon><AppIcon name="clock" :size="13" /></template>
             定时 · {{ schedSummary }}
@@ -375,9 +376,11 @@ onMounted(() => {
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .pad :deep(.n-empty) { padding: 34px 0; }
 
-.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-.toolbar .search { flex: 1; max-width: 380px; min-width: 170px; }
-.tools { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+/* 筛选/操作条（日志页同款）：关键字过滤 + 命中计数 + 定时/全部更新 */
+.filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-bar .f-kw { flex: 1; max-width: 380px; min-width: 170px; }
+.hit-count { flex: none; color: var(--text-dim); font-size: 11px; }
+.bar-btns { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 
 /* 表格单元格内容（render 函数生成，无 scoped 属性，需 :deep 穿透） */
 :deep(.col-name) { max-width: 220px; }
@@ -406,9 +409,9 @@ onMounted(() => {
 .s-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .btn-pair { display: flex; gap: 8px; }
 
-/* ---- 手机/平板：工具栏换行、搜索独占一行；表格内容超宽时在表格内部横向滚动（auto 布局自带） ---- */
+/* ---- 手机/平板：筛选条换行、搜索独占一行；表格内容超宽时在表格内部横向滚动（auto 布局自带） ---- */
 @media (max-width: 760px) {
-  .toolbar .search { flex: 1 1 100%; max-width: 100%; }
-  .tools { margin-left: 0; }
+  .filter-bar .f-kw { flex: 1 1 100%; max-width: 100%; }
+  .bar-btns { margin-left: 0; }
 }
 </style>
