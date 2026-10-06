@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { NButton, NDropdown } from 'naive-ui'
+import { NButton, NDropdown, NTooltip } from 'naive-ui'
 import { themeMode, resolvedTheme, applyTheme } from '../theme.js'
 import { store } from '../store.js'
 import AppIcon from './AppIcon.vue'
@@ -13,6 +13,19 @@ function toggleCollapsed() {
   collapsed.value = !collapsed.value
   localStorage.setItem(COLLAPSE_KEY, collapsed.value ? '1' : '0')
 }
+
+// ---- 内存细分：默认显示「内核 + 插件」合并值，悬浮看各项与系统总内存 ----
+const mem = computed(() => store.status?.memory || null)
+const memMerged = computed(() => {
+  if (mem.value) return mem.value.core_mb + mem.value.plugin_mb
+  // 旧后端兼容：traffic 里的内核 RSS
+  return store.status?.running && store.traffic.memory_mb ? store.traffic.memory_mb : 0
+})
+const memMainText = computed(() => (memMerged.value ? memMerged.value.toFixed(1) + ' MB' : '—'))
+const memUsedPercent = computed(() => {
+  if (!mem.value || !mem.value.total_mb) return null
+  return ((memMerged.value / mem.value.total_mb) * 100).toFixed(1)
+})
 
 const navs = [
   { to: '/', label: '首页', icon: 'home' },
@@ -128,10 +141,20 @@ function onMoreSelect(key) {
           <span class="ss-k"><AppIcon name="cpu" :size="11" />CPU</span>
           <span class="ss-v mono">{{ store.status?.running && store.status?.cpu != null ? Math.round(store.status.cpu) + '%' : '—' }}</span>
         </div>
-        <div class="ss">
-          <span class="ss-k"><AppIcon name="database" :size="11" />内存</span>
-          <span class="ss-v mono">{{ store.status?.running && store.traffic.memory_mb ? store.traffic.memory_mb.toFixed(1) + ' MB' : '—' }}</span>
-        </div>
+        <n-tooltip trigger="hover" placement="top-start" :style="{ maxWidth: '280px' }">
+          <template #trigger>
+            <div class="ss">
+              <span class="ss-k"><AppIcon name="database" :size="11" />内存</span>
+              <span class="ss-v mono">{{ memMainText }}</span>
+            </div>
+          </template>
+          <div class="mem-tip mono">
+            <div>内核 <b>{{ mem?.core_mb ? mem.core_mb.toFixed(1) + ' MB' : '—' }}</b></div>
+            <div>插件 <b>{{ mem?.plugin_mb ? mem.plugin_mb.toFixed(1) + ' MB' : '—' }}</b></div>
+            <div v-if="mem?.total_mb">总内存 <b>{{ mem.total_mb.toFixed(0) }} MB</b><template v-if="memUsedPercent">（占用 {{ memUsedPercent }}%）</template></div>
+            <div v-else class="dim">当前环境不提供总内存信息</div>
+          </div>
+        </n-tooltip>
         <div class="ss">
           <span class="ss-k"><AppIcon name="link" :size="11" />连接</span>
           <span class="ss-v mono">{{ store.status?.running ? store.traffic.connections : '—' }}</span>
@@ -212,6 +235,10 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 }
 .ss-k { display: flex; align-items: center; gap: 5px; color: rgba(255, 255, 255, 0.45); font-size: 11px; }
 .ss-v { color: rgba(255, 255, 255, 0.85); font-size: 11.5px; font-weight: 600; }
+/* 内存悬浮细分 */
+.mem-tip { font-size: 12px; line-height: 2; }
+.mem-tip b { font-weight: 600; margin-left: 6px; }
+.mem-tip .dim { opacity: 0.65; font-weight: 400; }
 .status-line {
   display: flex; align-items: center; gap: 8px;
   color: rgba(255, 255, 255, 0.55); font-size: 12.5px; padding: 0 8px;

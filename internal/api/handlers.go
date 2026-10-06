@@ -91,6 +91,12 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if v, ok := core.CPUPercent(); ok {
 		cpu = v
 	}
+	// 内存细分：内核进程 RSS + 插件自身 RSS + 系统总内存（总内存仅 Linux 有值）
+	memory := map[string]float64{
+		"core_mb":   d.mgr.CoreRSSMB(),
+		"plugin_mb": core.ReadRSSMB(os.Getpid()),
+		"total_mb":  core.TotalMemMB(),
+	}
 	writeJSON(w, 200, map[string]any{
 		"running":        d.mgr.Running(),
 		"starting":       d.mgr.Starting(),
@@ -99,6 +105,7 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"started_at":     startedAt.Unix(),
 		"cpu":            cpu,
 		"core":           cs,
+		"memory":         memory,
 		"plugin_version": d.ver,
 		"profile":        profileName,
 		"ui_port":        s.UIPort,
@@ -729,6 +736,28 @@ func (d *deps) handleLogs(w http.ResponseWriter, r *http.Request) {
 		"exists":    true,
 		"truncated": size > maxBytes,
 	})
+}
+
+// handleLogsClear 清空指定日志（kind=core|plugin）。用截断而非删除：两个日志的
+// 写入方都持有 O_APPEND fd（内核日志由本插件接管内核 stdout，插件日志是本进程
+// 自写），截断后下次写入自动从文件头继续，与 LogJanitor 的 copytruncate 轮转
+// 是同一安全模型，内核运行中也可执行。
+func (d *deps) handleLogsClear(w http.ResponseWriter, r *http.Request) {
+	kind := r.URL.Query().Get("kind")
+	if kind != "core" && kind != "plugin" {
+		writeErr(w, 400, errStr("kind 必须是 core 或 plugin"))
+		return
+	}
+	name := "core.log"
+	if kind == "plugin" {
+		name = "clashv.log"
+	}
+	path := filepath.Join(d.cfg.LogDir(), name)
+	if err := os.Truncate(path, 0); err != nil && !os.IsNotExist(err) {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 // normalizeVer 去掉版本号前缀 v，便于比较。

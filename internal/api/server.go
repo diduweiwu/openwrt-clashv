@@ -123,6 +123,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 
 	// 日志（内核/插件）
 	mux.HandleFunc("GET /api/logs", d.handleLogs)
+	mux.HandleFunc("POST /api/logs/clear", d.handleLogsClear)
 
 	// 前端静态资源（SPA 回退到 index.html）
 	dist := web.Dist()

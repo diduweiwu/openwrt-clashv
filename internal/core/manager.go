@@ -405,7 +405,7 @@ func (m *Manager) startPolling(ctx context.Context) {
 					UpTotal:     snap.UploadTotal,
 					DownTotal:   snap.DownloadTotal,
 					Connections: len(snap.Connections),
-					MemoryMB:    m.processRSSMB(),
+					MemoryMB:    ReadRSSMB(m.PID()),
 				}
 				// 连接快照上限 1000 条，防止异常大量连接拖垮路由器内存
 				m.conns = snap.Connections
@@ -418,9 +418,8 @@ func (m *Manager) startPolling(ctx context.Context) {
 	}()
 }
 
-// processRSSMB 读取内核进程 RSS（MB）。Linux 直接读 /proc，其余平台用 ps。
-func (m *Manager) processRSSMB() float64 {
-	pid := m.PID()
+// ReadRSSMB 读取指定进程 RSS（MB）。Linux 直接读 /proc，其余平台用 ps。
+func ReadRSSMB(pid int) float64 {
 	if pid == 0 {
 		return 0
 	}
@@ -447,6 +446,30 @@ func (m *Manager) processRSSMB() float64 {
 	}
 	kb, _ := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
 	return kb / 1024.0
+}
+
+// CoreRSSMB 内核进程 RSS（MB），内核未运行返回 0。
+func (m *Manager) CoreRSSMB() float64 { return ReadRSSMB(m.PID()) }
+
+// TotalMemMB 系统物理内存总量（MB）。仅 Linux（/proc/meminfo），其他平台返回 0，
+// 前端据此隐藏「总内存」展示。
+func TotalMemMB() float64 {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "MemTotal:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				if kb, err := strconv.ParseFloat(fields[1], 64); err == nil {
+					return kb / 1024.0
+				}
+			}
+			return 0
+		}
+	}
+	return 0
 }
 
 // sysProcAttr 目前无需平台特化；保留钩子便于日后加 Pdeathsig 等。

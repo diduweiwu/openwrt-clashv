@@ -162,8 +162,12 @@ const columns = computed(() => [
   {
     title: '更新时间', key: 'updated_at',
     render: p => h('div', { class: 'upd-cell' }, [
-      h('span', null, fmtTime(p.updated_at)),
-      h('span', { class: 'dim t2 ua' }, `${fmtBytes(p.size)}${p.ua ? ' · ' + p.ua : ''}`),
+      // 更新时间蓝 tag、文件尺寸灰 tag，颜色区分
+      h(NTag, { size: 'small', bordered: false, type: 'info', class: 'upd-tag' }, { default: () => fmtTime(p.updated_at) }),
+      h('div', { class: 'upd-sub' }, [
+        h(NTag, { size: 'small', bordered: false, class: 'upd-tag' }, { default: () => fmtBytes(p.size) }),
+        p.ua ? h('span', { class: 'dim t2 ua' }, p.ua) : null,
+      ]),
     ]),
   },
   {
@@ -384,7 +388,9 @@ onMounted(() => {
 :deep(.row-active > td) { background: var(--accent-soft) !important; }
 :deep(.traf) { display: flex; flex-direction: column; gap: 3px; }
 :deep(.t-usage) { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:deep(.upd-cell) { display: flex; flex-direction: column; gap: 2px; }
+:deep(.upd-cell) { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+:deep(.upd-sub) { display: flex; align-items: center; gap: 6px; min-width: 0; }
+:deep(.upd-tag) { font-family: var(--mono, ui-monospace, monospace); font-size: 11px; }
 :deep(.t2) { font-size: 11.5px; }
 :deep(.t2.ua) { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :deep(.ops-cell) { display: flex; gap: 8px; align-items: center; }
