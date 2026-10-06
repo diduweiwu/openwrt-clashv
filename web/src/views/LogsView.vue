@@ -207,7 +207,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
             </svg>
           </template>
         </n-input>
-        <n-select v-model:value="levelSel" size="small" :options="LEVEL_OPTS" class="f-level" />
+        <n-select v-model:value="levelSel" size="small" :options="LEVEL_OPTS" placeholder="筛选级别" class="f-level" />
         <n-date-picker
           v-model:value="range" type="datetimerange" size="small" clearable
           format="MM-dd HH:mm" class="f-range"

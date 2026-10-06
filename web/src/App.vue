@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { NConfigProvider, NModal, NProgress, NSpin } from 'naive-ui'
+import { NConfigProvider, NModal, NProgress, NSpin, dateZhCN, zhCN } from 'naive-ui'
 import Sidebar from './components/Sidebar.vue'
 import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes, pushTraffic } from './store.js'
 import { api } from './api.js'
@@ -115,7 +115,8 @@ async function startCoreDownload() {
 </script>
 
 <template>
-  <n-config-provider class="provider" :theme="naiveTheme" :theme-overrides="naiveOverrides">
+  <!-- locale：naive 内置文案（下拉「请选择」、日期选择器起止占位、分页等）走中文 -->
+  <n-config-provider class="provider" :theme="naiveTheme" :theme-overrides="naiveOverrides" :locale="zhCN" :date-locale="dateZhCN">
     <div class="layout">
       <Sidebar />
       <main class="content">
