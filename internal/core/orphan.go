@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -129,16 +131,23 @@ func checkCoreBindErrors(path string, from int64) error {
 	return nil
 }
 
-// waitCoreServing 模拟客户端真实拨号，确认内核服务端口已在接受连接：
-// mixed（HTTP/SOCKS 混合代理）与 redir（透明代理重定向入口）必须可连，
-// DNS 接管开启时内核 DNS 端口也要可连（mihomo 对 dns.listen 同时提供
-// TCP/UDP 服务）。控制器就绪≠服务就绪，全部探测通过才算启动完成；
-// 超时仍不通则报错（调用方会杀掉刚拉起的内核）。
+// waitCoreServing 确认内核的服务端口已在接受连接且代理链路真实可用：
+// 先逐个 TCP 拨测 mixed（HTTP/SOCKS 混合代理）、redir（透明代理重定向入口）
+// 与内核 DNS 端口（mihomo 对 dns.listen 同时提供 TCP/UDP 服务）——控制器
+// 就绪≠服务就绪，某个监听没起来时 mihomo 只在日志里报错并继续运行；端口
+// 全通后再通过混合端口真实代理一个 HTTP 请求到本机控制器，验证
+// 监听接受 → 隧道分发 → 规则匹配 → 出站拨号 → 响应返回整条链路。探测
+// 目标是本机回环地址，运行时配置已置顶固定直连规则，因此结果不依赖
+// 互联网与节点健康——只有内核自己真的能代理流量才算通过。
+// 例外：出站为全局模式时内核绕过规则表把全部流量送 GLOBAL 组，回环
+// 探测会被送往远程节点而误判失败，此时只做端口拨测。超时仍不通则报错
+// （调用方会杀掉刚拉起的内核）。
 func waitCoreServing(ctx context.Context, s config.Settings) error {
 	ports := []string{fmt.Sprintf("127.0.0.1:%d", s.MixedPort), "127.0.0.1:" + redirPort}
 	if s.DNS {
 		ports = append(ports, "127.0.0.1:"+dnsListenPort)
 	}
+	global := config.NormalizeCoreMode(s.CoreMode) == "global"
 	deadline := time.Now().Add(10 * time.Second)
 	var lastAddr string
 	var lastErr error
@@ -154,10 +163,17 @@ func waitCoreServing(ctx context.Context, s config.Settings) error {
 			_ = conn.Close()
 		}
 		if reachable {
-			return nil
+			if global {
+				return nil
+			}
+			if err := probeThroughProxy(ctx, s); err == nil {
+				return nil
+			} else {
+				lastAddr, lastErr = fmt.Sprintf("127.0.0.1:%d", s.MixedPort), err
+			}
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("服务端口 %s 持续不可连接: %w", lastAddr, lastErr)
+			return fmt.Errorf("代理链路探测未通过（%s: %w）", lastAddr, lastErr)
 		}
 		select {
 		case <-ctx.Done():
@@ -165,6 +181,36 @@ func waitCoreServing(ctx context.Context, s config.Settings) error {
 		case <-time.After(300 * time.Millisecond):
 		}
 	}
+}
+
+// probeThroughProxy 经混合端口真实代理一次 HTTP 请求访问本机控制器
+// /version。能带回任何 HTTP 响应（含 401/5xx）即证明整条代理链路已通，
+// 状态码属于控制器鉴权/自身问题，不是「内核不能代理流量」。
+func probeThroughProxy(ctx context.Context, s config.Settings) error {
+	target := fmt.Sprintf("http://127.0.0.1:%d/version", s.ControllerPort)
+	proxyURL, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", s.MixedPort))
+	if err != nil {
+		return err
+	}
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+		Transport: &http.Transport{
+			Proxy:             http.ProxyURL(proxyURL),
+			DisableKeepAlives: true,
+		},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.ControllerSecret)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<10))
+	_ = resp.Body.Close()
+	return nil
 }
 
 // killCoreProcess 结束刚拉起、但启动流程未完成的子进程（SIGTERM → 5s → SIGKILL），

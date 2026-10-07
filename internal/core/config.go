@@ -60,6 +60,8 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 		doc["rules"] = []any{"MATCH," + proxyTarget}
 		slog.Info("已注入兜底规则，保证默认流量走代理", "reason", reason, "rule", "MATCH,"+proxyTarget)
 	}
+	// 固定置顶规则（优先于自定义规则与订阅规则），见 prependPinnedRules
+	prependPinnedRules(doc)
 	out, err := yaml.Marshal(doc)
 	if err != nil {
 		return err
@@ -79,6 +81,26 @@ func (m *Manager) buildRuntimeConfig(activeProfile string, s config.Settings) er
 func rulesEmpty(doc map[string]any) bool {
 	rules, ok := doc["rules"].([]any)
 	return !ok || len(rules) == 0
+}
+
+// pinnedLoopbackRules 固定置顶规则：回环地址只可能是路由器本机服务，
+// 走远程节点永远不正确；启动就绪探测（waitCoreServing）也依赖「经混合
+// 端口访问本机控制器必直连」才能确定性地验证代理链路，否则探测请求可能
+// 被 MATCH 规则送往远程节点、打到节点自己的 127.0.0.1 上。
+var pinnedLoopbackRules = []string{
+	"IP-CIDR,127.0.0.0/8,DIRECT,no-resolve",
+	"IP-CIDR6,::1/128,DIRECT,no-resolve",
+}
+
+// prependPinnedRules 把固定置顶规则插到 rules 最前——优先于自定义规则与
+// 订阅规则，订阅缺 rules 段时同样生效。
+func prependPinnedRules(doc map[string]any) {
+	orig, _ := doc["rules"].([]any)
+	merged := make([]any, 0, len(pinnedLoopbackRules)+len(orig))
+	for _, r := range pinnedLoopbackRules {
+		merged = append(merged, r)
+	}
+	doc["rules"] = append(merged, orig...)
 }
 
 // mergeCustomRules 把用户自定义规则置顶并入 doc 的 rules 列表
@@ -172,8 +194,8 @@ func managedOverlay(s config.Settings, proxyTarget string) map[string]any {
 		"mixed-port": s.MixedPort,
 		// 路由器插件固定允许 LAN：透明代理把流量 REDIRECT 到本机端口，
 		// 以及局域网设备直连混合端口，都要求监听 0.0.0.0（127.0.0.1 会拒收）
-		"allow-lan":           true,
-		"bind-address":        "*",
+		"allow-lan":    true,
+		"bind-address": "*",
 		// 出站模式跟随设置（首页出站模式卡片可切，运行时 PATCH + 持久化）
 		"mode":                config.NormalizeCoreMode(s.CoreMode),
 		"log-level":           "info",

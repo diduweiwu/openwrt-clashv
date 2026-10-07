@@ -47,9 +47,10 @@ type Manager struct {
 	exited    chan struct{} // 内核进程退出时关闭
 
 	running atomic.Bool
-	// starting 表示内核进程已拉起但控制接口尚未就绪（启动窗口最长 15s）。
-	// 期间 Running() 仍为 false：没就绪就不能算「运行中」，否则界面在
-	// 重启窗口里显示运行中、启动失败时还会跳回已停止，误导用户。
+	// starting 表示内核进程已拉起但就绪探测尚未通过（控制器最长 15s +
+	// 代理链路探测最长 10s + 防火墙规则套用）。期间 Running() 仍为 false：
+	// 没就绪就不能算「运行中」，否则界面在重启窗口里显示运行中、启动失败
+	// 时还会跳回已停止，误导用户。
 	starting atomic.Bool
 	// stopping 表示本次内核退出由用户主动停止（Stop）发起。外部死亡——
 	// 升级/重启服务时 procd 连服务带内核一起杀、killall、内核自身崩溃——
@@ -99,7 +100,8 @@ func (m *Manager) PID() int {
 	return 0
 }
 
-// Start 拉起 mihomo：合成运行时配置 → 启动进程 → 等待控制接口就绪 → 开始流量采样。
+// Start 拉起 mihomo：合成运行时配置 → 启动进程 → 等待控制接口与代理链路
+// 就绪（真实代理一次请求验证）→ 套用防火墙接管 → 开始流量采样。
 func (m *Manager) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -239,19 +241,23 @@ func (m *Manager) Start() error {
 		killCoreProcess(cmd, m.exited)
 		return fmt.Errorf("内核端口绑定失败: %w", err)
 	}
-	// 控制器能应答 + 日志无绑定错误，仍不代表服务真的可用：再模拟客户端
-	// 真实拨号，确认代理/DNS 监听已在接受连接，全部可用后才置「运行中」。
-	// 否则界面提前显示运行中，LAN 设备却连不上代理，误判成「断网」。
+	// 控制器能应答 + 日志无绑定错误，仍不代表服务真的可用：先逐端口拨测
+	// 确认监听都在接受连接，再通过混合端口真实代理一次请求验证整条代理
+	// 链路（见 waitCoreServing）。全部通过才置「运行中」，否则界面提前
+	// 显示运行中，LAN 设备却连不上代理，误判成「断网」。
 	if err := waitCoreServing(ctx, s); err != nil {
 		killCoreProcess(cmd, m.exited)
 		return fmt.Errorf("内核服务未就绪: %w", err)
 	}
+	// DNS 劫持 + TCP 透明代理同步套用：必须赶在置「运行中」之前完成，
+	// 否则置位后到规则生效前这段窗口里 LAN 流量还没被接管，用户看到
+	// 「显示运行中但还没代理流量」。失败只告警不阻断——内核与显式代理
+	// 客户端已可用，防火墙问题留给日志排查。
+	m.ApplyTrafficHooks(s)
 	// 就绪：此刻起才算「运行中」
 	m.running.Store(true)
 	m.markCoreState(true) // 记住运行状态：服务重启/路由器重启后据此自动恢复
 	m.startPolling(ctx)
-	// DNS 劫持 + TCP 透明代理在内核就绪后异步套用
-	go m.ApplyTrafficHooks(s)
 	slog.Info("mihomo 已启动", "pid", cmd.Process.Pid, "profile", active)
 	return nil
 }
