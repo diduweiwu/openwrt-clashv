@@ -111,6 +111,7 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"ui_port":        s.UIPort,
 		"mixed_port":     s.MixedPort,
 		"tun":            s.TUN,
+		"tun_stack":      s.TUNStack,
 		"dns":            s.DNS,
 		"dns_mode":       s.DNSMode,
 		"mode":           config.NormalizeCoreMode(s.CoreMode),

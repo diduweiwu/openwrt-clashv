@@ -3,7 +3,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag, NSwitch } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
+import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
 import AppIcon from '../components/AppIcon.vue'
@@ -187,7 +187,7 @@ async function viewConfig() {
   }
 }
 
-// ---- 快速切换：分组手风琴，默认全展开、可折叠；节点点击即切换 ----
+// ---- 快速切换：分组手风琴，默认全展开、可折叠；节点点击先确认再切换 ----
 const folded = ref({}) // 组名 → 是否折叠（缺省 false = 展开）
 
 function delayOf(nodeName) {
@@ -196,6 +196,8 @@ function delayOf(nodeName) {
 }
 
 async function pick(g, node) {
+  if (node === currentOf(g)) return // 重复点击当前节点不动作，也就无需确认
+  if (!(await ask('切换节点', `确认把「${g.name}」切换到「${node}」？切换后新连接立即走该节点`))) return
   try {
     await api.put('/api/proxies/' + encodeURIComponent(g.name), { name: node })
     toast(`「${g.name}」已切换到 ${node}`, 'success')
@@ -263,6 +265,35 @@ async function applyDns() {
     toast(e.message, 'error')
   } finally {
     dnsBusy.value = false
+  }
+}
+
+// ---- TUN 快捷设置（瓦片齿轮 → 弹窗，配置项与设置页 TUN 卡一致） ----
+const showTun = ref(false)
+const tunDraft = ref({ tun: false, tun_stack: 'mixed' })
+const tunBusy = ref(false)
+
+function openTun() {
+  tunDraft.value = { tun: !!status.value?.tun, tun_stack: status.value?.tun_stack || 'mixed' }
+  showTun.value = true
+}
+
+// 与 DNS 同一套路：先取全量再改 tun/tun_stack 回写（PUT 是整体替换）
+async function applyTun() {
+  if (tunBusy.value) return
+  tunBusy.value = true
+  try {
+    const s = await api.get('/api/settings')
+    s.tun = tunDraft.value.tun
+    s.tun_stack = tunDraft.value.tun_stack
+    const r = await api.put('/api/settings', s)
+    toast('TUN 设置已保存' + (r.restarted ? '，内核已重启生效' : ''), 'success')
+    showTun.value = false
+    refreshStatus()
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    tunBusy.value = false
   }
 }
 
@@ -352,15 +383,19 @@ function currentOf(g) {
             <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
             <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
           </div>
-          <!-- 快捷瓦片：标题行齿轮贴右，点击弹对应设置弹窗 -->
+        </div>
+        <!-- 快捷瓦片行：TUN/DNS/混合端口/出站模式四块单独一行，标题行齿轮弹对应设置弹窗 -->
+        <div class="quick-tiles">
           <div class="meta-item">
             <span class="k">
-              <AppIcon name="plug" :size="13" />混合端口
-              <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
+              <AppIcon name="network" :size="13" />TUN
+              <button class="tile-gear" title="TUN 设置" @click="openTun">
                 <AppIcon name="gear" :size="12" />
               </button>
             </span>
-            <span class="v mono">{{ status?.mixed_port || '—' }}</span>
+            <span class="v mono" :class="{ dim: !status?.tun }">
+              {{ status?.tun ? `开启 · ${status.tun_stack || 'mixed'}` : '未开启' }}
+            </span>
           </div>
           <div class="meta-item">
             <span class="k">
@@ -372,6 +407,15 @@ function currentOf(g) {
             <span class="v mono" :class="{ dim: !status?.dns }">
               {{ status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管' }}
             </span>
+          </div>
+          <div class="meta-item">
+            <span class="k">
+              <AppIcon name="plug" :size="13" />混合端口
+              <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
+                <AppIcon name="gear" :size="12" />
+              </button>
+            </span>
+            <span class="v mono">{{ status?.mixed_port || '—' }}</span>
           </div>
           <div class="meta-item">
             <span class="k">
@@ -468,7 +512,7 @@ function currentOf(g) {
     <n-card>
       <div class="sec-head">
         <h3><AppIcon class="sec-ico" name="shuffle" :size="15" />切换节点</h3>
-        <span class="page-sub">点击节点名直接切换 · 点击分组标题可折叠</span>
+        <span class="page-sub">点击节点确认后切换 · 点击分组标题可折叠</span>
       </div>
       <n-empty v-if="!status?.running" description="内核未运行，启动后可切换节点" />
       <n-empty v-else-if="selectableGroups.length === 0" description="订阅中没有可手动选择的代理组" />
@@ -616,6 +660,56 @@ function currentOf(g) {
       </div>
     </n-modal>
 
+    <!-- TUN 设置弹窗：接管开关 + 协议栈（与设置页 TUN 卡一致） -->
+    <n-modal
+      preset="card"
+      title="TUN 设置"
+      :show="showTun"
+      :style="{ width: '440px', maxWidth: '94vw' }"
+      @update:show="showTun = false"
+    >
+      <div class="mode-body">
+        <div class="dns-row">
+          <div class="dns-text">
+            <span class="m-name">TUN 模式</span>
+            <span class="m-desc">接管全局流量（含 UDP）；关闭时自动用防火墙接管局域网 TCP</span>
+          </div>
+          <n-switch v-model:value="tunDraft.tun" size="small" />
+        </div>
+        <button
+          class="mode-row"
+          :class="{ sel: tunDraft.tun_stack === 'mixed' }"
+          :disabled="!tunDraft.tun || tunBusy"
+          @click="tunDraft.tun_stack = 'mixed'"
+        >
+          <span class="m-name">mixed</span>
+          <span class="m-desc">混合协议栈：TCP 走系统栈、UDP 走 gVisor，兼顾性能与兼容（推荐）</span>
+        </button>
+        <button
+          class="mode-row"
+          :class="{ sel: tunDraft.tun_stack === 'system' }"
+          :disabled="!tunDraft.tun || tunBusy"
+          @click="tunDraft.tun_stack = 'system'"
+        >
+          <span class="m-name">system</span>
+          <span class="m-desc">走系统网络栈，性能最好，个别环境兼容性稍弱</span>
+        </button>
+        <button
+          class="mode-row"
+          :class="{ sel: tunDraft.tun_stack === 'gvisor' }"
+          :disabled="!tunDraft.tun || tunBusy"
+          @click="tunDraft.tun_stack = 'gvisor'"
+        >
+          <span class="m-name">gvisor</span>
+          <span class="m-desc">纯用户态实现，兼容性最好，性能略低</span>
+        </button>
+        <div class="mode-foot">
+          <span class="page-sub">保存后内核自动重启生效</span>
+          <n-button type="primary" size="small" :loading="tunBusy" @click="applyTun">保存</n-button>
+        </div>
+      </div>
+    </n-modal>
+
     <!-- 混合端口使用说明 -->
     <n-modal
       preset="card"
@@ -737,9 +831,9 @@ function currentOf(g) {
 
 /* 标题行：标题居左、重置钮贴右；指标瓦片在标题下方独立成行 */
 .traffic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
-/* 与运行卡瓦片行同规格：同 6 列等宽网格 + 同 16px 间距，四块流量瓦片占前四列，
-   竖向分隔线与上行逐列对齐 */
-.traffic-nums { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
+/* 与快捷瓦片行同规格：同 4 列等宽网格 + 16px 间距，四块流量瓦片铺满一行，
+   竖向分隔线与上方快捷瓦片行逐列对齐 */
+.traffic-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
 .traffic-nums .meta-item { height: 69px; }
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; margin-left: auto; }
@@ -747,10 +841,11 @@ function currentOf(g) {
 /* 运行状态行：状态居左、控制按钮贴右；瓦片行六块（含快捷瓦片）独占下一行等分 */
 .hero-top { display: flex; align-items: center; gap: 12px; }
 .hero-actions { margin-left: auto; }
-/* 瓦片行网格：6 列等宽 + 16px 间距（与流量瓦片行同一套列规格，保证上下两卡对齐） */
-.hero-tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
+/* 瓦片行网格：状态行 3 块、快捷行 4 块，各占一行等宽 + 16px 间距 */
+.hero-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.quick-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 
-/* 快捷瓦片（混合端口/DNS/出站模式）标题行的齿轮贴右 */
+/* 快捷瓦片（TUN/DNS/混合端口/出站模式）标题行的齿轮贴右 */
 .meta-item .k .tile-gear { margin-left: auto; }
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -835,21 +930,28 @@ function currentOf(g) {
 
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
-  /* 六块瓦片固定每行三块（等分而非按内容取宽，避免出现 5+1 之类不齐排布） */
+  /* 状态瓦片 3 块一行；快捷瓦片固定每行两块（等分而非按内容取宽，避免出现 3+1 之类不齐排布） */
   .hero-tiles { grid-template-columns: repeat(3, 1fr); }
-  .hero-tiles .meta-item { min-width: 0; padding: 8px 10px 9px; }
+  .quick-tiles { grid-template-columns: repeat(2, 1fr); }
+  .hero-tiles .meta-item,
+  .quick-tiles .meta-item { min-width: 0; padding: 8px 10px 9px; }
   .hero-tiles .meta-item .k,
-  .hero-tiles .meta-item .v { white-space: nowrap; }
-  .hero-tiles .meta-item .k { gap: 4px; }
-  .hero-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
+  .hero-tiles .meta-item .v,
+  .quick-tiles .meta-item .k,
+  .quick-tiles .meta-item .v { white-space: nowrap; }
+  .hero-tiles .meta-item .k,
+  .quick-tiles .meta-item .k { gap: 4px; }
+  .hero-tiles .meta-item .k .tile-gear,
+  .quick-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: 62px; }
   .traffic-nums .meta-item .v { font-size: 14px; }
   .sub-bar { max-width: 100%; }
 }
-/* ≤420 三等分放不下「标题+齿轮」，收到每行两块 */
+/* ≤420 状态瓦片三块放不下收到每行两块，快捷瓦片保持两块一行 */
 @media (max-width: 420px) {
   .hero-tiles { grid-template-columns: repeat(2, 1fr); }
+  .quick-tiles { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
