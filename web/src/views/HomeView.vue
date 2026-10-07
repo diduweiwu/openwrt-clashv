@@ -841,8 +841,8 @@ function currentOf(g) {
 /* 运行状态行：状态居左、控制按钮贴右；瓦片行六块（含快捷瓦片）独占下一行等分 */
 .hero-top { display: flex; align-items: center; gap: 12px; }
 .hero-actions { margin-left: auto; }
-/* 瓦片行网格：状态行 3 块、快捷行 4 块，各占一行等宽 + 16px 间距 */
-.hero-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+/* 瓦片行网格：状态行与快捷行同为 4 列等宽（状态行只有 3 块，最右一格留空，上下瓦片同宽对齐）+ 16px 间距 */
+.hero-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .quick-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 
 /* 快捷瓦片（TUN/DNS/混合端口/出站模式）标题行的齿轮贴右 */
@@ -930,8 +930,8 @@ function currentOf(g) {
 
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
-  /* 状态瓦片 3 块一行；快捷瓦片固定每行两块（等分而非按内容取宽，避免出现 3+1 之类不齐排布） */
-  .hero-tiles { grid-template-columns: repeat(3, 1fr); }
+  /* 状态瓦片与快捷瓦片同列数：每行两块（状态行 3 块即 2+1，右侧留空与桌面同一规则） */
+  .hero-tiles { grid-template-columns: repeat(2, 1fr); }
   .quick-tiles { grid-template-columns: repeat(2, 1fr); }
   .hero-tiles .meta-item,
   .quick-tiles .meta-item { min-width: 0; padding: 8px 10px 9px; }
@@ -948,10 +948,5 @@ function currentOf(g) {
   .traffic-nums .meta-item { height: 62px; }
   .traffic-nums .meta-item .v { font-size: 14px; }
   .sub-bar { max-width: 100%; }
-}
-/* ≤420 状态瓦片三块放不下收到每行两块，快捷瓦片保持两块一行 */
-@media (max-width: 420px) {
-  .hero-tiles { grid-template-columns: repeat(2, 1fr); }
-  .quick-tiles { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
