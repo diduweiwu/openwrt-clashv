@@ -368,6 +368,7 @@ function currentOf(g) {
             </n-button>
           </n-flex>
         </div>
+        <!-- 瓦片行：状态 3 块 + 快捷 4 块（TUN/DNS/混合端口/出站模式）挤同一排等宽，齿轮弹对应设置弹窗 -->
         <div class="hero-tiles">
           <div class="meta-item">
             <span class="k"><AppIcon name="cpu" :size="13" />内核版本</span>
@@ -383,9 +384,6 @@ function currentOf(g) {
             <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
             <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
           </div>
-        </div>
-        <!-- 快捷瓦片行：TUN/DNS/混合端口/出站模式四块单独一行，标题行齿轮弹对应设置弹窗 -->
-        <div class="quick-tiles">
           <div class="meta-item">
             <span class="k">
               <AppIcon name="network" :size="13" />TUN
@@ -759,14 +757,14 @@ function currentOf(g) {
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(1.5); opacity: 0; }
 }
-/* 状态项做成小卡片瓦片：浅底圆角，标签在上、值在下 */
+/* 状态项做成小卡片瓦片：浅底圆角，标签在上、值在下；min-width 归零让 7 列网格能均匀收缩 */
 .meta-item {
   display: flex; flex-direction: column; gap: 4px;
   background: var(--bg-card-2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 9px 14px 10px;
-  min-width: 104px;
+  padding: 9px 12px 10px;
+  min-width: 0;
 }
 .meta-item .k { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
 /* 瓦片标题行尾的小齿轮：默认很淡，悬停亮起 */
@@ -831,19 +829,21 @@ function currentOf(g) {
 
 /* 标题行：标题居左、重置钮贴右；指标瓦片在标题下方独立成行 */
 .traffic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
-/* 与快捷瓦片行同规格：同 4 列等宽网格 + 16px 间距，四块流量瓦片铺满一行，
-   竖向分隔线与上方快捷瓦片行逐列对齐 */
-.traffic-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
+/* 与上方 7 瓦片行同规格：同 7 列等宽网格 + 16px 间距，四块流量瓦片占前四列（右侧三格留空），
+   竖向分隔线与上行逐列对齐 */
+.traffic-nums { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
 .traffic-nums .meta-item { height: 69px; }
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; margin-left: auto; }
 
-/* 运行状态行：状态居左、控制按钮贴右；瓦片行六块（含快捷瓦片）独占下一行等分 */
+/* 运行状态行：状态居左、控制按钮贴右 */
 .hero-top { display: flex; align-items: center; gap: 12px; }
 .hero-actions { margin-left: auto; }
-/* 瓦片行网格：状态行与快捷行同为 4 列等宽（状态行只有 3 块，最右一格留空，上下瓦片同宽对齐）+ 16px 间距 */
-.hero-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.quick-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+/* 瓦片行网格：7 块（状态 3 + 快捷 4）挤同一排 7 列等宽；与流量瓦片行同列规格，上下分隔线逐列对齐 */
+.hero-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
+/* 标签/值不折行：瓦片变窄后换行会破坏等高观感，放不下宁可横向收紧 */
+.hero-tiles .meta-item .k,
+.hero-tiles .meta-item .v { white-space: nowrap; }
 
 /* 快捷瓦片（TUN/DNS/混合端口/出站模式）标题行的齿轮贴右 */
 .meta-item .k .tile-gear { margin-left: auto; }
@@ -930,19 +930,11 @@ function currentOf(g) {
 
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
-  /* 状态瓦片与快捷瓦片同列数：每行两块（状态行 3 块即 2+1，右侧留空与桌面同一规则） */
+  /* 7 块瓦片窄屏固定每行两块（等分而非按内容取宽，避免不齐排布；末行单块占半行与桌面留空同规则） */
   .hero-tiles { grid-template-columns: repeat(2, 1fr); }
-  .quick-tiles { grid-template-columns: repeat(2, 1fr); }
-  .hero-tiles .meta-item,
-  .quick-tiles .meta-item { min-width: 0; padding: 8px 10px 9px; }
-  .hero-tiles .meta-item .k,
-  .hero-tiles .meta-item .v,
-  .quick-tiles .meta-item .k,
-  .quick-tiles .meta-item .v { white-space: nowrap; }
-  .hero-tiles .meta-item .k,
-  .quick-tiles .meta-item .k { gap: 4px; }
-  .hero-tiles .meta-item .k .tile-gear,
-  .quick-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
+  .hero-tiles .meta-item { padding: 8px 10px 9px; }
+  .hero-tiles .meta-item .k { gap: 4px; }
+  .hero-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: 62px; }
