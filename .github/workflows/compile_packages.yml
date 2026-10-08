@@ -60,7 +60,9 @@ jobs:
         target:
           # ipk：22.03 SDK（opkg 系统 22.03/23.05 全部可用）
           - name: ipk
-          # apk：snapshot SDK（apk 系统即 OpenWrt 24.10+/snapshot）
+          # apk：25.12 稳定版 SDK（apk 系统 = 25.12+/snapshot；24.10 仍是 opkg）。
+          # 两个目标都从 Docker Hub 官方 openwrt/sdk 正式版镜像直提 SDK
+          #（快、tag 冻结不漂移），拉取失败自动回落 openwrt.org tarball 直下
           - name: apk
     steps:
       - uses: actions/checkout@v4
@@ -90,8 +92,8 @@ jobs:
           STAGE: sdkname
         run: echo "name=$(./scripts/ci-build.sh | grep -v '^==>' | head -n 1)" >> "$GITHUB_OUTPUT"
 
-      # SDK 目录含解压后的完整构建状态：命中后跳过 1.4GB 下载 + 数百个预置 kmod
-      # 的重新打包（该步骤占包编译阶段 8 成以上耗时），只剩插件本体 ~25s
+      # SDK 目录含解压后的完整构建状态：命中后跳过 Docker 镜像拉取 + 数百个预置
+      # kmod 的重新打包（该步骤占包编译阶段 8 成以上耗时），只剩插件本体 ~25s
       - name: Restore OpenWrt SDK Cache
         id: sdkcache
         uses: actions/cache/restore@v4

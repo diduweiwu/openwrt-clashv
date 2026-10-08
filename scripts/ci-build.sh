@@ -12,6 +12,8 @@
 #                 压缩包文件名不下载，供 CI 缓存 key 使用；默认 all 顺序全部执行
 #   VERSION       包版本号，默认读 openwrt/Makefile 的 PKG_VERSION
 #   SDK_URL       覆盖 ipk 目标的 SDK 下载地址（默认与 CI 相同）
+#   SDK_IMAGE_IPK/APK  覆盖/禁用 Docker Hub 的 SDK 镜像（显式设空 = 禁用镜像
+#                 模式，回落 tarball 直下；默认 openwrt/sdk:x86-64-22.03.7 / :x86-64-25.12.5）
 #   SDK_CACHE_DIR SDK 下载/解压目录，默认 ./tmp（本地构建可指向持久缓存卷）
 #   OUT_DIR       产物输出目录，默认 ./tmp/out
 #
@@ -72,6 +74,23 @@ OUT_DIR="${OUT_DIR:-$REPO_ROOT/tmp/out}"
 # ipk 目标用 22.03.7 最终版 SDK（版本已冻结，URL 恒定 → 缓存 key 永不失效）；SDK_URL 可覆盖
 IPK_SDK_URL="${SDK_URL:-https://downloads.openwrt.org/releases/22.03.7/targets/x86/64/openwrt-sdk-22.03.7-x86-64_gcc-11.2.0_musl.Linux-x86_64.tar.xz}"
 
+# SDK 优先从 Docker Hub 的 OpenWrt 官方镜像提取（Actions 机房直连 Hub，几十秒拉完；
+# 镜像内 SDK 在 /builder，docker cp 拷出即可），拉取失败回落下方 tarball 直下路径。
+# ⚠ 只有正式版 tag（vX.Y.Z 触发构建）烘焙了完整 SDK；分支/snapshot tag 是空壳
+# （内含 setup.sh，运行时才从 downloads.openwrt.org 现下 284M，等于没绕开慢源）。
+#   x86-64-22.03.7  ipk 目标：与上面 tarball 是同一份 22.03.7 SDK
+#   x86-64-25.12.5  apk 目标：首个 apk 系稳定版（24.10 仍是 opkg；本包 PKGARCH:=all
+#                   仅依赖 ca-bundle+kmod-tun，对 SDK 用 snapshot 还是 25.12 无差别，
+#                   且 tag 冻结不再随上游漂移）。显式设空变量可禁用镜像走 tarball。
+SDK_IMAGE_IPK="${SDK_IMAGE_IPK-openwrt/sdk:x86-64-22.03.7}"
+SDK_IMAGE_APK="${SDK_IMAGE_APK-openwrt/sdk:x86-64-25.12.5}"
+sdk_image() {
+  case "$TARGET" in
+    ipk) echo "$SDK_IMAGE_IPK" ;;
+    apk) echo "$SDK_IMAGE_APK" ;;
+  esac
+}
+
 # snapshot SDK 源列表（按优先级）：官方源优先，失败回落 TUNA。
 # 北大/阿里/南大/上交等国内镜像均未同步 snapshots 目录（实测 404），别再加。
 SNAPSHOT_BASE_URLS="https://downloads.openwrt.org/snapshots/targets/x86/64/ https://mirrors.tuna.tsinghua.edu.cn/openwrt/snapshots/targets/x86/64/"
@@ -104,12 +123,17 @@ fetch_big() {
 # ---------- 解析 SDK 压缩包文件名（不下载，供 CI 缓存 key 用） ----------
 # snapshot SDK 的文件名随上游更新变化，以它作 key 可在上游换 SDK 时自动失效重建
 if [ "$STAGE" = "sdkname" ]; then
+  # 镜像模式输出镜像 tag 作缓存 key（正式版 tag 冻结不漂移）；tarball 模式输出压缩包名
   if [ "$TARGET" = "ipk" ]; then
-    basename "$IPK_SDK_URL"
+    if [ -n "$SDK_IMAGE_IPK" ]; then echo "${SDK_IMAGE_IPK##*:}"; else basename "$IPK_SDK_URL"; fi
   else
-    SDK_TARBALL=$(snapshot_tarball_name)
-    [ -n "$SDK_TARBALL" ] || { echo "ERROR: 无法解析 snapshot SDK 文件名" >&2; exit 1; }
-    echo "$SDK_TARBALL"
+    if [ -n "$SDK_IMAGE_APK" ]; then
+      echo "${SDK_IMAGE_APK##*:}"
+    else
+      SDK_TARBALL=$(snapshot_tarball_name)
+      [ -n "$SDK_TARBALL" ] || { echo "ERROR: 无法解析 snapshot SDK 文件名" >&2; exit 1; }
+      echo "$SDK_TARBALL"
+    fi
   fi
 fi
 
@@ -127,32 +151,50 @@ if [ "$STAGE" = "sdk" ] || [ "$STAGE" = "all" ]; then
   fi
 
   if [ ! -d "$SDK_NAME" ]; then
-    echo "==> [sdk] 下载 OpenWrt SDK ($TARGET)"
-    if [ "$TARGET" = "ipk" ]; then
-      fetch_big "$IPK_SDK_URL" ./SDK.tar.xz
-      tar xf SDK.tar.xz
-      rm -f SDK.tar.xz
-      rm -rf "$SDK_NAME"
-      mv openwrt-sdk-* "$SDK_NAME"
-    else
-      # snapshot SDK（apk 系统即 OpenWrt 24.10+/snapshot）。换源前删掉上一源
-      # 留下的半截文件再从头下，避免两个源各下一半混拼出坏包
-      for base in $SNAPSHOT_BASE_URLS; do
-        SDK_TARBALL=$(curl -sf --connect-timeout 30 --retry 3 "$base" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
-        [ -n "$SDK_TARBALL" ] || continue
-        rm -f ./SNAPSDK.tar.zst
-        fetch_big "$base/$SDK_TARBALL" ./SNAPSDK.tar.zst && break
-      done
-      [ -f ./SNAPSDK.tar.zst ] || { echo "ERROR: 所有源均下载 snapshot SDK 失败" >&2; exit 1; }
-      zstd -d SNAPSDK.tar.zst
-      rm -f SNAPSDK.tar.zst
-      tar xf SNAPSDK.tar
-      rm -f SNAPSDK.tar
-      rm -rf "$SDK_NAME"
-      # 解压出的目录固定叫 openwrt-sdk-*，直接 glob；不要用 tar tf 读
-      # 整个 1.4GB tarball 拿目录名（慢，且 head 提前退出会报无害的
-      # "tar: stdout: write error"）
-      mv openwrt-sdk-* "$SDK_NAME"
+    echo "==> [sdk] 获取 OpenWrt SDK ($TARGET)"
+    SDK_IMG=$(sdk_image)
+    extracted=0
+    # 首选：Docker Hub 官方镜像直提（Actions 机房秒级拉完，无 openwrt.org 慢源问题）
+    if [ -n "$SDK_IMG" ] && command -v docker >/dev/null 2>&1; then
+      if docker pull "$SDK_IMG"; then
+        echo "==> [sdk] 从镜像提取 SDK: $SDK_IMG"
+        cid=$(docker create "$SDK_IMG")
+        rm -rf "$SDK_NAME"
+        docker cp "$cid":/builder/. "$SDK_NAME"
+        docker rm "$cid" >/dev/null
+        extracted=1
+      else
+        echo "==> [sdk] 镜像拉取失败，回落 tarball 直下"
+      fi
+    fi
+    # 回退：tarball 直下（本地无 docker / Hub 不可达时仍可用）
+    if [ "$extracted" -eq 0 ]; then
+      if [ "$TARGET" = "ipk" ]; then
+        fetch_big "$IPK_SDK_URL" ./SDK.tar.xz
+        tar xf SDK.tar.xz
+        rm -f SDK.tar.xz
+        rm -rf "$SDK_NAME"
+        mv openwrt-sdk-* "$SDK_NAME"
+      else
+        # snapshot SDK。换源前删掉上一源留下的半截文件再从头下，
+        # 避免两个源各下一半混拼出坏包
+        for base in $SNAPSHOT_BASE_URLS; do
+          SDK_TARBALL=$(curl -sf --connect-timeout 30 --retry 3 "$base" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
+          [ -n "$SDK_TARBALL" ] || continue
+          rm -f ./SNAPSDK.tar.zst
+          fetch_big "$base/$SDK_TARBALL" ./SNAPSDK.tar.zst && break
+        done
+        [ -f ./SNAPSDK.tar.zst ] || { echo "ERROR: 所有源均下载 snapshot SDK 失败" >&2; exit 1; }
+        zstd -d SNAPSDK.tar.zst
+        rm -f SNAPSDK.tar.zst
+        tar xf SNAPSDK.tar
+        rm -f SNAPSDK.tar
+        rm -rf "$SDK_NAME"
+        # 解压出的目录固定叫 openwrt-sdk-*，直接 glob；不要用 tar tf 读
+        # 整个 1.4GB tarball 拿目录名（慢，且 head 提前退出会报无害的
+        # "tar: stdout: write error"）
+        mv openwrt-sdk-* "$SDK_NAME"
+      fi
     fi
   else
     echo "==> [sdk] 复用缓存的 SDK: $SDK_CACHE_DIR/$SDK_NAME"
