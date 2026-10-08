@@ -72,18 +72,42 @@ OUT_DIR="${OUT_DIR:-$REPO_ROOT/tmp/out}"
 # ipk 目标用 22.03.7 最终版 SDK（版本已冻结，URL 恒定 → 缓存 key 永不失效）；SDK_URL 可覆盖
 IPK_SDK_URL="${SDK_URL:-https://downloads.openwrt.org/releases/22.03.7/targets/x86/64/openwrt-sdk-22.03.7-x86-64_gcc-11.2.0_musl.Linux-x86_64.tar.xz}"
 
+# snapshot SDK 源列表（按优先级）：官方源优先，失败回落 TUNA。
+# 北大/阿里/南大/上交等国内镜像均未同步 snapshots 目录（实测 404），别再加。
+SNAPSHOT_BASE_URLS="https://downloads.openwrt.org/snapshots/targets/x86/64/ https://mirrors.tuna.tsinghua.edu.cn/openwrt/snapshots/targets/x86/64/"
+
+# snapshot SDK 目录列表页里解析压缩包文件名（随上游更新变化）
+snapshot_tarball_name() {
+  for base in $SNAPSHOT_BASE_URLS; do
+    name=$(curl -sf --connect-timeout 30 --retry 3 "$base" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
+    [ -n "$name" ] && { echo "$name"; return 0; }
+  done
+  return 1
+}
+
+# 大文件下载（SDK 压缩包 100M+）：官方源对大文件偶发 HTTP/2 流中断
+# （PROTOCOL_ERROR）与限速，--http1.1 从根上规避 H2 流错误；--retry-all-errors
+# 让 92 这类「非瞬态」错误也吃进重试；-C - 断点续传，重试从已下字节继续。
+# curl 重试耗尽后外层再整轮重来；换源前由调用方删半截文件，避免两源混拼。
+fetch_big() {
+  url="$1" out="$2"
+  for round in 1 2 3; do
+    if curl -SLfk --http1.1 --connect-timeout 30 \
+        --retry 4 --retry-all-errors --retry-delay 5 -C - "$url" -o "$out"; then
+      return 0
+    fi
+    rm -f "$out"
+  done
+  return 1
+}
+
 # ---------- 解析 SDK 压缩包文件名（不下载，供 CI 缓存 key 用） ----------
 # snapshot SDK 的文件名随上游更新变化，以它作 key 可在上游换 SDK 时自动失效重建
 if [ "$STAGE" = "sdkname" ]; then
   if [ "$TARGET" = "ipk" ]; then
     basename "$IPK_SDK_URL"
   else
-    BASE_URL="https://downloads.openwrt.org/snapshots/targets/x86/64/"
-    SDK_TARBALL=$(curl -sf --connect-timeout 30 --retry 3 "$BASE_URL" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
-    if [ -z "$SDK_TARBALL" ]; then
-      BASE_URL2="https://mirrors.pku.edu.cn/files/openwrt/snapshots/targets/x86/64/"
-      SDK_TARBALL=$(curl -sf --connect-timeout 30 --retry 3 "$BASE_URL2" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
-    fi
+    SDK_TARBALL=$(snapshot_tarball_name)
     [ -n "$SDK_TARBALL" ] || { echo "ERROR: 无法解析 snapshot SDK 文件名" >&2; exit 1; }
     echo "$SDK_TARBALL"
   fi
@@ -105,19 +129,21 @@ if [ "$STAGE" = "sdk" ] || [ "$STAGE" = "all" ]; then
   if [ ! -d "$SDK_NAME" ]; then
     echo "==> [sdk] 下载 OpenWrt SDK ($TARGET)"
     if [ "$TARGET" = "ipk" ]; then
-      curl -SLfk --connect-timeout 30 --retry 3 "$IPK_SDK_URL" -o ./SDK.tar.xz
+      fetch_big "$IPK_SDK_URL" ./SDK.tar.xz
       tar xf SDK.tar.xz
       rm -f SDK.tar.xz
       rm -rf "$SDK_NAME"
       mv openwrt-sdk-* "$SDK_NAME"
     else
-      BASE_URL="https://downloads.openwrt.org/snapshots/targets/x86/64/"
-      SDK_TARBALL=$(curl -sf "$BASE_URL" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
-      if ! curl -SLfk --connect-timeout 30 --retry 3 "$BASE_URL/$SDK_TARBALL" -o ./SNAPSDK.tar.zst; then
-        BASE_URL2="https://mirrors.pku.edu.cn/files/openwrt/snapshots/targets/x86/64/"
-        SDK_TARBALL=$(curl -sf "$BASE_URL2" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
-        curl -SLfk --connect-timeout 30 --retry 3 "$BASE_URL2/$SDK_TARBALL" -o ./SNAPSDK.tar.zst
-      fi
+      # snapshot SDK（apk 系统即 OpenWrt 24.10+/snapshot）。换源前删掉上一源
+      # 留下的半截文件再从头下，避免两个源各下一半混拼出坏包
+      for base in $SNAPSHOT_BASE_URLS; do
+        SDK_TARBALL=$(curl -sf --connect-timeout 30 --retry 3 "$base" | grep -oE 'openwrt-sdk-x86-64[^"]+\.tar\.zst' | head -n 1)
+        [ -n "$SDK_TARBALL" ] || continue
+        rm -f ./SNAPSDK.tar.zst
+        fetch_big "$base/$SDK_TARBALL" ./SNAPSDK.tar.zst && break
+      done
+      [ -f ./SNAPSDK.tar.zst ] || { echo "ERROR: 所有源均下载 snapshot SDK 失败" >&2; exit 1; }
       zstd -d SNAPSDK.tar.zst
       rm -f SNAPSDK.tar.zst
       tar xf SNAPSDK.tar
