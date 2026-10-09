@@ -19,7 +19,9 @@ name: Build clashv (ipk & apk)
 # tag 运行的缓存读取量不计入 10GB 配额，保存才计入。
 
 on:
-  # push trigger disabled during identity rewrite (restored at master tip)
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
   schedule:
     # 每周一跑一次：① 保活 master 名下的 SDK 缓存（GitHub 缓存 7 天无人使用自动清理），
