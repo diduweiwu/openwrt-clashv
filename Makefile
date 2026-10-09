@@ -10,7 +10,7 @@
 #
 # 发版不走 make：唯一入口是 ./scripts/release.sh（升版本号+提交+打 tag+推送触发 CI）
 
-VERSION ?= 0.1.19
+VERSION ?= 0.1.20
 GO      ?= $(HOME)/.local/go/bin/go
 export GOPROXY ?= https://goproxy.cn,direct
 
