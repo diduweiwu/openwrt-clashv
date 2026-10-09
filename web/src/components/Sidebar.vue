@@ -85,6 +85,12 @@ function onMoreSelect(key) {
         <path stroke-miterlimit="5.7143" d="M28.4091,26.3872a1.4666,1.4666,0,0,1-1.4726-1.4725"/>
       </svg>
       <span>ClashV</span>
+      <!-- 运行状态点：logo 行最右固定位置（原底部状态行收缩而来），状态文字收进悬浮提示 -->
+      <span
+        class="dot logo-dot"
+        :class="{ on: store.status?.running, wait: !store.status?.running && store.status?.starting }"
+        :title="store.status?.running ? '运行中' : store.status?.starting ? '启动中…' : '已停止'"
+      ></span>
     </div>
 
     <nav>
@@ -160,10 +166,6 @@ function onMoreSelect(key) {
           <span class="ss-v mono">{{ store.status?.running ? store.traffic.connections : '—' }}</span>
         </div>
       </div>
-      <div class="status-line">
-        <span class="dot" :class="{ on: store.status?.running, wait: !store.status?.running && store.status?.starting }"></span>
-        <span class="status-text">{{ store.status?.running ? '运行中' : store.status?.starting ? '启动中…' : '已停止' }}</span>
-      </div>
       <n-dropdown trigger="click" placement="top-start" :options="themeOptions" @select="pickTheme">
         <n-button quaternary size="small" class="theme-btn">{{ themeLabel }}</n-button>
       </n-dropdown>
@@ -194,7 +196,10 @@ function onMoreSelect(key) {
   font-size: 17px; font-weight: 700; color: var(--text);
   padding: 0 8px;
   letter-spacing: 0.3px;
+  position: relative; /* 供运行状态点绝对定位到行最右，不挤占 logo/标题 */
 }
+/* 运行状态点：logo 行最右固定（原底部状态行收缩而来，状态文字走 title 悬浮） */
+.logo-dot { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
 nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
   display: flex; align-items: center; gap: 15px;
@@ -239,10 +244,6 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .mem-tip { font-size: 12px; line-height: 2; }
 .mem-tip b { font-weight: 600; margin-left: 6px; }
 .mem-tip .dim { opacity: 0.65; font-weight: 400; }
-.status-line {
-  display: flex; align-items: center; gap: 8px;
-  color: var(--text-dim); font-size: 12.5px; padding: 0 8px;
-}
 .dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: #5a5f6d;
@@ -278,12 +279,12 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
     padding-right: 12px;
   }
   .sidebar.collapsed .logo { justify-content: center; padding: 0; }
-  .sidebar.collapsed .logo span { display: none; }
+  .sidebar.collapsed .logo span:not(.logo-dot) { display: none; }
   .sidebar.collapsed .nav-item { justify-content: center; gap: 0; padding: 10px 0; }
   .sidebar.collapsed .nav-item span { display: none; }
   .sidebar.collapsed .side-stats { display: none; }
-  .sidebar.collapsed .status-line { justify-content: center; padding: 0; }
-  .sidebar.collapsed .status-text { display: none; }
+  /* 收起态：状态点改挂小猫右上角（角标式），底部不再有状态行 */
+  .sidebar.collapsed .logo-dot { top: -3px; right: 1px; transform: none; }
   .sidebar.collapsed .theme-btn,
   .sidebar.collapsed .collapse-btn { justify-content: center; padding: 0; }
 }
@@ -298,10 +299,12 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   /* 一行要容下 logo + 7 个页面 + 「更多」共 8 项（320px 极窄屏也不换行），图标项收紧到 27px 宽 */
   .nav-item { padding: 7px 5px; }
   .nav-item span { display: none; }
-  /* 底部区（状态行/主题钮/折叠钮）隐藏：状态点显示在导航行，主题进「更多」下拉 */
+  /* 底部区（迷你卡/主题钮/折叠钮）隐藏：状态点显示在导航行，主题进「更多」下拉 */
   .bottom { display: none; }
   .more-btn { display: flex; }
   .nav-dot { display: block; flex: none; align-self: center; }
+  /* 移动端 logo 行不显示状态点：导航行的 nav-dot 已承担，避免出现两颗 */
+  .logo-dot { display: none; }
 }
 @media (max-width: 420px) {
   /* 极窄屏：logo 文字让位，只留小猫 */
