@@ -41,8 +41,9 @@ export const naiveOverrides = computed(() => {
       inputColor: dark ? '#242938' : '#f5f6fa',
       actionColor: dark ? '#242938' : '#f5f6fa',
       modalColor: dark ? '#1e222c' : '#ffffff',
-      borderColor: dark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(20, 22, 30, 0.08)',
-      dividerColor: dark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(20, 22, 30, 0.08)',
+      // 描边/分隔线与 style.css 的 --border 保持一致：浅色 8% 太淡（直边几乎不可见），加深到 14%
+      borderColor: dark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(20, 22, 30, 0.14)',
+      dividerColor: dark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(20, 22, 30, 0.14)',
     },
     Card: { borderRadius: '14px', paddingMedium: '18px 20px' },
     // segment 型 tab 的选中底色默认与输入框同色，深色下几乎看不见 → 用主题色胶囊

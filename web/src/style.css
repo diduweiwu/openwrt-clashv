@@ -29,7 +29,8 @@ html[data-theme='light'] {
   --sidebar: #ffffff;
   --text: #23262f;
   --text-dim: #7a8090;
-  --border: rgba(20, 22, 30, 0.08);
+  /* 描边 8% 时 1px 线在白底上几乎不可见（只有卡片圆角叠加处显色），14% 接近常见浅色 UI 的边框观感 */
+  --border: rgba(20, 22, 30, 0.14);
   --shadow: 0 2px 12px rgba(30, 34, 48, 0.08);
   --hover: rgba(20, 22, 30, 0.045);
 }
