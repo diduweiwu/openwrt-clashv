@@ -6,6 +6,7 @@
 package profiles
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,8 @@ import (
 
 	"crypto/sha1"
 	"encoding/hex"
+
+	"gopkg.in/yaml.v3"
 
 	"clashv/internal/config"
 )
@@ -123,6 +126,46 @@ func (m *Manager) List() ([]Profile, error) {
 
 // Path 返回订阅 yaml 文件路径（不存在时也返回期望路径）。
 func (m *Manager) Path(id string) string { return m.yamlPath(id) }
+
+// Content 读取订阅原文件内容（本地手工编辑用；重新拉取订阅会覆盖它）。
+func (m *Manager) Content(id string) ([]byte, error) {
+	if !validID(id) {
+		return nil, fmt.Errorf("非法的订阅 ID")
+	}
+	if _, err := m.Get(id); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(m.yamlPath(id))
+}
+
+// SaveContent 把本地编辑后的订阅原文件落盘（不触发内核重启，由调用方决定）。
+// 校验 ID/订阅存在、非空、大小与 YAML 合法性，防止存坏文件导致内核无法启动；
+// 走 write 的临时文件+rename 原子落盘。
+func (m *Manager) SaveContent(id string, content []byte) error {
+	if !validID(id) {
+		return fmt.Errorf("非法的订阅 ID")
+	}
+	p, err := m.Get(id)
+	if err != nil {
+		return err
+	}
+	if len(bytes.TrimSpace(content)) == 0 {
+		return fmt.Errorf("订阅内容为空")
+	}
+	if len(content) > 10<<20 {
+		return fmt.Errorf("订阅内容超过 10MB 上限")
+	}
+	var v map[string]any
+	if err := yaml.Unmarshal(content, &v); err != nil {
+		return fmt.Errorf("不是合法的 YAML：%w", err)
+	}
+	if v == nil {
+		return fmt.Errorf("内容不是有效的配置结构（顶层须为键值映射）")
+	}
+	p.UpdatedAt = time.Now().Unix()
+	p.Size = int64(len(content))
+	return m.write(p, content)
+}
 
 // Add 下载 url 并保存为新订阅，返回元数据。ua 为空时用默认 User-Agent。
 func (m *Manager) Add(name, url, ua string) (Profile, error) {

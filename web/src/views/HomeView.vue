@@ -168,14 +168,21 @@ const subExpire = computed(() => {
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
 })
 
-// ---- 运行时配置查看 ----
+// ---- 运行时配置查看 + 订阅文件编辑 ----
 const showConfig = ref(false)
 const cfgContent = ref('')
 const cfgLoading = ref(false)
+// 编辑态加载的是订阅原文件（与查看态的运行时合成配置不同：后者含插件注入的
+// 端口/DNS/规则）。保存后该订阅一直用编辑后的文件，重新拉取订阅会覆盖。
+const cfgEditing = ref(false)
+const cfgEditContent = ref('')
+const cfgOriginal = ref('')
+const cfgSaving = ref(false)
 
 async function viewConfig() {
   showConfig.value = true
   cfgLoading.value = true
+  cfgEditing.value = false
   try {
     const r = await api.get('/api/core/config')
     cfgContent.value = r.content || ''
@@ -184,6 +191,50 @@ async function viewConfig() {
     toast(e.message, 'error')
   } finally {
     cfgLoading.value = false
+  }
+}
+
+async function editProfileContent() {
+  const id = activeProfile.value?.id
+  if (!id) return
+  try {
+    const r = await api.get(`/api/profiles/${id}/content`)
+    cfgOriginal.value = r.content || ''
+    cfgEditContent.value = cfgOriginal.value
+    cfgEditing.value = true
+  } catch (e) {
+    toast(e.message, 'error')
+  }
+}
+
+async function saveProfileContent() {
+  const id = activeProfile.value?.id
+  if (!id || cfgSaving.value) return
+  if (cfgEditContent.value === cfgOriginal.value) {
+    cfgEditing.value = false
+    toast('内容未变化', 'info')
+    return
+  }
+  cfgSaving.value = true
+  try {
+    await api.put(`/api/profiles/${id}/content`, { content: cfgEditContent.value })
+    cfgEditing.value = false
+    showConfig.value = false
+    toast('订阅文件已保存，重新拉取该订阅会覆盖此修改', 'success', 5000)
+    if (await ask('重启内核', '订阅文件已修改，立即重启内核以应用新的订阅内容？')) {
+      try {
+        await api.post('/api/core/restart')
+        toast('内核已重启，新订阅内容已生效', 'success')
+        refreshStatus()
+        loadProxies()
+      } catch (e) {
+        toast(e.message, 'error')
+      }
+    }
+  } catch (e) {
+    toast(e.message, 'error', 6000)
+  } finally {
+    cfgSaving.value = false
   }
 }
 
@@ -735,16 +786,42 @@ function currentOf(g) {
       </div>
     </n-modal>
 
-    <!-- 运行时配置查看 -->
+    <!-- 运行时配置查看（编辑态切到订阅原文件） -->
     <n-modal
       preset="card"
-      title="运行时配置（config.yaml）"
+      :title="cfgEditing ? '编辑订阅文件' : '运行时配置（config.yaml）'"
       :show="showConfig"
       :style="{ width: '760px', maxWidth: '94vw' }"
       @update:show="showConfig = false"
     >
-      <pre v-if="!cfgLoading" class="cfg-view mono">{{ cfgContent }}</pre>
-      <n-empty v-else description="加载中…" style="padding: 40px 0" />
+      <template v-if="!cfgEditing">
+        <pre v-if="!cfgLoading" class="cfg-view mono">{{ cfgContent }}</pre>
+        <n-empty v-else description="加载中…" style="padding: 40px 0" />
+        <div class="cfg-foot">
+          <span class="page-sub">要改订阅内容？可编辑订阅原文件，保存后重新拉取订阅会覆盖修改</span>
+          <n-button size="small" :disabled="cfgLoading || !activeProfile" @click="editProfileContent">
+            <template #icon><AppIcon name="edit" :size="13" /></template>编辑订阅
+          </n-button>
+        </div>
+      </template>
+      <template v-else>
+        <n-input
+          v-model:value="cfgEditContent"
+          type="textarea"
+          class="cfg-edit mono"
+          :autosize="{ minRows: 20, maxRows: 26 }"
+          placeholder="订阅 YAML 内容…"
+        />
+        <div class="cfg-foot">
+          <span class="page-sub">保存后该订阅将使用此文件，重新拉取订阅会覆盖本地修改</span>
+          <div class="btn-row">
+            <n-button size="small" :disabled="cfgSaving" @click="cfgEditing = false">取消</n-button>
+            <n-button type="primary" size="small" :loading="cfgSaving" @click="saveProfileContent">
+              <template #icon><AppIcon name="check" :size="13" /></template>确认修改
+            </n-button>
+          </div>
+        </div>
+      </template>
     </n-modal>
   </div>
 </template>
@@ -930,6 +1007,12 @@ function currentOf(g) {
   font-size: 12px; line-height: 1.6;
   white-space: pre; tab-size: 2;
 }
+.cfg-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 10px;
+}
+.cfg-foot .btn-row { display: flex; gap: 8px; flex: none; }
+.cfg-edit :deep(.n-input__textarea-el) { font-size: 12px; line-height: 1.6; tab-size: 2; }
 
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {

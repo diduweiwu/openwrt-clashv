@@ -90,6 +90,8 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("POST /api/profiles/{id}/activate", d.handleProfileActivate)
 	mux.HandleFunc("PUT /api/profiles/{id}", d.handleProfileEdit)
 	mux.HandleFunc("DELETE /api/profiles/{id}", d.handleProfileDelete)
+	mux.HandleFunc("GET /api/profiles/{id}/content", d.handleProfileContentGet)
+	mux.HandleFunc("PUT /api/profiles/{id}/content", d.handleProfileContentPut)
 
 	// 设置
 	mux.HandleFunc("GET /api/settings", d.handleSettingsGet)

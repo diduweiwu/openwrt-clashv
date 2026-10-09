@@ -368,6 +368,32 @@ func (d *deps) handleCoreConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"content": string(data)})
 }
 
+// handleProfileContentGet 返回订阅原文件内容（本地手工编辑用）。
+func (d *deps) handleProfileContentGet(w http.ResponseWriter, r *http.Request) {
+	data, err := d.prof.Content(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, 404, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"content": string(data)})
+}
+
+// handleProfileContentPut 保存本地编辑后的订阅原文件；不自动重启内核，由前端询问。
+func (d *deps) handleProfileContentPut(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 10<<20+64<<10)).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法 JSON"))
+		return
+	}
+	if err := d.prof.SaveContent(r.PathValue("id"), []byte(body.Content)); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"saved": true})
+}
+
 func (d *deps) handleProfileUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	p, err := d.prof.Update(id)
