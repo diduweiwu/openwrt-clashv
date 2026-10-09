@@ -19,13 +19,37 @@ Go 后端 + 内嵌 Web 界面，一个二进制搞定，**不玩脚本编辑那�
 
 ## 📸 界面预览
 
-| 首页：状态 / 实时流量 / 快速切换 | 代理：分组节点 / 点击切换 / 整组测速 |
-|---|---|
-| ![首页](docs/screenshots/home.png) | ![代理](docs/screenshots/proxies.png) |
-| **节点切换弹窗（带延迟）** | **订阅管理** |
-| ![节点切换](docs/screenshots/node-picker.png) | ![订阅](docs/screenshots/profiles.png) |
-| **设置：内核与插件更新 / TUN / 访问控制** | **浅色主题（默认跟随系统）** |
-| ![设置](docs/screenshots/settings.png) | ![浅色主题](docs/screenshots/light.png) |
+**🏠 首页 —— 运行状态 · 快捷开关瓦片 · 实时流量曲线 · 快速切换节点**
+
+![首页](docs/screenshots/home.png)
+
+**🌐 代理 —— 分组节点 · 点击切换 · 整组测速 · 延迟配色**
+
+![代理](docs/screenshots/proxies.png)
+
+**📥 订阅 —— 表格管理 · 流量/到期展示 · 定时自动更新**
+
+![订阅](docs/screenshots/profiles.png)
+
+**📏 规则 —— 自定义规则置顶 · 内核运行时规则 · 搜索过滤**
+
+![规则](docs/screenshots/rules.png)
+
+**🔗 连接 —— 实时活动连接 · 命中规则/代理链/进程 · 上下行速度**
+
+![连接](docs/screenshots/connections.png)
+
+**📜 日志 —— 内核/插件双日志 · 级别与时间段筛选 · 关键字过滤**
+
+![日志](docs/screenshots/logs.png)
+
+**⚙️ 设置 —— 通用/网络/内核/插件 分区，说明收进问号弹窗**
+
+![设置](docs/screenshots/settings.png)
+
+**☀️ 浅色主题（默认跟随系统，深浅一键切换）**
+
+![浅色主题](docs/screenshots/light.png)
 
 ## ✨ 特性
 
@@ -40,7 +64,7 @@ Go 后端 + 内嵌 Web 界面，一个二进制搞定，**不玩脚本编辑那�
   - 🧭 DNS 接管（fake-ip）+ DNS 劫持（防火墙转发 / dnsmasq 转发），旁路由/网关模式开箱即用
   - 🔐 访问令牌等常用开关
 - 🧩 **LuCI 集成**：安装后在 LuCI「服务 → ClashV」进入界面（iframe 内嵌，自适应撑满视口）
-- 🪶 **低占用**：Go 后端约 10–20MB 内存；前端打包后仅 ~51KB gzip，纯静态文件由 Go 直接托管，无 Node/PHP/Lua 运行时
+- 🪶 **低占用**：Go 后端约 10–20MB 内存；前端纯静态文件由 Go 直接托管，无 Node/PHP/Lua 运行时
 
 ## 🧰 技术选型
 
@@ -49,8 +73,8 @@ Go 后端 + 内嵌 Web 界面，一个二进制搞定，**不玩脚本编辑那�
 | 后端 | **Go 1.22+** | 标准库 `net/http` 实现全部 REST API，不引 Web 框架 |
 | 代理内核 | **mihomo**（Clash.Meta 内核） | 子进程托管生死与配置，浏览器永不直连内核 API |
 | 前端框架 | **Vue 3 + Vue Router** | `<script setup>` 组合式 API，轻量无状态库 |
-| 构建工具 | **Vite** | 开发热更新；产物 gzip 仅 ~51KB |
-| UI 样式 | 手写 CSS（无组件库） | CSS 变量深/浅双主题，默认跟随系统 |
+| 构建工具 | **Vite** | 开发热更新；产物 gzip ~290KB（含组件库） |
+| UI 组件 | **naive-ui** + CSS 变量 | 深浅双主题（CSS 变量驱动），默认跟随系统 |
 | 流量图表 | 原生 Canvas | 手绘实时曲线，零图表依赖 |
 | 静态托管 | **`go:embed`** | 前端产物编译进单个二进制 |
 | 配置存储 | **OpenWrt UCI** | `/etc/config/clashv`；开发机回退 `~/.clashv/config.json` |
@@ -82,7 +106,7 @@ internal/profiles/   订阅下载/存储/更新（<workdir>/profiles/*.yaml + me
 internal/core/       mihomo 生命周期、配置合成、控制接口客户端、流量采样、内核/插件更新
 internal/api/        REST API + SPA 静态托管 + 访问令牌鉴权 + 订阅自动更新循环
 internal/web/        go:embed 前端产物
-web/                 Vue3 + Vite 前端源码（无重型 UI 框架，手绘 canvas 流量图）
+web/                 Vue3 + Vite 前端源码（naive-ui 组件库，手绘 canvas 流量图）
 openwrt/             OpenWrt 打包：init.d、UCI 默认配置、LuCI 菜单、SDK Makefile
 scripts/             交叉编译脚本
 ```

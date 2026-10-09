@@ -51,7 +51,7 @@ const columns = [
   { title: '链路', key: 'chains', minWidth: 140, className: 'mono', ellipsis: { tooltip: true }, render: chainText },
   { title: '规则', key: 'rule', minWidth: 110, className: 'mono', ellipsis: { tooltip: true }, render: ruleText },
   { title: '进程', key: 'process', minWidth: 110, className: 'mono', ellipsis: { tooltip: true }, render: processText },
-  { title: '连接时间', key: 'start', width: 90, className: 'mono', render: fmtDuration },
+  { title: '连接时间', key: 'start', width: 90, className: 'mono', render: (c) => fmtDuration(c.start) },
   { title: '源地址', key: 'src', width: 150, className: 'mono addr', ellipsis: { tooltip: true }, render: srcText },
   { title: '目标地址', key: 'dst', width: 150, className: 'mono addr', ellipsis: { tooltip: true }, render: dstText },
   {

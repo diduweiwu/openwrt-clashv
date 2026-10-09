@@ -323,17 +323,15 @@ watch(
       <n-empty description="内核未运行，启动后可查看实际加载的规则" />
     </n-card>
     <n-card v-else-if="filtered.length" class="rule-card">
-      <div class="rule-scroll">
-        <div v-for="r in filtered" :key="r.idx" class="rule-row">
-          <span class="no mono">{{ r.idx }}</span>
-          <div class="rule-main">
-            <div class="payload mono" :title="r.payload">{{ r.payload || '—' }}</div>
-            <div class="rtype">
-              {{ r.type }}<template v-if="r.size > 0"> · {{ r.size }} 条子规则</template>
-            </div>
+      <div v-for="r in filtered" :key="r.idx" class="rule-row">
+        <span class="no mono">{{ r.idx }}</span>
+        <div class="rule-main">
+          <div class="payload mono" :title="r.payload">{{ r.payload || '—' }}</div>
+          <div class="rtype">
+            {{ r.type }}<template v-if="r.size > 0"> · {{ r.size }} 条子规则</template>
           </div>
-          <span class="proxy" :class="proxyClass(r.proxy || '')">{{ r.proxy || '—' }}</span>
         </div>
+        <span class="proxy" :class="proxyClass(r.proxy || '')">{{ r.proxy || '—' }}</span>
       </div>
     </n-card>
     <n-card v-else class="pad">
@@ -386,7 +384,7 @@ watch(
 }
 .rtype { font-size: 11.5px; color: var(--text-dim); }
 .row-ops { display: flex; gap: 2px; flex: none; }
-.rule-scroll { max-height: calc(100vh - 240px); min-height: 200px; overflow-y: auto; }
+/* 规则行全部展开不设内层滚动，长列表交给整页 body 滚动 */
 .proxy {
   flex: none; max-width: 220px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
