@@ -3,7 +3,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NTag } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, delayColor } from '../store.js'
+import { store, toast, delayColor, ask } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
 
 const proxies = ref({})
@@ -45,6 +45,9 @@ async function select(groupName, nodeName) {
     toast('该分组为自动选择，无法手动切换', 'info')
     return
   }
+  if (p?.now === nodeName) return // 重复点击当前节点不动作
+  // 与首页切换节点一致：先确认再切换，防误触
+  if (!(await ask('切换节点', `确认把「${groupName}」切换到「${nodeName}」？切换后新连接立即走该节点`))) return
   switching.value = groupName + '@' + nodeName
   try {
     await api.put('/api/proxies/' + encodeURIComponent(groupName), { name: nodeName })
