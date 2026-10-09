@@ -559,27 +559,26 @@ function currentOf(g) {
     >
       <div class="switch-body">
         <n-input v-model:value="switchKeyword" placeholder="按名称搜索订阅，支持关键字模糊匹配…" clearable />
-        <n-empty
-          v-if="switchLoading"
-          description="加载中…"
-          style="padding: 40px 0"
-        />
-        <n-empty
-          v-else-if="!switchFiltered.length"
-          :description="switchList.length ? '没有匹配的订阅' : '还没有订阅，请先到「订阅」页添加'"
-          style="padding: 40px 0"
-        />
-        <div v-else class="switch-list">
-          <button
-            v-for="p in switchFiltered"
-            :key="p.id"
-            class="switch-row"
-            :class="{ sel: switchSelected === p.id }"
-            @click="switchSelected = p.id"
-          >
-            <span class="s-name">{{ p.name }}</span>
-            <n-tag v-if="switchActive === p.id" size="small" round :bordered="false">当前</n-tag>
-          </button>
+        <!-- 固定高度面板：列表多少条弹窗都不跳动，超出出垂直滚动条 -->
+        <div class="switch-panel">
+          <n-empty v-if="switchLoading" description="加载中…" style="margin: auto" />
+          <n-empty
+            v-else-if="!switchFiltered.length"
+            :description="switchList.length ? '没有匹配的订阅' : '还没有订阅，请先到「订阅」页添加'"
+            style="margin: auto"
+          />
+          <div v-else class="switch-list">
+            <button
+              v-for="p in switchFiltered"
+              :key="p.id"
+              class="switch-row"
+              :class="{ sel: switchSelected === p.id }"
+              @click="switchSelected = p.id"
+            >
+              <span class="s-name">{{ p.name }}</span>
+              <n-tag v-if="switchActive === p.id" size="small" round :bordered="false">当前</n-tag>
+            </button>
+          </div>
         </div>
         <div class="switch-foot">
           <span class="page-sub">选中后需确认才会切换并重载内核</span>
@@ -901,7 +900,10 @@ function currentOf(g) {
 .n-delay { font-size: 12px; flex: none; }
 
 .switch-body { display: flex; flex-direction: column; gap: 12px; }
-.switch-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
+/* 固定高度（视口一半，矮窗口下保底 280px 防压扁），内容超出出垂直滚动条；
+   flex column 让空态/加载态用 margin:auto 垂直居中 */
+.switch-panel { height: 50vh; min-height: 280px; overflow-y: auto; display: flex; flex-direction: column; }
+.switch-list { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
 .switch-row {
   display: flex; align-items: center; gap: 10px;
   width: 100%; text-align: left;
