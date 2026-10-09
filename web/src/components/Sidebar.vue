@@ -198,8 +198,9 @@ function onMoreSelect(key) {
   letter-spacing: 0.3px;
   position: relative; /* 供运行状态点绝对定位到行最右，不挤占 logo/标题 */
 }
-/* 运行状态点：logo 行最右固定（原底部状态行收缩而来，状态文字走 title 悬浮） */
-.logo-dot { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+/* 运行状态点：logo 行最右固定（原底部状态行收缩而来，状态文字走 title 悬浮）；比导航里的点大一号更醒目
+   （.dot 基类在样式表更靠后，这里用双类名提高优先级盖过它的 8px） */
+.dot.logo-dot { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 11px; height: 11px; }
 nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
   display: flex; align-items: center; gap: 15px;

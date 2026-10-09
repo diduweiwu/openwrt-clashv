@@ -341,8 +341,8 @@ function currentOf(g) {
       <n-flex vertical :size="16">
         <!-- 运行状态与控制按钮同行（普通尺寸小按钮贴右），瓦片独占下一行 -->
         <div class="hero-top">
-          <div class="run-badge" :class="{ on: status?.running, starting: !status?.running && status?.starting }">
-            <span class="pulse"></span>
+          <!-- 状态指示由侧栏 logo 行的状态点承担，这里只留文字 -->
+          <div class="run-badge">
             <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
           </div>
           <!-- 当前服务的插件版本（/api/status 的 plugin_version；内核版本在下方瓦片里） -->
@@ -751,18 +751,8 @@ function currentOf(g) {
 </template>
 
 <style scoped>
-.run-badge { display: flex; align-items: center; gap: 10px; flex: none; }
+.run-badge { display: flex; align-items: center; flex: none; }
 .run-text { font-size: 21px; font-weight: 700; white-space: nowrap; }
-.pulse { width: 12px; height: 12px; border-radius: 50%; background: #5a5f6d; position: relative; }
-.pulse::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid transparent; }
-.run-badge.on .pulse { background: var(--green); }
-.run-badge.on .pulse::after { border-color: var(--green); animation: ring 1.8s ease-out infinite; }
-.run-badge.starting .pulse { background: var(--orange); }
-.run-badge.starting .pulse::after { border-color: var(--orange); animation: ring 1.4s ease-out infinite; }
-@keyframes ring {
-  0% { transform: scale(0.5); opacity: 1; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
 /* 状态项做成小卡片瓦片：浅底圆角，标签在上、值在下；min-width 归零让 7 列网格能均匀收缩 */
 .meta-item {
   display: flex; flex-direction: column; gap: 4px;
