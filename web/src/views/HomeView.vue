@@ -472,7 +472,6 @@ function currentOf(g) {
             已用 {{ fmtBytes(subTraffic.used) }} / {{ fmtBytes(subTraffic.total) }}（{{ Math.round(subTraffic.percent) }}%）
           </span>
         </div>
-        <div v-else class="page-sub" style="margin-top:4px">机场未提供流量信息</div>
       </template>
     </n-card>
 
