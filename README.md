@@ -13,7 +13,7 @@ Go 后端 + 内嵌 Web 界面，一个二进制搞定，**不玩脚本编辑那�
 ![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)
 ![Kernel](https://img.shields.io/badge/内核-mihomo-blueviolet)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
-![Release](https://img.shields.io/github/v/release/diduweiwu/openclash-air?color=orange)
+![Release](https://img.shields.io/github/v/release/diduweiwu/openwrt-clashv?color=orange)
 
 </div>
 

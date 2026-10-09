@@ -40,6 +40,7 @@ type Settings struct {
 	CustomUA         string `json:"custom_ua"`         // 上次使用的自定义订阅 User-Agent（记住，下次预填）
 	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
 	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
+	GithubToken      string `json:"github_token"`      // GitHub 访问令牌：私有仓库查 Release/下载安装包必带，公开仓库留空
 	DownloadProxy    string `json:"download_proxy"`    // GitHub 下载加速前缀（如 https://gh-proxy.com），留空直连
 	ActiveProfile    string `json:"active_profile"`    // 当前激活的订阅 ID
 }
@@ -69,7 +70,8 @@ func Defaults() Settings {
 		DNSHijackIPv6:    false,
 		CustomUA:         "",
 		WorkDir:          "",
-		PluginRepo:       "nier/clashv",
+		PluginRepo:       "diduweiwu/openwrt-clashv",
+		GithubToken:      "",
 		DownloadProxy:    "https://gh-proxy.com",
 		ActiveProfile:    "",
 	}
@@ -260,9 +262,10 @@ func (s *Settings) normalize() {
 	}
 	s.PluginRepo = strings.Trim(s.PluginRepo, "/ ")
 	if s.PluginRepo == "" {
-		s.PluginRepo = "nier/clashv"
+		s.PluginRepo = "diduweiwu/openwrt-clashv"
 	}
 	s.DownloadProxy = strings.TrimSuffix(strings.TrimSpace(s.DownloadProxy), "/")
+	s.GithubToken = strings.ReplaceAll(strings.TrimSpace(s.GithubToken), "'", "")
 	s.CustomUA = strings.ReplaceAll(strings.TrimSpace(s.CustomUA), "'", "")
 	// DNS 劫持模式白名单；历史配置为空时视为默认防火墙转发
 	s.DNSHijack = strings.TrimSpace(s.DNSHijack)

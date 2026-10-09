@@ -32,7 +32,8 @@ const form = reactive({
   core_arch: '',
   core_mem_limit: 0,
   download_proxy: 'https://gh-proxy.com',
-  plugin_repo: 'nier/clashv',
+  plugin_repo: 'diduweiwu/openwrt-clashv',
+  github_token: '',
 })
 const loaded = ref(false)
 const saving = ref(false)
@@ -98,6 +99,7 @@ async function load() {
       core_mem_limit: s.core_mem_limit || 0,
       download_proxy: s.download_proxy || '',
       plugin_repo: s.plugin_repo || '',
+      github_token: s.github_token || '',
     })
     loaded.value = true
     coreInfo.value = await api.get('/api/core/status')
@@ -135,6 +137,7 @@ async function save() {
       core_mem_limit: r.settings.core_mem_limit || 0,
       download_proxy: r.settings.download_proxy || '',
       plugin_repo: r.settings.plugin_repo || '',
+      github_token: r.settings.github_token || '',
     })
     if (r.error) toast('已保存，但内核重启失败：' + r.error, 'error')
     else if (r.restarted) toast('已保存，内核已重载生效', 'success')
@@ -569,9 +572,22 @@ const tab = ref('general')
         <div class="row">
           <div class="row-text">
             <span class="rt">在线仓库地址</span>
-            <span class="rs">GitHub 仓库（owner/repo），检查更新与下载安装包都从这里获取<span class="rec">默认 nier/clashv</span></span>
+            <span class="rs">GitHub 仓库（owner/repo），检查更新与下载安装包都从这里获取<span class="rec">默认 diduweiwu/openwrt-clashv</span></span>
           </div>
           <n-input v-model:value="form.plugin_repo" placeholder="owner/repo" style="width: 210px" />
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">GitHub 访问令牌</span>
+            <span class="rs">仓库为私有时必填：查询 Release 与下载安装包会携带此令牌，需要该仓库的读取权限（classic token 勾 repo，fine-grained 勾 Contents 只读）。注意下载加速前缀对私有仓库无效，将直连 GitHub<span class="rec">公开仓库留空即可；私有仓库不填会报「仓库不存在」</span></span>
+          </div>
+          <n-input
+            v-model:value="form.github_token"
+            type="password"
+            show-password-on="click"
+            placeholder="ghp_… / github_pat_…，留空不启用"
+            style="width: 210px"
+          />
         </div>
         <div class="row">
           <div class="row-text">

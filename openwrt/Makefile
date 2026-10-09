@@ -30,7 +30,7 @@ define Package/luci-app-clashv
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt
-  URL:=https://github.com/nier/clashv
+  URL:=https://github.com/diduweiwu/openwrt-clashv
   DEPENDS:=+ca-bundle +kmod-tun
   CONFLICTS:=luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
   PKGARCH:=all
@@ -153,7 +153,7 @@ define Package/luci-app-clashv-arm64
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (arm64 build)
-  URL:=https://github.com/nier/clashv
+  URL:=https://github.com/diduweiwu/openwrt-clashv
   DEPENDS:=+ca-bundle +kmod-tun
   CONFLICTS:=luci-app-clashv luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
   PKGARCH:=all
@@ -182,7 +182,7 @@ define Package/luci-app-clashv-armv7
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (armv7 build)
-  URL:=https://github.com/nier/clashv
+  URL:=https://github.com/diduweiwu/openwrt-clashv
   DEPENDS:=+ca-bundle +kmod-tun
   CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
   PKGARCH:=all
@@ -211,7 +211,7 @@ define Package/luci-app-clashv-mips
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (mips build)
-  URL:=https://github.com/nier/clashv
+  URL:=https://github.com/diduweiwu/openwrt-clashv
   DEPENDS:=+ca-bundle +kmod-tun
   CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
   PKGARCH:=all
@@ -240,7 +240,7 @@ define Package/luci-app-clashv-mipsle
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (mipsle build)
-  URL:=https://github.com/nier/clashv
+  URL:=https://github.com/diduweiwu/openwrt-clashv
   DEPENDS:=+ca-bundle +kmod-tun
   CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-amd64 luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
   PKGARCH:=all
@@ -269,7 +269,7 @@ define Package/luci-app-clashv-amd64
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (amd64 build)
-  URL:=https://github.com/nier/clashv
+  URL:=https://github.com/diduweiwu/openwrt-clashv
   DEPENDS:=+ca-bundle +kmod-tun
   CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-riscv64 luci-app-clashv-loong64 clashv
   PKGARCH:=all
@@ -298,7 +298,7 @@ define Package/luci-app-clashv-riscv64
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (riscv64 build)
-  URL:=https://github.com/nier/clashv
+  URL:=https://github.com/diduweiwu/openwrt-clashv
   DEPENDS:=+ca-bundle +kmod-tun
   CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-loong64 clashv
   PKGARCH:=all
@@ -327,7 +327,7 @@ define Package/luci-app-clashv-loong64
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Simple mihomo (Clash Meta) manager for OpenWrt (loong64 build)
-  URL:=https://github.com/nier/clashv
+  URL:=https://github.com/diduweiwu/openwrt-clashv
   DEPENDS:=+ca-bundle +kmod-tun
   CONFLICTS:=luci-app-clashv luci-app-clashv-arm64 luci-app-clashv-armv7 luci-app-clashv-mips luci-app-clashv-mipsle luci-app-clashv-amd64 luci-app-clashv-riscv64 clashv
   PKGARCH:=all

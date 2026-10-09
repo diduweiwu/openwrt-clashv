@@ -27,13 +27,25 @@ const (
 	dlRetryWait  = 2 * time.Second
 )
 
+// ghAsset Release 附件：URL 是 assets API 端点（私有仓库下载必须走它），
+// BrowserDownloadURL 是公开仓库的普通下载链接。
+type ghAsset struct {
+	Name               string `json:"name"`
+	URL                string `json:"url"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
 type ghRelease struct {
-	ID      int64  `json:"id"` // GitHub 按创建顺序单调递增，可用于比较新旧
-	TagName string `json:"tag_name"`
-	Assets  []struct {
-		Name               string `json:"name"`
-		BrowserDownloadURL string `json:"browser_download_url"`
-	} `json:"assets"`
+	ID      int64     `json:"id"` // GitHub 按创建顺序单调递增，可用于比较新旧
+	TagName string    `json:"tag_name"`
+	Assets  []ghAsset `json:"assets"`
+}
+
+// httpStatusError 带 HTTP 状态码的 API 错误，供调用方按状态码定制提示。
+type httpStatusError struct{ code int }
+
+func (e *httpStatusError) Error() string {
+	return fmt.Sprintf("GitHub API: HTTP %d", e.code)
 }
 
 // platformName 推导 mihomo Release 资产的平台名，完全自动识别；
@@ -97,28 +109,41 @@ func (m *Manager) fetchReleaseByTag(ctx context.Context, repo, tag string) (*ghR
 }
 
 // fetchGitHub 请求 GitHub API：先直连，失败时改走下载加速前缀重试。
+// 配置了 GitHub 令牌（私有仓库）时随请求携带。
 func (m *Manager) fetchGitHub(ctx context.Context, apiPath string) (*ghRelease, error) {
-	rel, err := fetchReleaseVia(ctx, ghAPIBase+apiPath)
+	token := ""
+	if s, err := m.cfg.Get(); err == nil {
+		token = s.GithubToken
+	}
+	rel, err := fetchReleaseVia(ctx, ghAPIBase+apiPath, token)
 	if err == nil {
 		return rel, nil
 	}
 	s, gerr := m.cfg.Get()
 	if gerr == nil && s.DownloadProxy != "" {
 		if rel2, err2 := fetchReleaseVia(ctx,
-			strings.TrimSuffix(s.DownloadProxy, "/")+"/https://api.github.com"+apiPath); err2 == nil {
+			strings.TrimSuffix(s.DownloadProxy, "/")+"/https://api.github.com"+apiPath, token); err2 == nil {
 			return rel2, nil
 		}
+	}
+	// 私有仓库未带令牌时 GitHub 返回 404（不是 401），给条能看懂的提示
+	var se *httpStatusError
+	if errors.As(err, &se) && se.code == http.StatusNotFound && token == "" {
+		return nil, fmt.Errorf("仓库不存在，或为私有仓库（需在设置-插件里配置 GitHub 访问令牌）")
 	}
 	return nil, err
 }
 
-func fetchReleaseVia(ctx context.Context, url string) (*ghRelease, error) {
+func fetchReleaseVia(ctx context.Context, url, token string) (*ghRelease, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "clashv")
 	req.Header.Set("Accept", "application/vnd.github+json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	// 直连场景不走系统代理，加速前缀地址本身是可达端点
 	hc := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}}
 	resp, err := hc.Do(req)
@@ -127,7 +152,7 @@ func fetchReleaseVia(ctx context.Context, url string) (*ghRelease, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("GitHub API: HTTP %d", resp.StatusCode)
+		return nil, &httpStatusError{code: resp.StatusCode}
 	}
 	var rel ghRelease
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&rel); err != nil {
@@ -136,13 +161,13 @@ func fetchReleaseVia(ctx context.Context, url string) (*ghRelease, error) {
 	return &rel, nil
 }
 
-func (r *ghRelease) findAsset(re *regexp.Regexp) (string, bool) {
-	for _, a := range r.Assets {
+func (r *ghRelease) findAsset(re *regexp.Regexp) (*ghAsset, bool) {
+	for i, a := range r.Assets {
 		if re.MatchString(a.Name) {
-			return a.BrowserDownloadURL, true
+			return &r.Assets[i], true
 		}
 	}
-	return "", false
+	return nil, false
 }
 
 // ---- 升级进度 ----
@@ -212,7 +237,8 @@ var errRangeDone = errors.New("range already satisfied")
 
 // downloadFile 把 candidates（同一文件、不同镜像）下载到 dst。
 // 失败自动重试：保留 .tmp 断点，轮换镜像续传，直到成功或全部尝试耗尽。
-func (m *Manager) downloadFile(ctx context.Context, candidates []string, dst string) error {
+// token 非空时随请求携带（私有仓库资产），跨主机重定向由 net/http 自动剥离。
+func (m *Manager) downloadFile(ctx context.Context, candidates []string, dst, token string) error {
 	if len(candidates) == 0 {
 		return fmt.Errorf("没有可用的下载地址")
 	}
@@ -225,7 +251,7 @@ func (m *Manager) downloadFile(ctx context.Context, candidates []string, dst str
 	for i := 0; i < attempts; i++ {
 		url := candidates[i%len(candidates)]
 		resumed, _ := os.Stat(tmp)
-		err := downloadOnce(ctx, url, tmp, m.setProgress)
+		err := downloadOnce(ctx, url, tmp, token, m.setProgress)
 		if err == nil {
 			if rerr := os.Rename(tmp, dst); rerr != nil {
 				return rerr
@@ -286,7 +312,7 @@ func sizeOf(fi os.FileInfo) int64 {
 
 // downloadOnce 单次下载尝试；tmp 已有部分数据且服务器支持 Range 时断点续传。
 // onProg 周期性回报（已下载字节, 总字节）。
-func downloadOnce(ctx context.Context, url, tmp string, onProg func(downloaded, total int64)) error {
+func downloadOnce(ctx context.Context, url, tmp, token string, onProg func(downloaded, total int64)) error {
 	offset := int64(0)
 	if st, err := os.Stat(tmp); err == nil {
 		offset = st.Size()
@@ -296,6 +322,14 @@ func downloadOnce(ctx context.Context, url, tmp string, onProg func(downloaded, 
 		return err
 	}
 	req.Header.Set("User-Agent", "clashv")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	// assets API 端点要靠 Accept 拿到文件内容（否则返回 JSON 元数据）；
+	// GitHub 应答 302 到预签名 S3，跨主机重定向时 Authorization 会被自动剥离
+	if strings.HasPrefix(url, ghAPIBase) {
+		req.Header.Set("Accept", "application/octet-stream")
+	}
 	if offset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}
@@ -465,18 +499,19 @@ func (m *Manager) UpgradeCore(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	assetURL, ok := rel.findAsset(re)
+	asset, ok := rel.findAsset(re)
 	if !ok {
 		return "", fmt.Errorf("最新版本 %s 没有 %s 平台的内核文件", rel.TagName, plat)
 	}
-	slog.Info("开始下载内核", "version", rel.TagName, "platform", plat, "url", assetURL)
+	slog.Info("开始下载内核", "version", rel.TagName, "platform", plat, "url", asset.BrowserDownloadURL)
 	if err := m.beginUpgrade("core", "准备下载 "+rel.TagName); err != nil {
 		return "", err
 	}
 
 	// 先下载（gz 原始文件，可断点续传），成功后再停内核做替换，把停机窗口压到最小
+	// mihomo 仓库公开，不需要令牌，加速前缀照常生效
 	gzPath := m.cfg.CorePath() + ".download.gz"
-	if err := m.downloadFile(ctx, m.downloadCandidates(assetURL), gzPath); err != nil {
+	if err := m.downloadFile(ctx, m.downloadCandidates(asset.BrowserDownloadURL), gzPath, ""); err != nil {
 		m.finishProgress("error", "下载失败: "+err.Error())
 		os.Remove(gzPath)
 		return "", err
@@ -657,6 +692,21 @@ func pluginAssetRe(name, format string) *regexp.Regexp {
 	return regexp.MustCompile(`^` + regexp.QuoteMeta(name) + `[._-][0-9][\w.+-]*(_[\w.+-]+)?\.` + format + `$`)
 }
 
+// pluginDownloadCandidates 返回插件包的下载候选。配置了 GitHub 令牌（私有
+// 仓库）时走 assets API 端点直连——加速前缀的代理服务器不带用户凭据，请求
+// 私有仓库必然 404，不能作为候选；browser_download_url 带令牌请求会 302 到
+// 预签名 S3，作为 API 端点异常时的兜底。公开仓库照旧加速前缀优先。
+func (m *Manager) pluginDownloadCandidates(asset *ghAsset, token string) []string {
+	if token != "" {
+		var urls []string
+		if asset.URL != "" {
+			urls = append(urls, asset.URL)
+		}
+		return append(urls, asset.BrowserDownloadURL)
+	}
+	return m.downloadCandidates(asset.BrowserDownloadURL)
+}
+
 // PreparePluginUpgrade 查询在线仓库最新 Release，匹配当前设备的 ipk/apk 并
 // 下载到临时目录；安装由 InstallDownloadedPlugin 在响应返回后的后台执行。
 func (m *Manager) PreparePluginUpgrade(ctx context.Context) (ver string, pkg PluginPkg, file string, err error) {
@@ -672,16 +722,16 @@ func (m *Manager) PreparePluginUpgrade(ctx context.Context) (ver string, pkg Plu
 	if gerr != nil {
 		return "", pkg, "", gerr
 	}
-	assetURL, ok := rel.findAsset(pluginAssetRe(plan.Name, plan.Format))
+	asset, ok := rel.findAsset(pluginAssetRe(plan.Name, plan.Format))
 	if !ok {
 		return "", pkg, "", fmt.Errorf("最新版本 %s 没有 %s 的 %s 包", rel.TagName, plan.Name, plan.Format)
 	}
 	if gerr = m.beginUpgrade("plugin", "准备下载 "+rel.TagName); gerr != nil {
 		return "", pkg, "", gerr
 	}
-	file = filepath.Join(os.TempDir(), filepath.Base(assetURL))
-	slog.Info("开始下载插件更新包", "version", rel.TagName, "pkg", plan.Name, "url", assetURL)
-	if gerr = m.downloadFile(ctx, m.downloadCandidates(assetURL), file); gerr != nil {
+	file = filepath.Join(os.TempDir(), asset.Name)
+	slog.Info("开始下载插件更新包", "version", rel.TagName, "pkg", plan.Name, "asset", asset.Name, "with_token", s.GithubToken != "")
+	if gerr = m.downloadFile(ctx, m.pluginDownloadCandidates(asset, s.GithubToken), file, s.GithubToken); gerr != nil {
 		m.finishProgress("error", "下载失败: "+gerr.Error())
 		os.Remove(file)
 		return "", pkg, "", gerr
@@ -759,7 +809,7 @@ func (m *Manager) UpgradePlugin(ctx context.Context) (string, bool, error) {
 	}
 	plat := runtime.GOOS + "-" + runtime.GOARCH
 	re := regexp.MustCompile(`^clashv-` + regexp.QuoteMeta(plat) + `(-v[\w.\-]+)?$`)
-	assetURL, ok := rel.findAsset(re)
+	asset, ok := rel.findAsset(re)
 	if !ok {
 		return rel.TagName, false, fmt.Errorf("最新版本 %s 没有 %s 的插件文件", rel.TagName, plat)
 	}
@@ -772,7 +822,7 @@ func (m *Manager) UpgradePlugin(ctx context.Context) (string, bool, error) {
 		return "", false, err
 	}
 	self, _ = filepath.Abs(self)
-	if err := m.downloadFile(ctx, m.downloadCandidates(assetURL), self+".download"); err != nil {
+	if err := m.downloadFile(ctx, m.pluginDownloadCandidates(asset, s.GithubToken), self+".download", s.GithubToken); err != nil {
 		m.finishProgress("error", "下载失败: "+err.Error())
 		os.Remove(self + ".download")
 		return "", false, err

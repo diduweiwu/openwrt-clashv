@@ -30,7 +30,8 @@ import (
 //	    option dns_hijack_ipv6 '0'
 //	    option custom_ua ''
 //	    option workdir ''
-//	    option plugin_repo 'nier/clashv'
+//	    option plugin_repo 'diduweiwu/openwrt-clashv'
+//	    option github_token ''
 //	    option download_proxy 'https://gh-proxy.com'
 //	    option active_profile ''
 
@@ -99,6 +100,7 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setStr(&s.CustomUA, "custom_ua")
 	setStr(&s.WorkDir, "workdir")
 	setStr(&s.PluginRepo, "plugin_repo")
+	setStr(&s.GithubToken, "github_token")
 	setStr(&s.DownloadProxy, "download_proxy")
 	setStr(&s.ActiveProfile, "active_profile")
 	return nil
@@ -144,6 +146,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.custom_ua='%s'", uciSection, s.CustomUA)
 	line("set %s.workdir='%s'", uciSection, s.WorkDir)
 	line("set %s.plugin_repo='%s'", uciSection, s.PluginRepo)
+	line("set %s.github_token='%s'", uciSection, s.GithubToken)
 	line("set %s.download_proxy='%s'", uciSection, s.DownloadProxy)
 	line("set %s.active_profile='%s'", uciSection, s.ActiveProfile)
 	line("commit clashv")
