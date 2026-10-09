@@ -345,6 +345,10 @@ function currentOf(g) {
             <span class="pulse"></span>
             <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
           </div>
+          <!-- 当前服务的插件版本（/api/status 的 plugin_version；内核版本在下方瓦片里） -->
+          <span v-if="status?.plugin_version" class="plugin-ver" title="插件版本">
+            {{ status.plugin_version === 'dev' ? '开发版' : 'v' + status.plugin_version }}
+          </span>
           <n-flex class="hero-actions" :size="10">
             <n-button
               title="重启内核"
@@ -839,6 +843,7 @@ function currentOf(g) {
 /* 运行状态行：状态居左、控制按钮贴右 */
 .hero-top { display: flex; align-items: center; gap: 12px; }
 .hero-actions { margin-left: auto; }
+.plugin-ver { font-size: 12.5px; color: var(--text-dim); }
 /* 瓦片行网格：7 块（状态 3 + 快捷 4）挤同一排 7 列等宽；与流量瓦片行同列规格，上下分隔线逐列对齐 */
 .hero-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
 /* 标签/值不折行：瓦片变窄后换行会破坏等高观感，放不下宁可横向收紧 */

@@ -571,6 +571,13 @@ const tab = ref('general')
       <div class="rows">
         <div class="row">
           <div class="row-text">
+            <span class="rt">当前版本</span>
+            <span class="rs">正在运行的插件版本，「检查更新」拿它与在线仓库的最新版比较</span>
+          </div>
+          <span class="mono">{{ store.status?.plugin_version === 'dev' ? '开发版' : store.status?.plugin_version ? 'v' + store.status.plugin_version : '…' }}</span>
+        </div>
+        <div class="row">
+          <div class="row-text">
             <span class="rt">在线仓库地址</span>
             <span class="rs">GitHub 仓库（owner/repo），检查更新与下载安装包都从这里获取<span class="rec">默认 diduweiwu/openwrt-clashv</span></span>
           </div>
