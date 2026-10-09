@@ -162,11 +162,11 @@ async function startCoreDownload() {
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 26px 10px 40px;
+  padding: 8px 10px 40px;
 }
 @media (max-width: 760px) {
   .layout { flex-direction: column; }
-  .content { padding: 18px 10px 30px; }
+  .content { padding: 8px 10px 30px; }
 }
 .dl-body { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 6px 0 2px; }
 .dl-text { font-size: 13px; text-align: center; min-height: 18px; }
