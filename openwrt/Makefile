@@ -19,7 +19,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-clashv
-PKG_VERSION:=0.1.14
+PKG_VERSION:=0.1.15
 PKG_RELEASE:=10
 PKG_MAINTAINER:=Nier
 PKG_LICENSE:=MIT
