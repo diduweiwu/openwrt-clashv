@@ -120,6 +120,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 
 	// 升级进度（内核/插件共用）
 	mux.HandleFunc("GET /api/upgrade/progress", d.handleUpgradeProgress)
+	mux.HandleFunc("POST /api/upgrade/cancel", d.handleUpgradeCancel)
 
 	// 日志（内核/插件）
 	mux.HandleFunc("GET /api/logs", d.handleLogs)

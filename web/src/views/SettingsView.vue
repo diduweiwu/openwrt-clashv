@@ -204,6 +204,16 @@ const coreUpgrading = ref(false)
 const pluginLatest = ref(null)
 const pluginUpgrading = ref(false)
 
+// 标记取消是用户自己点的：升级接口会以「已取消」失败、恢复轮询也会拿到
+// error 终态，两处都靠它跳过错误 toast
+const upgradeCancelled = ref(false)
+
+// 取消进行中的升级任务（内核/插件共用同一取消入口）
+async function cancelUpgrade() {
+  upgradeCancelled.value = true
+  try { await api.post('/api/upgrade/cancel') } catch { /* 任务可能刚自行结束 */ }
+}
+
 // 升级进度：升级期间轮询 /api/upgrade/progress
 const prog = ref(null)
 let progTimer = null
@@ -242,7 +252,7 @@ function startProgPoll(resumeKind = '') {
     if (resumeKind === 'core') {
       coreUpgrading.value = false
       if (stage === 'done') toast(message || '内核已更新', 'success', 5000)
-      else if (stage === 'error') toast(message || '内核更新失败', 'error', 6000)
+      else if (stage === 'error' && !upgradeCancelled.value) toast(message || '内核更新失败', 'error', 6000)
       try {
         coreInfo.value = await api.get('/api/core/status')
         store.status = await api.get('/api/status')
@@ -250,7 +260,7 @@ function startProgPoll(resumeKind = '') {
     } else if (resumeKind === 'plugin') {
       pluginUpgrading.value = false
       if (stage === 'done') toast(message || '插件已更新', 'success', 6000)
-      else if (stage === 'error') toast(message || '插件更新失败', 'error', 6000)
+      else if (stage === 'error' && !upgradeCancelled.value) toast(message || '插件更新失败', 'error', 6000)
     }
   }
   tick()
@@ -352,6 +362,7 @@ async function checkCore() {
 async function upgradeCore() {
   if (!(await ask('升级内核', `确认下载并安装 mihomo ${coreLatest.value.latest}？视网络情况可能需要几分钟`))) return
   coreUpgrading.value = true
+  upgradeCancelled.value = false
   startProgPoll()
   try {
     const r = await api.post('/api/core/upgrade')
@@ -360,7 +371,7 @@ async function upgradeCore() {
     coreLatest.value = null
     store.status = await api.get('/api/status')
   } catch (e) {
-    toast(e.message, 'error', 6000)
+    if (!upgradeCancelled.value) toast(e.message, 'error', 6000)
   } finally {
     stopProgPoll()
     coreUpgrading.value = false
@@ -380,6 +391,7 @@ async function upgradePlugin() {
   const pkgText = p ? `匹配包 ${p.name}（${p.format}），` : ''
   if (!(await ask('更新插件', `确认下载并安装插件最新版本？${pkgText}安装完成后服务会自动重启，期间界面会短暂失联`))) return
   pluginUpgrading.value = true
+  upgradeCancelled.value = false
   startProgPoll()
   try {
     const r = await api.post('/api/plugin/upgrade')
@@ -390,7 +402,7 @@ async function upgradePlugin() {
       await waitPluginInstalled()
     }
   } catch (e) {
-    toast(e.message, 'error', 6000)
+    if (!upgradeCancelled.value) toast(e.message, 'error', 6000)
   } finally {
     stopProgPoll()
     pluginUpgrading.value = false
@@ -716,16 +728,19 @@ const tab = ref('general')
             <span class="rt">升级进度</span>
             <span class="rs mono">{{ progText || '正在连接…' }}</span>
           </div>
-          <n-progress
-            v-if="prog?.percent > 0"
-            type="line"
-            :percentage="prog.percent"
-            :show-indicator="false"
-            :height="6"
-            border-radius="3px"
-            class="prog"
-          />
-          <n-spin v-else :size="16" />
+          <div class="prog-side">
+            <n-progress
+              v-if="prog?.percent > 0"
+              type="line"
+              :percentage="prog.percent"
+              :show-indicator="false"
+              :height="6"
+              border-radius="3px"
+              class="prog"
+            />
+            <n-spin v-else :size="16" />
+            <n-button size="small" quaternary type="error" @click="cancelUpgrade">取消</n-button>
+          </div>
         </div>
       </div>
     </n-card>
@@ -781,16 +796,19 @@ const tab = ref('general')
             <span class="rt">升级进度</span>
             <span class="rs mono">{{ progText || '正在连接…' }}</span>
           </div>
-          <n-progress
-            v-if="prog?.percent > 0"
-            type="line"
-            :percentage="prog.percent"
-            :show-indicator="false"
-            :height="6"
-            border-radius="3px"
-            class="prog"
-          />
-          <n-spin v-else :size="16" />
+          <div class="prog-side">
+            <n-progress
+              v-if="prog?.percent > 0"
+              type="line"
+              :percentage="prog.percent"
+              :show-indicator="false"
+              :height="6"
+              border-radius="3px"
+              class="prog"
+            />
+            <n-spin v-else :size="16" />
+            <n-button size="small" quaternary type="error" @click="cancelUpgrade">取消</n-button>
+          </div>
         </div>
       </div>
     </n-card>
@@ -907,6 +925,7 @@ const tab = ref('general')
 /* n-input-group 默认 flex 拉伸占满剩余宽度，收缩并靠右与行内其他控件一致 */
 .row .n-input-group { width: fit-content; margin-left: auto; }
 .prog { width: 180px; flex-shrink: 0; }
+.prog-side { display: flex; align-items: center; gap: 8px; flex: none; }
 /* 常规流式布局：跟在卡片后面，不再悬浮遮挡内容 */
 .save-bar { display: flex; justify-content: flex-end; padding: 2px 0 10px; }
 /* 备份弹窗：内容列 + 弹窗底部说明/按钮行；列表行左右分布 */
@@ -920,6 +939,7 @@ const tab = ref('general')
   .row { flex-wrap: wrap; }
   .row .ctl, .row .num, .row > .n-input { width: 100% !important; }
   .row > .n-switch { margin-left: auto; }
-  .prog { width: 100%; }
+  .prog-side { width: 100%; }
+  .prog { width: auto; flex: 1; }
 }
 </style>

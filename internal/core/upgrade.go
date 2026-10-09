@@ -205,14 +205,63 @@ type UpgradeProgress struct {
 }
 
 // beginUpgrade 占用一个升级槽位，同一时间只允许一个升级任务。
+// 任务使用独立的内部 context：客户端断开不打断下载，只有显式取消能中止。
 func (m *Manager) beginUpgrade(kind, message string) error {
 	m.progMu.Lock()
 	defer m.progMu.Unlock()
 	if m.prog.Active {
 		return fmt.Errorf("已有升级任务在进行中（%s），请稍后再试", m.prog.Kind)
 	}
+	if m.upgCancel != nil { // 上一任务漏收尾时防泄漏
+		m.upgCancel()
+	}
+	m.upgCtx, m.upgCancel = context.WithCancel(context.Background())
 	m.prog = UpgradeProgress{Kind: kind, Stage: "download", Message: message, Active: true}
 	return nil
+}
+
+// upgradeCtx 返回当前任务的内部 context，供下载循环使用；随 CancelUpgrade 或
+// 任务收尾（endUpgrade）取消。无任务时返回已取消的空 context 防误用。
+func (m *Manager) upgradeCtx() context.Context {
+	m.progMu.Lock()
+	defer m.progMu.Unlock()
+	if m.upgCtx == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		return ctx
+	}
+	return m.upgCtx
+}
+
+// CancelUpgrade 取消进行中的升级任务，下载循环随即中断；没有任务时返回 false。
+func (m *Manager) CancelUpgrade() bool {
+	m.progMu.Lock()
+	defer m.progMu.Unlock()
+	if !m.prog.Active || m.upgCancel == nil {
+		return false
+	}
+	m.upgCancel()
+	return true
+}
+
+// endUpgrade 任务收尾：取消并释放内部 context。任务函数 defer 调用。
+func (m *Manager) endUpgrade() {
+	m.progMu.Lock()
+	defer m.progMu.Unlock()
+	if m.upgCancel != nil {
+		m.upgCancel()
+		m.upgCancel = nil
+		m.upgCtx = nil
+	}
+}
+
+// dlFail 处理下载失败：进度终态文案区分主动取消，返回给调用方（最终到前端
+// toast）的错误同样对取消给人话。
+func dlFail(err error) (string, error) {
+	if errors.Is(err, context.Canceled) {
+		return "已取消", errors.New("已取消")
+	}
+	return "下载失败: " + err.Error(), err
 }
 
 // setProgress 更新进行中任务的进度；仅在任务活跃时生效。
@@ -528,14 +577,17 @@ func (m *Manager) UpgradeCore(ctx context.Context) (string, error) {
 	if err := m.beginUpgrade("core", "准备下载 "+rel.TagName); err != nil {
 		return "", err
 	}
+	defer m.endUpgrade()
+	ctx = m.upgradeCtx()
 
 	// 先下载（gz 原始文件，可断点续传），成功后再停内核做替换，把停机窗口压到最小
 	// mihomo 仓库公开，不需要令牌，加速前缀照常生效
 	gzPath := m.cfg.CorePath() + ".download.gz"
 	if err := m.downloadFile(ctx, m.downloadCandidates(asset.BrowserDownloadURL), gzPath, ""); err != nil {
-		m.finishProgress("error", "下载失败: "+err.Error())
+		msg, ferr := dlFail(err)
+		m.finishProgress("error", msg)
 		os.Remove(gzPath)
-		return "", err
+		return "", ferr
 	}
 
 	m.finishProgress("install", "下载完成，安装中…")
@@ -750,12 +802,15 @@ func (m *Manager) PreparePluginUpgrade(ctx context.Context) (ver string, pkg Plu
 	if gerr = m.beginUpgrade("plugin", "准备下载 "+rel.TagName); gerr != nil {
 		return "", pkg, "", gerr
 	}
+	defer m.endUpgrade()
+	ctx = m.upgradeCtx()
 	file = filepath.Join(os.TempDir(), asset.Name)
 	slog.Info("开始下载插件更新包", "version", rel.TagName, "pkg", plan.Name, "asset", asset.Name, "with_token", s.GithubToken != "")
 	if gerr = m.downloadFile(ctx, m.pluginDownloadCandidates(asset, s.GithubToken), file, s.GithubToken); gerr != nil {
-		m.finishProgress("error", "下载失败: "+gerr.Error())
+		msg, ferr := dlFail(gerr)
+		m.finishProgress("error", msg)
 		os.Remove(file)
-		return "", pkg, "", gerr
+		return "", pkg, "", ferr
 	}
 	m.finishProgress("install", "下载完成，安装中…")
 	return rel.TagName, *plan, file, nil
@@ -837,6 +892,8 @@ func (m *Manager) UpgradePlugin(ctx context.Context) (string, bool, error) {
 	if err := m.beginUpgrade("plugin", "准备下载 "+rel.TagName); err != nil {
 		return "", false, err
 	}
+	defer m.endUpgrade()
+	ctx = m.upgradeCtx()
 	self, err := os.Executable()
 	if err != nil {
 		m.finishProgress("error", err.Error())
@@ -844,9 +901,10 @@ func (m *Manager) UpgradePlugin(ctx context.Context) (string, bool, error) {
 	}
 	self, _ = filepath.Abs(self)
 	if err := m.downloadFile(ctx, m.pluginDownloadCandidates(asset, s.GithubToken), self+".download", s.GithubToken); err != nil {
-		m.finishProgress("error", "下载失败: "+err.Error())
+		msg, ferr := dlFail(err)
+		m.finishProgress("error", msg)
 		os.Remove(self + ".download")
-		return "", false, err
+		return "", false, ferr
 	}
 	m.finishProgress("install", "下载完成，安装中…")
 	if err := os.Chmod(self+".download", 0o755); err != nil {

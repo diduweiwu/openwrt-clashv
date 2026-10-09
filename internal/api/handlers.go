@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -700,6 +701,15 @@ func (d *deps) handleCoreUpgrade(w http.ResponseWriter, r *http.Request) {
 // handleUpgradeProgress 查询当前升级任务（内核/插件）的下载进度。
 func (d *deps) handleUpgradeProgress(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, d.mgr.Progress())
+}
+
+// handleUpgradeCancel 取消当前进行中的升级任务，下载循环随即中断。
+func (d *deps) handleUpgradeCancel(w http.ResponseWriter, r *http.Request) {
+	if !d.mgr.CancelUpgrade() {
+		writeErr(w, 409, errors.New("当前没有进行中的升级任务"))
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"cancelled": true})
 }
 
 // handleLogs 返回日志文件尾部内容。kind=core|plugin，bytes 限制返回大小。

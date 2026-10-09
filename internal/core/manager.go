@@ -59,8 +59,10 @@ type Manager struct {
 
 	hc *controllerClient
 
-	progMu sync.Mutex
-	prog   UpgradeProgress // 当前升级任务进度（同一时间至多一个）
+	progMu    sync.Mutex
+	prog      UpgradeProgress    // 当前升级任务进度（同一时间至多一个）
+	upgCtx    context.Context    // 当前任务的内部 context（下载循环随取消中断）
+	upgCancel context.CancelFunc
 
 	hookMu sync.Mutex // 防火墙接管规则（DNS 劫持/TCP 透明代理）重建串行化
 

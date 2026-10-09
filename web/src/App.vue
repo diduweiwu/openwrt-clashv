@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { NConfigProvider, NModal, NProgress, NSpin, dateZhCN, zhCN } from 'naive-ui'
+import { NButton, NConfigProvider, NModal, NProgress, NSpin, dateZhCN, zhCN } from 'naive-ui'
 import Sidebar from './components/Sidebar.vue'
 import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes, pushTraffic } from './store.js'
 import { api } from './api.js'
@@ -75,9 +75,12 @@ async function askCoreDownload() {
   if (ok) startCoreDownload()
 }
 
-// 下载弹窗：轮询 /api/upgrade/progress 展示进度，完成后刷新状态
+// 下载弹窗：轮询 /api/upgrade/progress 展示进度，完成后刷新状态。
+// dlCancelled 标记取消是用户自己点的：POST /api/core/upgrade 会以「已取消」失败、
+// 恢复轮询也会拿到 error 终态，两处都靠它跳过错误 toast。
 const showDl = ref(false)
 const dlBusy = ref(false)
+const dlCancelled = ref(false)
 const dlProg = ref(null)
 let dlProgTimer = null
 
@@ -107,7 +110,7 @@ function startDlProgPoll(resume = false) {
     if (stage === 'done') {
       toast('内核下载安装完成', 'success', 5000)
       refreshStatus()
-    } else if (stage === 'error') {
+    } else if (stage === 'error' && !dlCancelled.value) {
       toast(message || '内核下载失败', 'error', 6000)
     }
   }
@@ -122,12 +125,20 @@ function stopDlProgPoll() {
 function resumeCoreDownload() {
   showDl.value = true
   dlBusy.value = true
+  dlCancelled.value = false
   startDlProgPoll(true)
+}
+
+// 取消进行中的内核下载：中断后端任务，弹窗由接口失败/轮询终态收尾关闭
+async function cancelCoreDownload() {
+  dlCancelled.value = true
+  try { await api.post('/api/upgrade/cancel') } catch { /* 任务可能刚自行结束 */ }
 }
 
 async function startCoreDownload() {
   showDl.value = true
   dlBusy.value = true
+  dlCancelled.value = false
   startDlProgPoll()
   try {
     await api.post('/api/core/upgrade')
@@ -135,7 +146,7 @@ async function startCoreDownload() {
     showDl.value = false
     refreshStatus()
   } catch (e) {
-    toast(e.message, 'error', 6000)
+    if (!dlCancelled.value) toast(e.message, 'error', 6000)
     showDl.value = false
   } finally {
     stopDlProgPoll()
@@ -158,7 +169,7 @@ async function startCoreDownload() {
       </main>
     </div>
 
-    <!-- 内核下载进度弹窗（下载中不可关闭，关页面不会中断后端下载但不建议） -->
+    <!-- 内核下载进度弹窗（下载中不可关闭防误触丢进度视图，中断走「取消下载」按钮） -->
     <n-modal
       preset="card"
       title="下载内核"
@@ -180,6 +191,7 @@ async function startCoreDownload() {
         />
         <n-spin v-else :size="18" />
         <div class="dl-hint">视网络情况可能需要几分钟，请保持页面打开</div>
+        <n-button size="small" quaternary type="error" :disabled="!dlBusy" @click="cancelCoreDownload">取消下载</n-button>
       </div>
     </n-modal>
   </n-config-provider>
