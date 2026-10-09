@@ -229,7 +229,13 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   # 与 OpenClash 的打包逻辑一致：包正确注册（BuildPackage 宏）后，SDK 模式下
   # make defconfig 会把所有包默认置为 m，无需手动写入 CONFIG
   cd "$SDK"
+  # CONFIG_ALL_KMODS=y 是 SDK .config 预置的「全选 kmod」开关：只要它还在，任何
+  # 一次 Kconfig 重算（defconfig 或编译期静默 conf）都会把全部 kmod 重新展开成 =m，
+  # 把逐行剪减整个冲掉（25.12 SDK 上冷构建因此重打包上千个无关 kmod，apk 目标拖到
+  # 8 分钟）。必须在 defconfig 之前先关掉——之后无论 conf 重算多少次都无法复活
+  sed -i 's/^CONFIG_ALL_KMODS=y$/# CONFIG_ALL_KMODS is not set/' .config
   make defconfig
+  echo "==> 剪减前 kmod: $(grep -c '^CONFIG_PACKAGE_kmod-.*=m' .config) 个"
   # .build 是「配置已就绪」的标记：缺它时 package/xxx/compile 前会再跑一次
   # defconfig，SDK 默认值会把下面的 kmod 剪减全部冲掉，所以这里必须补上
   touch tmp/.build
@@ -237,11 +243,9 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
     echo "ERROR: $PKG_NAME 未能进入 SDK .config（多半是 DEPENDS 在该 SDK 中缺失）" >&2
     exit 1
   }
-  # SDK 默认把全部 1200+ 个 kmod 置为 m，而本包依赖的 kmod-tun 由
-  # package/kernel/linux 一个 Makefile 生成——依赖链会触发整个 kernel 包
-  # 编译（=m 的 kmod 全编，数十分钟）。全部剪掉，再从包元数据解析 kmod-tun
-  # 的传递依赖重新打开。注意剪减后不能再跑 make defconfig：SDK 模式下
-  # Kconfig 的包默认值是 m，defconfig 会把剪掉的又全部改回 =m
+  # 本包只依赖 kmod-tun（它在内核源码里没有 DEPENDS，无传递依赖）。把残留的
+  # =m kmod 逐行剪掉，仅保底处理目标默认值带进来的少量 kmod。剪减后不能再跑
+  # make defconfig：SDK 模式下 Kconfig 的包默认值是 m，会把剪掉的改回 =m
   sed -i 's/^CONFIG_PACKAGE_kmod-\([^=]*\)=m$/# CONFIG_PACKAGE_kmod-\1 is not set/' .config
   open_kmod() {
     p=$1
