@@ -350,13 +350,7 @@ function currentOf(g) {
             {{ status.plugin_version === 'dev' ? '开发版' : 'v' + status.plugin_version }}
           </span>
           <n-flex class="hero-actions" :size="10">
-            <n-button
-              title="重启内核"
-              :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
-            >
-              <template #icon><AppIcon name="restart" :size="14" /></template>重启
-            </n-button>
-            <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态红色幽灵「停止」 -->
+            <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态红色幽灵「停止」；主操作排在重启前面 -->
             <n-button
               :type="status?.running ? 'error' : 'primary'"
               :ghost="!!status?.running"
@@ -369,6 +363,12 @@ function currentOf(g) {
                 <AppIcon v-if="!status?.running" name="play" :size="14" />
                 <AppIcon v-else name="stop" :size="14" :stroke-width="2.4" />
               </template>{{ status?.running ? '停止' : '启动' }}
+            </n-button>
+            <n-button
+              title="重启内核"
+              :loading="busy === 'restart'" :disabled="!status?.running || busy !== ''" @click="coreAction('restart')"
+            >
+              <template #icon><AppIcon name="restart" :size="14" /></template>重启
             </n-button>
           </n-flex>
         </div>
@@ -535,8 +535,11 @@ function currentOf(g) {
               @click="pick(g, node)"
             >
               <span class="n-name">{{ node }}</span>
-              <span class="n-delay mono" :style="{ color: delayColor(delayOf(node)) }">
-                {{ delayOf(node) > 0 ? delayOf(node) + ' ms' : '' }}
+              <span class="n-foot">
+                <span class="n-type">{{ proxies[node]?.type || '' }}</span>
+                <span class="mono n-delay" :style="{ color: delayColor(delayOf(node)) }">
+                  {{ delayOf(node) > 0 ? delayOf(node) + 'ms' : '' }}
+                </span>
               </span>
             </button>
           </div>
@@ -884,25 +887,28 @@ function currentOf(g) {
 }
 .g-arrow { color: var(--text-dim); font-size: 18px; flex: none; transition: transform 0.15s; }
 .g-arrow.open { transform: rotate(90deg); }
-/* 节点卡片网格：随宽度自适应列数，卡片即点击目标 */
+/* 节点卡片网格：随宽度自适应列数，卡片即点击目标；卡片结构与代理页一致（名称一行，类型+延迟一行） */
 .grp-body {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  gap: 9px;
   padding: 8px 0 2px;
 }
 .node-card {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  display: flex; flex-direction: column; gap: 7px;
   text-align: left;
-  padding: 9px 11px; border-radius: 10px;
+  padding: 11px 12px;
+  border-radius: 11px;
   background: var(--bg-card-2);
-  border: 1px solid var(--border);
+  border: 1.5px solid transparent;
+  min-width: 0;
   cursor: pointer; font: inherit; color: inherit;
 }
-.node-card:hover { background: var(--hover); }
+.node-card:hover { border-color: var(--accent); }
 .node-card.on { border-color: var(--accent); background: var(--accent-soft); }
-.n-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
-.node-card.on .n-name { color: var(--accent); font-weight: 600; }
+.n-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.n-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.n-type { color: var(--text-dim); font-size: 11px; text-transform: uppercase; }
 .n-delay { font-size: 12px; flex: none; }
 
 .switch-body { display: flex; flex-direction: column; gap: 12px; }
@@ -951,9 +957,8 @@ function currentOf(g) {
 /* ---- 手机（≤760，与侧栏转顶栏同断点）：启动/停止 与 重启 竖排贴右，主操作在上 ---- */
 @media (max-width: 760px) {
   .hero-actions { flex-direction: column !important; align-items: flex-end; }
-  /* n-flex 子项间距是行内 margin，竖排后要清掉改纵向间距；DOM 首个是「重启」，order 挪到下面 */
+  /* n-flex 子项间距是行内 margin，竖排后要清掉改纵向间距；DOM 顺序已是启停在前，竖排自然主操作在上 */
   .hero-actions :deep(.n-button) { margin-right: 0 !important; }
   .hero-actions :deep(.n-button:not(:last-child)) { margin-bottom: 10px; }
-  .hero-actions :deep(.n-button:first-child) { order: 2; }
 }
 </style>
