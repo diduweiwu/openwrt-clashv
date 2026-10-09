@@ -229,26 +229,13 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   # 与 OpenClash 的打包逻辑一致：包正确注册（BuildPackage 宏）后，SDK 模式下
   # make defconfig 会把所有包默认置为 m，无需手动写入 CONFIG
   cd "$SDK"
-  # SDK 解包后没有 .config（由 defconfig 生成）。两次 defconfig 中间把
-  # CONFIG_ALL_KMODS 关掉：它是 SDK 的「全选 kmod」开关，只要为 y，任何一次
-  # Kconfig 重算（defconfig 或编译期静默 conf）都会把全部 kmod 展开成 =m，冲掉
-  # 逐行剪减（25.12 SDK 冷构建因此重打包上千个无关 kmod，apk 目标拖到 8 分钟）。
-  # 第一遍 defconfig 生成/规范化 → 关开关 → 第二遍 defconfig 定稿，此后无论
-  # conf 再重算多少次 kmod 都无法复活
   make defconfig
-  sed -i 's/^CONFIG_ALL_KMODS=y$/# CONFIG_ALL_KMODS is not set/' .config
-  make defconfig
-  echo "==> 关闭 ALL_KMODS 后 kmod: $(grep -c '^CONFIG_PACKAGE_kmod-.*=m' .config) 个"
-  # .build 是「配置已就绪」的标记：缺它时 package/xxx/compile 前会再跑一次
-  # defconfig，SDK 默认值会把下面的 kmod 剪减全部冲掉，所以这里必须补上
-  touch tmp/.build
   grep -q "^CONFIG_PACKAGE_$PKG_NAME=m" .config || {
     echo "ERROR: $PKG_NAME 未能进入 SDK .config（多半是 DEPENDS 在该 SDK 中缺失）" >&2
     exit 1
   }
-  # 本包只依赖 kmod-tun（它在内核源码里没有 DEPENDS，无传递依赖）。把残留的
-  # =m kmod 逐行剪掉，仅保底处理目标默认值带进来的少量 kmod。剪减后不能再跑
-  # make defconfig：SDK 模式下 Kconfig 的包默认值是 m，会把剪掉的改回 =m
+  # 本包只依赖 kmod-tun（内核源码里无 DEPENDS，无传递依赖）。SDK 的 Kconfig
+  # 默认值把全部 kmod 预置成 =m，逐行剪掉只留依赖链需要的
   sed -i 's/^CONFIG_PACKAGE_kmod-\([^=]*\)=m$/# CONFIG_PACKAGE_kmod-\1 is not set/' .config
   open_kmod() {
     p=$1
@@ -265,7 +252,16 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   open_kmod kmod-tun
   echo "==> 选中的 kmod: $(grep -c '^CONFIG_PACKAGE_kmod-.*=m' .config) 个"
   grep '^CONFIG_PACKAGE_kmod-.*=m' .config
-  make package/$PKG_NAME/compile V=s
+  # .build 是「配置已就绪」的标记：缺它时 package/xxx/compile 前会再跑一次
+  # defconfig，SDK 默认值会把下面的 kmod 剪减全部冲掉，所以这里必须补上
+  touch tmp/.build
+  # ⚠ 不能裸调 make package/.../compile：SDK 顶层有 %:: 兜底规则，任何 make 都
+  # 会先跑 conf --defconfig=.config 重算——SDK 默认值把全部 kmod 预置 =m 且
+  # defconfig 模式不理会显式 not-set 行，剪减被整个冲回上千个（冷构建重打包
+  # 上千个无关 kmod、apk 目标拖到 8 分钟的元凶；round 87 起剪减从未真正生效，
+  # 一直靠缓存掩盖）。以 OPENWRT_BUILD=1 直接调第二阶段内层 make，目标已注册、
+  # 不再经过兜底规则的 conf，剪减后的 .config 原样生效
+  OPENWRT_BUILD=1 make -r package/$PKG_NAME/compile V=s
 
   case "$TARGET" in
     # 一次产出 8 个包：通用版 luci-app-clashv_<版本>_all.ipk + 7 个架构精简版
