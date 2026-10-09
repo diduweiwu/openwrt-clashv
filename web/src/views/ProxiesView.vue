@@ -47,7 +47,7 @@ async function select(groupName, nodeName) {
   }
   if (p?.now === nodeName) return // 重复点击当前节点不动作
   // 与首页切换节点一致：先确认再切换，防误触
-  if (!(await ask('切换节点', `确认把「${groupName}」切换到「${nodeName}」？切换后新连接立即走该节点`))) return
+  if (!(await ask('切换节点', `确认把「${groupName}」切换到「${nodeName}」？切换后新连接将通过该节点代理`))) return
   switching.value = groupName + '@' + nodeName
   try {
     await api.put('/api/proxies/' + encodeURIComponent(groupName), { name: nodeName })

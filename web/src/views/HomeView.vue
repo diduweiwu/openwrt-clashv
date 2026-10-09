@@ -248,7 +248,7 @@ function delayOf(nodeName) {
 
 async function pick(g, node) {
   if (node === currentOf(g)) return // 重复点击当前节点不动作，也就无需确认
-  if (!(await ask('切换节点', `确认把「${g.name}」切换到「${node}」？切换后新连接立即走该节点`))) return
+  if (!(await ask('切换节点', `确认把「${g.name}」切换到「${node}」？切换后新连接将通过该节点代理`))) return
   try {
     await api.put('/api/proxies/' + encodeURIComponent(g.name), { name: node })
     toast(`「${g.name}」已切换到 ${node}`, 'success')
