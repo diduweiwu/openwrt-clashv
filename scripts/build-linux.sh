@@ -11,6 +11,8 @@
 #   clashv-amd64     x86_64（GOAMD64=v1 最大兼容）
 #   clashv-riscv64   riscv64_generic
 #   clashv-loong64   loongarch64_generic
+# 另产 darwin 双架构裸二进制（不进 OpenWrt 包，随 Release 上传）：本地 mac
+# 开发时可在界面上测插件自更新（裸二进制替换路径），见 scripts/dev.sh。
 
 set -e
 cd "$(dirname "$0")/.."
@@ -33,7 +35,7 @@ fi
 
 LDFLAGS="-s -w -X main.Version=$VERSION"
 
-# 7 架构并行编译（4 核 CI runner 上串行 ~90s → 并行 ~30s；go build 缓存并发安全）。
+# 9 个二进制并行编译（4 核 CI runner 上串行 ~90s → 并行 ~30s；go build 缓存并发安全）。
 # 各架构输出重定向到独立日志，成功后删掉，失败时统一倒出，避免并行输出穿插难读
 build_arch() {
 	arch_name=$4
@@ -55,6 +57,9 @@ build_arch linux mipsle "" "" & pids="$pids $!"
 build_arch linux amd64 "" "" & pids="$pids $!"
 build_arch linux riscv64 "" "" & pids="$pids $!"
 build_arch linux loong64 "" "" & pids="$pids $!"
+# darwin：第 4 参必须显式给，否则回落 GOARCH 会与 linux 的 clashv-arm64/amd64 撞名
+build_arch darwin arm64 "" darwin-arm64 & pids="$pids $!"
+build_arch darwin amd64 "" darwin-amd64 & pids="$pids $!"
 for p in $pids; do
 	wait "$p" || rc=1
 done

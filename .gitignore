@@ -10,6 +10,9 @@ internal/web/dist/assets/
 # 本地 Docker 构建产物（scripts/build-local-docker.sh）
 /build/
 
+# 本地开发环境（scripts/dev.sh 的二进制与隔离 HOME；tmp/ 也装 SDK 等大件）
+/tmp/
+
 # 运行时数据
 *.log
 config.yaml

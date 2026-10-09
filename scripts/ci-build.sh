@@ -64,7 +64,7 @@ fi
 
 # ---------- Go 二进制 ----------
 if [ "$STAGE" = "go" ] || [ "$STAGE" = "all" ]; then
-  echo "==> [go] 构建 Go 二进制 (7 arch)"
+  echo "==> [go] 构建 Go 二进制 (7 linux + 2 darwin)"
   ./scripts/build-linux.sh bin "$VERSION"
 fi
 
@@ -272,6 +272,9 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   rm -rf "$OUT_DIR"
   mkdir -p "$OUT_DIR"
   find bin -name "$PATTERN" -exec cp {} "$OUT_DIR/" \;
+  # darwin 裸二进制随 Release 上传（只搭 ipk 目标的车，两个矩阵产物不重复）：
+  # 本地 mac 开发时插件自更新走裸二进制路径，见 scripts/dev.sh
+  [ "$TARGET" = "ipk" ] && cp bin/clashv-darwin-* "$OUT_DIR"/
   ls "$OUT_DIR"/* >/dev/null 2>&1 || {
     echo "ERROR: bin/ 下未找到匹配 $PATTERN 的产物" >&2
     exit 1

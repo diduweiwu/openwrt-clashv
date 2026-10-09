@@ -109,7 +109,7 @@ jobs:
           STAGE: frontend
         run: ./scripts/ci-build.sh
 
-      - name: Build Go Binaries (7 arch)
+      - name: Build Go Binaries (7 linux + 2 darwin)
         env:
           TARGET: ${{ matrix.target.name }}
           STAGE: go
