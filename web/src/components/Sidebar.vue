@@ -248,7 +248,8 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   width: 8px; height: 8px; border-radius: 50%;
   background: #5a5f6d;
 }
-.dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+/* 运行=绿点慢闪（1.6s，与启动中的 1s 快闪区分），停止=灰点常亮 */
+.dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); animation: blink 1.6s ease-in-out infinite; }
 .dot.wait { background: var(--orange); box-shadow: 0 0 6px var(--orange); animation: blink 1s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: 0.35; } }
 .theme-btn {
