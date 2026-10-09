@@ -100,7 +100,33 @@ func (m *Manager) proxiedURL(raw string) string {
 
 // fetchRelease 查询仓库最新 Release。
 func (m *Manager) fetchRelease(ctx context.Context, repo string) (*ghRelease, error) {
-	return m.fetchGitHub(ctx, "/repos/"+repo+"/releases/latest")
+	rel, err := m.fetchGitHub(ctx, "/repos/"+repo+"/releases/latest")
+	if err == nil {
+		return rel, nil
+	}
+	var se *httpStatusError
+	if !errors.As(err, &se) {
+		return nil, err
+	}
+	switch se.code {
+	case http.StatusNotFound:
+		// releases/latest 对「没有任何已发布 Release」的公开仓库同样 404，与
+		// 仓库不存在/私有从状态码上无法区分；补一次仓库元信息探测再定提示
+		if m.repoVisible(ctx, repo) {
+			return nil, fmt.Errorf("仓库 %s 可访问，但还没有发布任何 Release，无法检查更新（请先在 GitHub 上发布 Release）", repo)
+		}
+		return nil, fmt.Errorf("仓库 %s 不存在，或为私有仓库（需在设置-插件里配置 GitHub 访问令牌）", repo)
+	case http.StatusUnauthorized:
+		// 只有带了令牌 GitHub 才回 401：令牌填错或已失效
+		return nil, fmt.Errorf("GitHub 访问令牌无效或已过期，请在设置-插件里检查令牌")
+	}
+	return nil, err
+}
+
+// repoVisible 探测仓库本身匿名是否可见（存在且公开）。
+func (m *Manager) repoVisible(ctx context.Context, repo string) bool {
+	_, err := m.fetchGitHub(ctx, "/repos/"+repo)
+	return err == nil
 }
 
 // fetchReleaseByTag 查询仓库指定 tag 对应的 Release（tag 没发过 Release 时 404）。
@@ -125,11 +151,6 @@ func (m *Manager) fetchGitHub(ctx context.Context, apiPath string) (*ghRelease, 
 			strings.TrimSuffix(s.DownloadProxy, "/")+"/https://api.github.com"+apiPath, token); err2 == nil {
 			return rel2, nil
 		}
-	}
-	// 私有仓库未带令牌时 GitHub 返回 404（不是 401），给条能看懂的提示
-	var se *httpStatusError
-	if errors.As(err, &se) && se.code == http.StatusNotFound && token == "" {
-		return nil, fmt.Errorf("仓库不存在，或为私有仓库（需在设置-插件里配置 GitHub 访问令牌）")
 	}
 	return nil, err
 }
