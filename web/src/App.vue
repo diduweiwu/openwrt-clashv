@@ -51,9 +51,17 @@ onUnmounted(() => {
 let coreAsked = false // 每次页面会话只问一次，取消后不再自动弹
 watch(
   () => store.status?.core?.installed,
-  (installed) => {
+  async (installed) => {
     if (installed === false && !coreAsked) {
       coreAsked = true
+      // 已有下载任务在上跑（如刷新页面前发起的）：恢复进度弹窗跟进，不再重复询问
+      try {
+        const p = await api.get('/api/upgrade/progress')
+        if (p?.active && p.kind === 'core') {
+          resumeCoreDownload()
+          return
+        }
+      } catch { /* 查询失败走正常询问 */ }
       askCoreDownload()
     }
   },
@@ -82,17 +90,39 @@ const dlProgText = computed(() => {
   return parts.filter(Boolean).join('，')
 })
 
-function startDlProgPoll() {
+// resume = 页面刷新后重连已在上跑的任务：终态在这里收尾。
+// 正常发起的下载由升级接口自身的返回收尾，不走这里防重复提示。
+function startDlProgPoll(resume = false) {
   stopDlProgPoll()
   dlProg.value = null
   const tick = async () => {
-    try { dlProg.value = await api.get('/api/upgrade/progress') } catch { /* 轮询失败下次再试 */ }
+    try {
+      dlProg.value = await api.get('/api/upgrade/progress')
+    } catch { /* 轮询失败下次再试 */ return }
+    if (!(resume && dlProg.value && !dlProg.value.active)) return
+    const { stage, message } = dlProg.value
+    stopDlProgPoll()
+    dlBusy.value = false
+    showDl.value = false
+    if (stage === 'done') {
+      toast('内核下载安装完成', 'success', 5000)
+      refreshStatus()
+    } else if (stage === 'error') {
+      toast(message || '内核下载失败', 'error', 6000)
+    }
   }
   tick()
   dlProgTimer = setInterval(tick, 600)
 }
 function stopDlProgPoll() {
   if (dlProgTimer) { clearInterval(dlProgTimer); dlProgTimer = null }
+}
+
+// 恢复跟进进行中的内核下载：重开进度弹窗，完成后自动关闭并刷新状态
+function resumeCoreDownload() {
+  showDl.value = true
+  dlBusy.value = true
+  startDlProgPoll(true)
 }
 
 async function startCoreDownload() {

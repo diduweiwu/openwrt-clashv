@@ -227,17 +227,48 @@ function genToken() {
   form.token = [...b].map(x => x.toString(16).padStart(2, '0')).join('')
 }
 
-function startProgPoll() {
+// resumeKind 非空 = 页面刷新后重连已在上跑的任务：任务进入终态时在这里收尾。
+// 正常发起的升级由升级接口自身的返回收尾（resumeKind 为空），不走这里防重复提示。
+function startProgPoll(resumeKind = '') {
   stopProgPoll()
   prog.value = null
   const tick = async () => {
-    try { prog.value = await api.get('/api/upgrade/progress') } catch { /* 轮询失败下次再试 */ }
+    try {
+      prog.value = await api.get('/api/upgrade/progress')
+    } catch { /* 轮询失败下次再试 */ return }
+    if (!(resumeKind && prog.value && !prog.value.active)) return
+    const { stage, message } = prog.value
+    stopProgPoll()
+    if (resumeKind === 'core') {
+      coreUpgrading.value = false
+      if (stage === 'done') toast(message || '内核已更新', 'success', 5000)
+      else if (stage === 'error') toast(message || '内核更新失败', 'error', 6000)
+      try {
+        coreInfo.value = await api.get('/api/core/status')
+        store.status = await api.get('/api/status')
+      } catch { /* 状态刷新失败不影响收尾 */ }
+    } else if (resumeKind === 'plugin') {
+      pluginUpgrading.value = false
+      if (stage === 'done') toast(message || '插件已更新', 'success', 6000)
+      else if (stage === 'error') toast(message || '插件更新失败', 'error', 6000)
+    }
   }
   tick()
   progTimer = setInterval(tick, 600)
 }
 function stopProgPoll() {
   if (progTimer) { clearInterval(progTimer); progTimer = null }
+}
+
+// 页面加载时后端已有进行中的升级任务（如刷新页面前发起的内核下载），恢复进度显示，
+// 否则再点升级只会收到「已有升级任务在进行中」却看不到进度
+async function resumeUpgrade() {
+  try {
+    const p = await api.get('/api/upgrade/progress')
+    if (!p?.active) return
+    if (p.kind === 'core') { coreUpgrading.value = true; startProgPoll('core') }
+    else if (p.kind === 'plugin') { pluginUpgrading.value = true; startProgPoll('plugin') }
+  } catch { /* 忽略，不影响页面其余加载 */ }
 }
 
 async function load() {
@@ -496,7 +527,7 @@ async function deleteBackup(b) {
   }
 }
 
-onMounted(() => { load(); refreshBackups() })
+onMounted(() => { load(); refreshBackups(); resumeUpgrade() })
 onBeforeUnmount(stopProgPoll)
 
 // 设置分区 tab：通用（代理基础+访问控制+下载加速）/ 网络 / 内核 / 插件
