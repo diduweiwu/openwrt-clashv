@@ -191,7 +191,7 @@ function onMoreSelect(key) {
 }
 .logo {
   display: flex; align-items: center; gap: 9px;
-  font-size: 17px; font-weight: 700; color: #fff;
+  font-size: 17px; font-weight: 700; color: var(--text);
   padding: 0 8px;
   letter-spacing: 0.3px;
 }
@@ -200,14 +200,14 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   display: flex; align-items: center; gap: 15px;
   padding: 10px 12px;
   border-radius: 10px;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--text-dim);
   text-decoration: none;
   font-size: 13.5px;
   transition: background 0.15s, color 0.15s;
 }
 /* 标题字符间隔开（HTML 连续空格会塌缩，用 letter-spacing 做出两格空格观感） */
 .nav-item span { letter-spacing: 0.5em; }
-.nav-item:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.nav-item:hover { background: var(--hover); color: var(--text); }
 .nav-item.active { background: var(--accent); color: #fff; }
 /* 「更多」下拉触发钮：仅移动端显示（桌面端这些入口在侧栏底部），样式对齐 nav 图标项 */
 .more-btn {
@@ -225,23 +225,23 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .side-stats {
   display: flex; flex-direction: column; gap: 6px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 1px solid var(--border);
 }
 .ss {
   display: flex; align-items: center; justify-content: space-between;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--hover);
   border-radius: 8px;
   padding: 6px 9px;
 }
-.ss-k { display: flex; align-items: center; gap: 5px; color: rgba(255, 255, 255, 0.45); font-size: 11px; }
-.ss-v { color: rgba(255, 255, 255, 0.85); font-size: 11.5px; font-weight: 600; }
+.ss-k { display: flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 11px; }
+.ss-v { color: var(--text); font-size: 11.5px; font-weight: 600; }
 /* 内存悬浮细分 */
 .mem-tip { font-size: 12px; line-height: 2; }
 .mem-tip b { font-weight: 600; margin-left: 6px; }
 .mem-tip .dim { opacity: 0.65; font-weight: 400; }
 .status-line {
   display: flex; align-items: center; gap: 8px;
-  color: rgba(255, 255, 255, 0.55); font-size: 12.5px; padding: 0 8px;
+  color: var(--text-dim); font-size: 12.5px; padding: 0 8px;
 }
 .dot {
   width: 8px; height: 8px; border-radius: 50%;
@@ -255,7 +255,7 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   width: 100%;
   justify-content: flex-start;
   padding-left: 8px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-dim);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -264,11 +264,11 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   width: 100%;
   justify-content: flex-start;
   padding-left: 8px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-dim);
   font-size: 12px;
   white-space: nowrap;
 }
-.collapse-btn:hover { color: #fff; }
+.collapse-btn:hover { color: var(--text); }
 
 /* ---- 收起态（仅桌面端）：只留图标导航 + logo 小图，底部缩成三枚小圆钮 ---- */
 @media (min-width: 761px) {
