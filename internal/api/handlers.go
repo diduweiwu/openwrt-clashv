@@ -688,10 +688,14 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	coreChanged := old.MixedPort != s.MixedPort ||
 		old.TUN != s.TUN || old.TUNStack != s.TUNStack || old.DNS != s.DNS ||
 		old.DNSMode != s.DNSMode || old.CoreMemLimit != s.CoreMemLimit ||
-		old.ControllerPort != s.ControllerPort || (hijackChanged && s.TUN)
+		old.ControllerPort != s.ControllerPort || old.CoreChannel != s.CoreChannel ||
+		(hijackChanged && s.TUN)
+	// 渠道切换后目标渠道还没有内核文件时不能重启（启动会失败），保持现状
+	// 等用户下载完成（下载成功后内核在运行中会自动重启到新渠道）
+	channelMissing := old.CoreChannel != s.CoreChannel && !coreChannelInstalled(d.cfg.CorePath())
 	restarted := false
 	var restartErr string
-	if coreChanged && d.mgr.Running() {
+	if coreChanged && !channelMissing && d.mgr.Running() {
 		if err := d.mgr.Restart(); err != nil {
 			restartErr = err.Error()
 		} else {
@@ -708,11 +712,18 @@ func (d *deps) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, 200, map[string]any{
-		"settings":    s,
-		"restarted":   restarted,
-		"error":       restartErr,
-		"need_reload": old.UIPort != s.UIPort || old.Token != s.Token,
+		"settings":             s,
+		"restarted":            restarted,
+		"error":                restartErr,
+		"need_reload":          old.UIPort != s.UIPort || old.Token != s.Token,
+		"core_channel_missing": channelMissing,
 	})
+}
+
+// coreChannelInstalled 检查指定路径的内核二进制是否存在且为普通文件。
+func coreChannelInstalled(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.Mode().IsRegular()
 }
 
 // ---- 内核控制 ----

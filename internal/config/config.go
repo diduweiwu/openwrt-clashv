@@ -32,6 +32,7 @@ type Settings struct {
 	AutoUpdateTime   string `json:"auto_update_time"`  // 订阅定时更新的时间点（HH:mm）
 	CorePath         string `json:"core_path"`         // mihomo 二进制路径
 	CoreArch         string `json:"core_arch"`         // 内核下载平台名，留空自动检测（如 linux-arm64）
+	CoreChannel      string `json:"core_channel"`      // 内核渠道: release（正式版）/ alpha（预发布版），两渠道内核文件独立存放可共存
 	CoreMemLimit     int    `json:"core_mem_limit"`    // 内核内存软上限（GOMEMLIMIT，MB），0 为不限制
 	CoreMode         string `json:"core_mode"`         // 出站模式: rule / global / direct（卡片切换后持久化，重启仍生效）
 	DNSHijack        string `json:"dns_hijack"`        // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
@@ -63,6 +64,7 @@ func Defaults() Settings {
 		AutoUpdateTime:   "04:00",
 		CorePath:         "",
 		CoreArch:         "",
+		CoreChannel:      "release",
 		CoreMemLimit:     0,
 		CoreMode:         "rule",
 		DNSHijack:        "firewall", // 与 OpenClash 一致：默认防火墙转发 DNS
@@ -171,11 +173,23 @@ func sanitizeRules(in []string) []string {
 	return out
 }
 
-// CorePath 返回 mihomo 二进制路径（含默认值推导）。
+// CorePath 返回当前渠道的 mihomo 二进制路径。
+// 渠道各用独立文件：release 用配置路径本身，alpha 在其后追加 -alpha
+// （如 /usr/bin/mihomo 与 /usr/bin/mihomo-alpha），两份内核可共存，
+// 切换渠道时目标文件已存在就无需重新下载，重启即生效。
 func (m *Manager) CorePath() string {
 	m.mu.Lock()
 	p := m.cur.CorePath
+	ch := m.cur.CoreChannel
 	m.mu.Unlock()
+	if ch == "alpha" {
+		return m.baseCorePath(p) + "-alpha"
+	}
+	return m.baseCorePath(p)
+}
+
+// baseCorePath 解析 release 渠道的内核路径：优先用户配置，缺省按环境推导。
+func (m *Manager) baseCorePath(p string) string {
 	if p != "" {
 		return p
 	}
@@ -287,6 +301,13 @@ func (s *Settings) normalize() {
 	case "rule":
 	default:
 		s.CoreMode = "rule"
+	}
+	// 内核渠道白名单；历史配置为空时视为正式版
+	switch strings.TrimSpace(s.CoreChannel) {
+	case "alpha":
+		s.CoreChannel = "alpha"
+	default:
+		s.CoreChannel = "release"
 	}
 }
 

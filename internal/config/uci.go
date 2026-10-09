@@ -24,6 +24,7 @@ import (
 //	    option auto_update_time '04:00'
 //	    option core_path ''
 //	    option core_arch ''
+//	    option core_channel 'release'
 //	    option core_mem_limit '0'
 //	    option dns_hijack 'firewall'
 //	    option dns_hijack_ipv4 '1'
@@ -88,6 +89,7 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setStr(&s.AutoUpdateTime, "auto_update_time")
 	setStr(&s.CorePath, "core_path")
 	setStr(&s.CoreArch, "core_arch")
+	setStr(&s.CoreChannel, "core_channel")
 	setInt(&s.CoreMemLimit, "core_mem_limit")
 	setStr(&s.CoreMode, "core_mode")
 	setStr(&s.DNSHijack, "dns_hijack")
@@ -138,6 +140,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.auto_update_time='%s'", uciSection, s.AutoUpdateTime)
 	line("set %s.core_path='%s'", uciSection, s.CorePath)
 	line("set %s.core_arch='%s'", uciSection, s.CoreArch)
+	line("set %s.core_channel='%s'", uciSection, s.CoreChannel)
 	line("set %s.core_mem_limit='%d'", uciSection, s.CoreMemLimit)
 	line("set %s.core_mode='%s'", uciSection, s.CoreMode)
 	line("set %s.dns_hijack='%s'", uciSection, s.DNSHijack)

@@ -23,6 +23,10 @@ const (
 	ghAPIBase = "https://api.github.com"
 	testURL   = "https://www.gstatic.com/generate_204"
 
+	// alphaTag mihomo 预发布（Alpha）渠道的滚动 Release tag：tag 固定不变，
+	// 资产随 main 分支构建持续更新，资产名带 commit 短哈希（如 alpha-e4dd968）。
+	alphaTag = "Prerelease-Alpha"
+
 	maxAssetSize = 256 << 20 // 单文件下载上限
 	dlRetryWait  = 2 * time.Second
 )
@@ -515,12 +519,26 @@ type CoreStatus struct {
 	Version   string `json:"version"`
 	Path      string `json:"path"`
 	Platform  string `json:"platform"`
+	Channel   string `json:"channel"` // 当前内核渠道: release / alpha
+}
+
+// CoreChannel 返回当前设置的内核渠道（release / alpha，已归一）。
+func (m *Manager) CoreChannel() string {
+	s, err := m.cfg.Get()
+	if err != nil {
+		return "release"
+	}
+	if s.CoreChannel == "alpha" {
+		return "alpha"
+	}
+	return "release"
 }
 
 // CoreStatus 探测本地内核版本（优先问运行中的控制接口，否则执行 -v）。
+// 探测对象是当前渠道的内核文件（CorePath 已按渠道区分）。
 func (m *Manager) CoreStatus(ctx context.Context) CoreStatus {
 	path := m.cfg.CorePath()
-	st := CoreStatus{Path: path, Platform: platformName()}
+	st := CoreStatus{Path: path, Platform: platformName(), Channel: m.CoreChannel()}
 	if m.Running() {
 		if v, err := m.hc.version(ctx); err == nil {
 			st.Installed = true
@@ -533,9 +551,10 @@ func (m *Manager) CoreStatus(ctx context.Context) CoreStatus {
 		st.Installed = true
 		st.Version = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "Mihomo Meta"))
 		if v := strings.Fields(st.Version); len(v) > 0 {
-			// 形如 "Mihomo Meta v1.19.2 linux arm64 ..."，取版本号
+			// 正式版形如 "Mihomo Meta v1.19.2 linux arm64 ..."，取版本号；
+			// Alpha 版没有 v 前缀版本号，取 "alpha-<commit>" 字段
 			for _, f := range v {
-				if strings.HasPrefix(f, "v") && strings.Contains(f, ".") {
+				if (strings.HasPrefix(f, "v") && strings.Contains(f, ".")) || strings.HasPrefix(f, "alpha-") {
 					st.Version = f
 					break
 				}
@@ -545,19 +564,59 @@ func (m *Manager) CoreStatus(ctx context.Context) CoreStatus {
 	return st
 }
 
-// LatestCore 查询 mihomo 最新版本。
+// coreChannelAssetRe 构造当前渠道 Release 资产名的匹配规则：
+// 正式版为 mihomo-{平台}-v<版本>.gz（如 mihomo-linux-arm64-v1.19.2.gz），
+// Alpha 为 mihomo-{平台}-alpha-<commit>.gz（如 mihomo-linux-arm64-alpha-e4dd968.gz）。
+// 平台名无法识别时返回 nil（不支持自动下载）。
+func coreChannelAssetRe(channel, plat string) *regexp.Regexp {
+	if plat == "" {
+		return nil
+	}
+	if channel == "alpha" {
+		return regexp.MustCompile(`^mihomo-` + regexp.QuoteMeta(plat) + `-alpha-[\w]+\.gz$`)
+	}
+	return regexp.MustCompile(`^mihomo-` + regexp.QuoteMeta(plat) + `-v[\w.\-]+\.gz$`)
+}
+
+// fetchCoreRelease 按渠道查询 mihomo 的 Release：正式版走 releases/latest，
+// Alpha 走固定的滚动 tag。
+func (m *Manager) fetchCoreRelease(ctx context.Context, channel string) (*ghRelease, error) {
+	if channel == "alpha" {
+		return m.fetchReleaseByTag(ctx, coreRepo, alphaTag)
+	}
+	return m.fetchRelease(ctx, coreRepo)
+}
+
+// coreVersionOf 从 Release 提取展示用版本号：正式版用 tag（v1.19.2），
+// Alpha 的 tag 固定为 Prerelease-Alpha 没有版本信息，改从资产名提取
+// alpha-<commit> 段；提取不到时退回 tag 名。
+func coreVersionOf(rel *ghRelease, channel string) string {
+	if channel != "alpha" {
+		return rel.TagName
+	}
+	for _, a := range rel.Assets {
+		if i := strings.Index(a.Name, "-alpha-"); i >= 0 && strings.HasSuffix(a.Name, ".gz") {
+			return strings.TrimSuffix(a.Name[i+1:], ".gz")
+		}
+	}
+	return rel.TagName
+}
+
+// LatestCore 查询 mihomo 当前渠道的最新版本。
 func (m *Manager) LatestCore(ctx context.Context) (string, error) {
-	rel, err := m.fetchRelease(ctx, coreRepo)
+	channel := m.CoreChannel()
+	rel, err := m.fetchCoreRelease(ctx, channel)
 	if err != nil {
 		return "", err
 	}
-	return rel.TagName, nil
+	return coreVersionOf(rel, channel), nil
 }
 
-// UpgradeCore 下载最新 mihomo 并替换本地内核；下载成功后才停内核替换，失败不影响运行中的内核。
-// 返回新版本号。
+// UpgradeCore 下载当前渠道最新 mihomo 并替换本地渠道内核；下载成功后才停内核
+// 替换，失败不影响运行中的内核。返回新版本号。
 func (m *Manager) UpgradeCore(ctx context.Context) (string, error) {
-	rel, err := m.fetchRelease(ctx, coreRepo)
+	channel := m.CoreChannel()
+	rel, err := m.fetchCoreRelease(ctx, channel)
 	if err != nil {
 		return "", err
 	}
@@ -565,16 +624,17 @@ func (m *Manager) UpgradeCore(ctx context.Context) (string, error) {
 	if plat == "" {
 		return "", fmt.Errorf("无法识别当前设备架构（%s/%s），不支持自动下载内核", runtime.GOOS, runtime.GOARCH)
 	}
-	re, err := regexp.Compile(`^mihomo-` + regexp.QuoteMeta(plat) + `-v[\w.\-]+\.gz$`)
-	if err != nil {
-		return "", err
+	re := coreChannelAssetRe(channel, plat)
+	if re == nil {
+		return "", fmt.Errorf("无法识别当前设备架构（%s/%s），不支持自动下载内核", runtime.GOOS, runtime.GOARCH)
 	}
 	asset, ok := rel.findAsset(re)
 	if !ok {
 		return "", fmt.Errorf("最新版本 %s 没有 %s 平台的内核文件", rel.TagName, plat)
 	}
-	slog.Info("开始下载内核", "version", rel.TagName, "platform", plat, "url", asset.BrowserDownloadURL)
-	if err := m.beginUpgrade("core", "准备下载 "+rel.TagName); err != nil {
+	version := coreVersionOf(rel, channel)
+	slog.Info("开始下载内核", "channel", channel, "version", version, "platform", plat, "url", asset.BrowserDownloadURL)
+	if err := m.beginUpgrade("core", "准备下载 "+version); err != nil {
 		return "", err
 	}
 	defer m.endUpgrade()
@@ -608,14 +668,14 @@ func (m *Manager) UpgradeCore(ctx context.Context) (string, error) {
 		return "", err
 	}
 	os.Remove(gzPath)
-	slog.Info("内核已更新", "version", rel.TagName)
-	m.finishProgress("done", "已更新到 "+rel.TagName)
+	slog.Info("内核已更新", "channel", channel, "version", version)
+	m.finishProgress("done", "已更新到 "+version)
 	if wasRunning {
 		if err := m.Start(); err != nil {
-			return rel.TagName, fmt.Errorf("内核已更新但启动失败: %w", err)
+			return version, fmt.Errorf("内核已更新但启动失败: %w", err)
 		}
 	}
-	return rel.TagName, nil
+	return version, nil
 }
 
 // ---- 插件自更新 ----

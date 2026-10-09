@@ -1,7 +1,7 @@
 <script setup>
 // 设置页：基础设置、TUN/DNS、内核更新（mihomo）、插件更新
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane, NTag } from 'naive-ui'
+import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NRadioButton, NRadioGroup, NSelect, NSpin, NSwitch, NTabs, NTabPane, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -94,6 +94,13 @@ const HELP = {
       { k: '默认与建议', v: '默认关闭；宽带无 IPv6 或无需接管时保持关闭。' },
     ],
   },
+  coreChannel: {
+    title: '内核渠道',
+    rows: [
+      { k: '作用', v: '选择内核的发布渠道。正式版（Release）：mihomo 官方稳定版本，推荐日常使用；抢先版（Alpha）：跟随 mihomo 开发分支构建，新特性与修复先到，但可能不稳定。' },
+      { k: '切换行为', v: '两渠道内核独立存放、互不覆盖：目标渠道已有内核时，保存后自动重启内核切换；还没有时会提示先下载，下载完成自动重启。' },
+    ],
+  },
   platform: {
     title: '平台',
     rows: [
@@ -112,7 +119,7 @@ const HELP = {
   coreUpdate: {
     title: '更新内核',
     rows: [
-      { k: '作用', v: '从 GitHub 下载最新版 mihomo 内核并安装。' },
+      { k: '作用', v: '从 GitHub 下载当前渠道最新版 mihomo 内核并安装；抢先版（Alpha）更新频繁，可随时升级到最新构建。' },
       { k: '默认与建议', v: '建议：发现新版本再升级即可。' },
     ],
   },
@@ -190,6 +197,7 @@ const form = reactive({
   token: '',
   luci_auth: true,
   core_arch: '',
+  core_channel: 'release',
   core_mem_limit: 0,
   download_proxy: 'https://gh-proxy.com',
   plugin_repo: 'diduweiwu/openwrt-clashv',
@@ -198,7 +206,7 @@ const form = reactive({
 const loaded = ref(false)
 const saving = ref(false)
 
-const coreInfo = ref({ installed: false, version: '', path: '', platform: '' })
+const coreInfo = ref({ installed: false, version: '', path: '', platform: '', channel: '' })
 const coreLatest = ref(null) // {current, latest, has_update}
 const coreUpgrading = ref(false)
 const pluginLatest = ref(null)
@@ -297,6 +305,7 @@ async function load() {
       token: s.token || '',
       luci_auth: s.luci_auth !== false,
       core_arch: s.core_arch || '',
+      core_channel: s.core_channel || 'release',
       core_mem_limit: s.core_mem_limit || 0,
       download_proxy: s.download_proxy || '',
       plugin_repo: s.plugin_repo || '',
@@ -335,6 +344,7 @@ async function save() {
       token: r.settings.token || '',
       luci_auth: r.settings.luci_auth !== false,
       core_arch: r.settings.core_arch || '',
+      core_channel: r.settings.core_channel || 'release',
       core_mem_limit: r.settings.core_mem_limit || 0,
       download_proxy: r.settings.download_proxy || '',
       plugin_repo: r.settings.plugin_repo || '',
@@ -343,6 +353,15 @@ async function save() {
     if (r.error) toast('已保存，但内核重启失败：' + r.error, 'error')
     else if (r.restarted) toast('已保存，内核已重载生效', 'success')
     else toast('已保存' + (r.need_reload ? '（令牌需重启服务后生效）' : ''), 'success')
+    // 切换内核渠道后目标渠道还没有内核：引导立即下载（下载完成且内核在运行会自动重启到新渠道）
+    if (r.core_channel_missing) {
+      const label = r.settings.core_channel === 'alpha' ? '抢先版（Alpha）' : '正式版（Release）'
+      if (await ask('下载内核', `已切换到${label}渠道，本地还没有该渠道的内核文件，是否立即下载？`)) {
+        await downloadCore()
+      }
+    }
+    // 渠道切换会换内核文件与重启，同步刷新内核状态展示
+    try { coreInfo.value = await api.get('/api/core/status') } catch { /* 状态刷新失败不影响保存结果 */ }
     store.status = await api.get('/api/status')
   } catch (e) {
     toast(e.message, 'error')
@@ -359,8 +378,8 @@ async function checkCore() {
   }
 }
 
-async function upgradeCore() {
-  if (!(await ask('升级内核', `确认下载并安装 mihomo ${coreLatest.value.latest}？视网络情况可能需要几分钟`))) return
+// 发起内核下载安装（渠道跟随当前设置），确认弹窗由调用方决定是否先出
+async function downloadCore() {
   coreUpgrading.value = true
   upgradeCancelled.value = false
   startProgPoll()
@@ -376,6 +395,11 @@ async function upgradeCore() {
     stopProgPoll()
     coreUpgrading.value = false
   }
+}
+
+async function upgradeCore() {
+  if (!(await ask('升级内核', `确认下载并安装 mihomo ${coreLatest.value.latest}？视网络情况可能需要几分钟`))) return
+  await downloadCore()
 }
 
 async function checkPlugin() {
@@ -805,9 +829,23 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             <span class="rt">当前版本</span>
             <span class="rs mono">{{ coreInfo.path }}</span>
           </div>
-          <span class="mono" :style="{ color: coreInfo.installed ? 'var(--green)' : 'var(--red)' }">
-            {{ coreInfo.installed ? coreInfo.version || '已安装' : '未安装' }}
-          </span>
+          <div class="ver-side">
+            <n-tag size="small" :bordered="false" :type="coreInfo.channel === 'alpha' ? 'warning' : 'default'">
+              {{ coreInfo.channel === 'alpha' ? 'Alpha' : 'Release' }}
+            </n-tag>
+            <span class="mono" :style="{ color: coreInfo.installed ? 'var(--green)' : 'var(--red)' }">
+              {{ coreInfo.installed ? coreInfo.version || '已安装' : '未安装' }}
+            </span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">内核渠道<HelpModal v-bind="HELP.coreChannel" /></span>
+          </div>
+          <n-radio-group v-model:value="form.core_channel" name="core_channel" class="ctl">
+            <n-radio-button value="release">正式版 Release</n-radio-button>
+            <n-radio-button value="alpha">抢先版 Alpha</n-radio-button>
+          </n-radio-group>
         </div>
         <div class="row">
           <div class="row-text">
@@ -1077,6 +1115,8 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 .num { width: 110px; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
 .btn-pair { display: flex; gap: 8px; flex: none; }
+/* 当前版本行右侧：渠道标识 + 版本/状态文本 */
+.ver-side { display: flex; align-items: center; gap: 8px; flex: none; }
 /* n-input-group 默认 flex 拉伸占满剩余宽度，收缩并靠右与行内其他控件一致 */
 .row .n-input-group { width: fit-content; margin-left: auto; }
 .prog { width: 180px; flex-shrink: 0; }
