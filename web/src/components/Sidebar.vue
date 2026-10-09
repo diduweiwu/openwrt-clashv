@@ -182,12 +182,12 @@ function onMoreSelect(key) {
 
 <style scoped>
 .sidebar {
-  width: 176px;
+  width: 156px;
   flex: none;
   background: var(--sidebar);
   display: flex;
   flex-direction: column;
-  padding: 20px 26px;
+  padding: 20px 16px;
   gap: 24px;
   transition: width 0.15s ease;
 }
