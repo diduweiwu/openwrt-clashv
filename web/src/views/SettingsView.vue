@@ -144,12 +144,6 @@ const HELP = {
       { k: '默认与建议', v: '建议：发现新版本再升级即可。' },
     ],
   },
-  restart: {
-    title: '重启服务',
-    rows: [
-      { k: '作用', v: '重启 ClashV 插件服务进程；修改界面访问令牌后需重启才能生效。' },
-    ],
-  },
   backupCreate: {
     title: '备份当前状态',
     rows: [
@@ -393,16 +387,6 @@ async function waitPluginInstalled() {
     } catch { downSeen = true }
   }
   toast('等待服务重启超时，请稍后刷新页面确认版本', 'error', 8000)
-}
-
-async function restartService() {
-  if (!(await ask('重启服务', '确认重启 ClashV 服务？'))) return
-  try {
-    await api.post('/api/service/restart')
-    toast('服务重启中，请稍后刷新页面', 'success')
-  } catch (e) {
-    toast(e.message, 'error')
-  }
 }
 
 // 恢复出厂：除订阅配置（含激活项）外全部回到安装初始状态，二次确认防误触
@@ -776,14 +760,6 @@ const tab = ref('general')
             class="prog"
           />
           <n-spin v-else :size="16" />
-        </div>
-        <div class="row" v-if="store.status?.openwrt">
-          <div class="row-text">
-            <span class="rt">重启服务<HelpModal v-bind="HELP.restart" /></span>
-          </div>
-          <n-button size="small" @click="restartService">
-            <template #icon><AppIcon name="restart" :size="13" /></template>重启
-          </n-button>
         </div>
       </div>
     </n-card>
