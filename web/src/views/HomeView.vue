@@ -947,4 +947,13 @@ function currentOf(g) {
   .traffic-nums .meta-item .v { font-size: 14px; }
   .sub-bar { max-width: 100%; }
 }
+
+/* ---- 手机（≤760，与侧栏转顶栏同断点）：启动/停止 与 重启 竖排贴右，主操作在上 ---- */
+@media (max-width: 760px) {
+  .hero-actions { flex-direction: column !important; align-items: flex-end; }
+  /* n-flex 子项间距是行内 margin，竖排后要清掉改纵向间距；DOM 首个是「重启」，order 挪到下面 */
+  .hero-actions :deep(.n-button) { margin-right: 0 !important; }
+  .hero-actions :deep(.n-button:not(:last-child)) { margin-bottom: 10px; }
+  .hero-actions :deep(.n-button:first-child) { order: 2; }
+}
 </style>
