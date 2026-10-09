@@ -229,13 +229,16 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   # 与 OpenClash 的打包逻辑一致：包正确注册（BuildPackage 宏）后，SDK 模式下
   # make defconfig 会把所有包默认置为 m，无需手动写入 CONFIG
   cd "$SDK"
-  # CONFIG_ALL_KMODS=y 是 SDK .config 预置的「全选 kmod」开关：只要它还在，任何
-  # 一次 Kconfig 重算（defconfig 或编译期静默 conf）都会把全部 kmod 重新展开成 =m，
-  # 把逐行剪减整个冲掉（25.12 SDK 上冷构建因此重打包上千个无关 kmod，apk 目标拖到
-  # 8 分钟）。必须在 defconfig 之前先关掉——之后无论 conf 重算多少次都无法复活
+  # SDK 解包后没有 .config（由 defconfig 生成）。两次 defconfig 中间把
+  # CONFIG_ALL_KMODS 关掉：它是 SDK 的「全选 kmod」开关，只要为 y，任何一次
+  # Kconfig 重算（defconfig 或编译期静默 conf）都会把全部 kmod 展开成 =m，冲掉
+  # 逐行剪减（25.12 SDK 冷构建因此重打包上千个无关 kmod，apk 目标拖到 8 分钟）。
+  # 第一遍 defconfig 生成/规范化 → 关开关 → 第二遍 defconfig 定稿，此后无论
+  # conf 再重算多少次 kmod 都无法复活
+  make defconfig
   sed -i 's/^CONFIG_ALL_KMODS=y$/# CONFIG_ALL_KMODS is not set/' .config
   make defconfig
-  echo "==> 剪减前 kmod: $(grep -c '^CONFIG_PACKAGE_kmod-.*=m' .config) 个"
+  echo "==> 关闭 ALL_KMODS 后 kmod: $(grep -c '^CONFIG_PACKAGE_kmod-.*=m' .config) 个"
   # .build 是「配置已就绪」的标记：缺它时 package/xxx/compile 前会再跑一次
   # defconfig，SDK 默认值会把下面的 kmod 剪减全部冲掉，所以这里必须补上
   touch tmp/.build
