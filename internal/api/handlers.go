@@ -512,11 +512,11 @@ func (d *deps) handleProfilesUpdateAll(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, 200, map[string]any{
-		"results":   results,
-		"ok_count":  okN,
+		"results":    results,
+		"ok_count":   okN,
 		"fail_count": failN,
-		"restarted": restarted,
-		"error":     restartErr,
+		"restarted":  restarted,
+		"error":      restartErr,
 	})
 }
 
@@ -772,21 +772,98 @@ func normalizeVer(v string) string {
 // ---- 插件 ----
 
 func (d *deps) handlePluginLatest(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	// 比最新 Release 多查一次当前版本的 tags 接口，超时相应放宽
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	latest, err := d.mgr.LatestPlugin(ctx)
+	rel, err := d.mgr.LatestPluginRelease(ctx)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err)
 		return
 	}
+	curID := int64(0)
+	if d.ver != "dev" {
+		curID = d.mgr.InstalledPluginReleaseID(ctx, d.ver)
+	}
+	hasUpdate, by := pluginHasUpdate(d.ver, curID, rel.ID, rel.TagName)
 	writeJSON(w, 200, map[string]any{
 		"current":    d.ver,
-		"latest":     latest,
-		"has_update": d.ver == "dev" || normalizeVer(latest) != normalizeVer(d.ver),
+		"latest":     rel.TagName,
+		"current_id": curID,
+		"latest_id":  rel.ID,
+		"compare_by": by, // id / tag / dev：has_update 的判定依据，设备上排查用
+		"has_update": hasUpdate,
+		// 当前设备将下载的 ipk/apk 包（非 OpenWrt 为 null）
+		"pkg": d.mgr.PluginPackagePlan(),
 	})
 }
 
+// pluginHasUpdate 判断插件是否可更新。优先比较 Release 数字 ID——GitHub 的
+// Release ID 按创建顺序单调递增，能分清新旧方向、不受版本号格式影响；本地
+// 版本的 Release 查不到（自编译版本、tag 没发 Release）时退回版本号拆段比较。
+func pluginHasUpdate(ver string, curID, latestID int64, latestTag string) (bool, string) {
+	if ver == "dev" {
+		return true, "dev"
+	}
+	if curID > 0 && latestID > 0 {
+		return latestID > curID, "id"
+	}
+	return compareVersions(latestTag, ver) > 0, "ver"
+}
+
+// compareVersions 版本号按点拆段转数字比较，返回 -1/0/1：字符串直接比会出现
+// "0.1.2" > "0.1.13" 的字典序误判，必须拆段。取每段前导数字（"rc1" 视为 0），
+// 段数不足补 0（1.0 与 1.0.0 相等），前缀 v 容忍。
+func compareVersions(a, b string) int {
+	as, bs := strings.Split(strings.TrimPrefix(a, "v"), "."), strings.Split(strings.TrimPrefix(b, "v"), ".")
+	seg := func(s []string, i int) string {
+		if i < len(s) {
+			return s[i]
+		}
+		return ""
+	}
+	num := func(s string) int64 {
+		var n int64
+		for _, c := range s {
+			if c < '0' || c > '9' {
+				break
+			}
+			n = n*10 + int64(c-'0')
+		}
+		return n
+	}
+	for i := 0; i < len(as) || i < len(bs); i++ {
+		av, bv := num(seg(as, i)), num(seg(bs, i))
+		switch {
+		case av < bv:
+			return -1
+		case av > bv:
+			return 1
+		}
+	}
+	return 0
+}
+
 func (d *deps) handlePluginUpgrade(w http.ResponseWriter, r *http.Request) {
+	if d.cfg.IsOpenWrt() {
+		// OpenWrt 走 ipk/apk 包流程：接口只负责下载到 /tmp，响应返回后再在
+		// 后台安装——安装末尾 postinst 会重启服务杀掉本进程，响应必须先发出。
+		// 结果靠前端等服务失联再恢复来确认，安装失败记录在升级进度里。
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Minute)
+		defer cancel()
+		version, pkg, file, err := d.mgr.PreparePluginUpgrade(ctx)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		go func() {
+			if err := d.mgr.InstallDownloadedPlugin(pkg, file); err != nil {
+				slog.Warn("插件在线更新安装失败", "pkg", pkg.Name, "err", err)
+			}
+		}()
+		writeJSON(w, 200, map[string]any{"version": version, "need_restart": false, "pkg": pkg})
+		return
+	}
+	// 非 OpenWrt：下载裸二进制替换自身，需手动重启服务
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
 	version, needRestart, err := d.mgr.UpgradePlugin(ctx)
@@ -864,7 +941,9 @@ func (d *deps) handleBackupList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *deps) handleBackupCreate(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Name string `json:"name"` }
+	var body struct {
+		Name string `json:"name"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, 400, errStr("请求体不是合法的 JSON"))
 		return
@@ -878,7 +957,9 @@ func (d *deps) handleBackupCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *deps) handleBackupRestore(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Name string `json:"name"` }
+	var body struct {
+		Name string `json:"name"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, 400, errStr("请求体不是合法的 JSON"))
 		return

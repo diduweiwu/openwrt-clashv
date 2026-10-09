@@ -32,6 +32,7 @@ const form = reactive({
   core_arch: '',
   core_mem_limit: 0,
   download_proxy: 'https://gh-proxy.com',
+  plugin_repo: 'nier/clashv',
 })
 const loaded = ref(false)
 const saving = ref(false)
@@ -96,6 +97,7 @@ async function load() {
       core_arch: s.core_arch || '',
       core_mem_limit: s.core_mem_limit || 0,
       download_proxy: s.download_proxy || '',
+      plugin_repo: s.plugin_repo || '',
     })
     loaded.value = true
     coreInfo.value = await api.get('/api/core/status')
@@ -132,6 +134,7 @@ async function save() {
       core_arch: r.settings.core_arch || '',
       core_mem_limit: r.settings.core_mem_limit || 0,
       download_proxy: r.settings.download_proxy || '',
+      plugin_repo: r.settings.plugin_repo || '',
     })
     if (r.error) toast('已保存，但内核重启失败：' + r.error, 'error')
     else if (r.restarted) toast('已保存，内核已重载生效', 'success')
@@ -179,18 +182,18 @@ async function checkPlugin() {
 }
 
 async function upgradePlugin() {
-  if (!(await ask('更新插件', '确认下载并安装插件最新版本？安装后需要重启服务'))) return
+  const p = pluginLatest.value?.pkg
+  const pkgText = p ? `匹配包 ${p.name}（${p.format}），` : ''
+  if (!(await ask('更新插件', `确认下载并安装插件最新版本？${pkgText}安装完成后服务会自动重启，期间界面会短暂失联`))) return
   pluginUpgrading.value = true
   startProgPoll()
   try {
     const r = await api.post('/api/plugin/upgrade')
-    if (r.need_restart && store.status?.openwrt) {
-      if (await ask('重启服务', '插件已下载，立即重启服务生效？')) {
-        await api.post('/api/service/restart')
-        toast('服务重启中，请稍后刷新页面', 'success')
-      }
-    } else {
+    if (r.need_restart) {
+      // 非 OpenWrt 裸二进制流程：已替换自身，需手动重启
       toast('插件已更新，请手动重启服务生效', 'success')
+    } else {
+      await waitPluginInstalled()
     }
   } catch (e) {
     toast(e.message, 'error', 6000)
@@ -198,6 +201,29 @@ async function upgradePlugin() {
     stopProgPoll()
     pluginUpgrading.value = false
   }
+}
+
+// OpenWrt 包流程：升级接口返回即安装包已下载到路由器，安装与服务重启在后台
+// 进行。服务失联再恢复 = 新版本已上线，自动刷新加载新界面；服务一直在线则
+// 从升级进度里读安装结果（依赖缺失等失败会记录在那里）。
+async function waitPluginInstalled() {
+  toast('安装包已下载，正在安装，服务将自动重启…', 'success', 6000)
+  const deadline = Date.now() + 180000
+  let downSeen = false
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 2000))
+    if (prog.value?.stage === 'error') { toast(prog.value.message, 'error', 8000); return }
+    if (prog.value?.stage === 'done') { toast('安装完成，但服务未自动重启（可能未开机自启），请手动重启生效', 'success', 8000); return }
+    try {
+      await api.get('/api/status')
+      if (downSeen) {
+        toast('服务已重启，正在加载新版本…', 'success')
+        setTimeout(() => location.reload(), 1200)
+        return
+      }
+    } catch { downSeen = true }
+  }
+  toast('等待服务重启超时，请稍后刷新页面确认版本', 'error', 8000)
 }
 
 async function restartService() {
@@ -320,7 +346,7 @@ async function deleteBackup(b) {
 onMounted(() => { load(); refreshBackups() })
 onBeforeUnmount(stopProgPoll)
 
-// 设置分区 tab：通用（代理基础+访问控制）/ 网络 / 内核 / 插件
+// 设置分区 tab：通用（代理基础+访问控制+下载加速）/ 网络 / 内核 / 插件
 const tab = ref('general')
 </script>
 
@@ -377,6 +403,13 @@ const tab = ref('general')
               <span class="rs">开启后必须先登录 OpenWrt 才能使用界面：从 LuCI 菜单进入自动放行；直接访问 路由器IP:9097 会自动跳转到 LuCI 的 ClashV 页（未登录 LuCI 时是登录页），退出 OpenWrt 登录后界面立即失效<span class="rec">默认开启，建议保持；本机访问与访问令牌不受影响</span></span>
             </div>
             <n-switch v-model:value="form.luci_auth" />
+          </div>
+          <div class="row">
+            <div class="row-text">
+              <span class="rt">下载加速前缀</span>
+              <span class="rs">内核/插件从 GitHub 下载时套用此前缀加速，直连 GitHub 够快可留空<span class="rec">默认 https://gh-proxy.com，建议保持</span></span>
+            </div>
+            <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.com" style="width: 210px" />
           </div>
         </div>
       </n-card>
@@ -491,13 +524,6 @@ const tab = ref('general')
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">下载加速前缀</span>
-            <span class="rs">内核/插件从 GitHub 下载时套用此前缀加速，直连 GitHub 够快可留空<span class="rec">默认 https://gh-proxy.com，建议保持</span></span>
-          </div>
-          <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.com" style="width: 210px" />
-        </div>
-        <div class="row">
-          <div class="row-text">
             <span class="rt">更新内核</span>
             <span class="rs">
               <template v-if="coreLatest">
@@ -542,14 +568,22 @@ const tab = ref('general')
       <div class="rows">
         <div class="row">
           <div class="row-text">
+            <span class="rt">在线仓库地址</span>
+            <span class="rs">GitHub 仓库（owner/repo），检查更新与下载安装包都从这里获取<span class="rec">默认 nier/clashv</span></span>
+          </div>
+          <n-input v-model:value="form.plugin_repo" placeholder="owner/repo" style="width: 210px" />
+        </div>
+        <div class="row">
+          <div class="row-text">
             <span class="rt">更新插件</span>
             <span class="rs">
               <template v-if="pluginLatest">
                 最新 {{ pluginLatest.latest }}
+                <template v-if="pluginLatest.pkg"> · 匹配包 {{ pluginLatest.pkg.name }}（{{ pluginLatest.pkg.format }}）</template>
                 <template v-if="pluginLatest.has_update">（可更新）</template>
                 <template v-else>（已是最新）</template>
               </template>
-              <template v-else>从 GitHub 下载最新版本</template>
+              <template v-else>从在线仓库获取最新 Release，自动匹配设备架构的 ipk/apk 安装包</template>
               <span class="rec">建议：发现新版本再升级即可</span>
             </span>
           </div>
@@ -671,7 +705,8 @@ const tab = ref('general')
       </div>
     </n-modal>
 
-    <div class="save-bar" v-if="tab !== 'plugin'">
+    <!-- 插件 tab 现在含在线仓库地址等可保存项，保存栏全 tab 显示 -->
+    <div class="save-bar">
       <n-button type="primary" :loading="saving" :disabled="!loaded" @click="save">
         <template #icon><AppIcon name="save" :size="14" /></template>保存
       </n-button>

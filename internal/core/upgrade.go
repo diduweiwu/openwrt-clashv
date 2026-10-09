@@ -28,6 +28,7 @@ const (
 )
 
 type ghRelease struct {
+	ID      int64  `json:"id"` // GitHub 按创建顺序单调递增，可用于比较新旧
 	TagName string `json:"tag_name"`
 	Assets  []struct {
 		Name               string `json:"name"`
@@ -85,16 +86,26 @@ func (m *Manager) proxiedURL(raw string) string {
 	return raw
 }
 
-// fetchRelease 查询 GitHub 最新 Release：先直连 API，失败时改走下载加速前缀重试。
+// fetchRelease 查询仓库最新 Release。
 func (m *Manager) fetchRelease(ctx context.Context, repo string) (*ghRelease, error) {
-	rel, err := fetchReleaseVia(ctx, ghAPIBase+"/repos/"+repo+"/releases/latest")
+	return m.fetchGitHub(ctx, "/repos/"+repo+"/releases/latest")
+}
+
+// fetchReleaseByTag 查询仓库指定 tag 对应的 Release（tag 没发过 Release 时 404）。
+func (m *Manager) fetchReleaseByTag(ctx context.Context, repo, tag string) (*ghRelease, error) {
+	return m.fetchGitHub(ctx, "/repos/"+repo+"/releases/tags/"+tag)
+}
+
+// fetchGitHub 请求 GitHub API：先直连，失败时改走下载加速前缀重试。
+func (m *Manager) fetchGitHub(ctx context.Context, apiPath string) (*ghRelease, error) {
+	rel, err := fetchReleaseVia(ctx, ghAPIBase+apiPath)
 	if err == nil {
 		return rel, nil
 	}
 	s, gerr := m.cfg.Get()
 	if gerr == nil && s.DownloadProxy != "" {
 		if rel2, err2 := fetchReleaseVia(ctx,
-			strings.TrimSuffix(s.DownloadProxy, "/")+"/https://api.github.com/repos/"+repo+"/releases/latest"); err2 == nil {
+			strings.TrimSuffix(s.DownloadProxy, "/")+"/https://api.github.com"+apiPath); err2 == nil {
 			return rel2, nil
 		}
 	}
@@ -501,20 +512,241 @@ func (m *Manager) UpgradeCore(ctx context.Context) (string, error) {
 
 // ---- 插件自更新 ----
 
-// LatestPlugin 查询插件仓库最新版本。
-func (m *Manager) LatestPlugin(ctx context.Context) (string, error) {
-	s, err := m.cfg.Get()
-	if err != nil {
-		return "", err
-	}
-	rel, err := m.fetchRelease(ctx, s.PluginRepo)
-	if err != nil {
-		return "", err
-	}
-	return rel.TagName, nil
+// Release 里同时有 ipk/apk 各 8 个包：通用版 + 7 个架构精简版，全部
+// PKGARCH:=all、靠包名区分架构，互相 CONFLICTS 只能装一个。
+var pluginPkgNames = []string{
+	"luci-app-clashv",
+	"luci-app-clashv-arm64", "luci-app-clashv-armv7", "luci-app-clashv-mips",
+	"luci-app-clashv-mipsle", "luci-app-clashv-amd64",
+	"luci-app-clashv-riscv64", "luci-app-clashv-loong64",
 }
 
-// UpgradePlugin 下载新版本插件二进制并替换自身，替换后需重启服务生效。
+// PluginPkg 为当前设备解析出的插件升级安装包。
+type PluginPkg struct {
+	Name   string `json:"name"`   // 包名，决定匹配 Release 里的哪个文件
+	Format string `json:"format"` // ipk（opkg 系）或 apk（25.12+）
+	Arch   string `json:"arch"`   // 设备 DISTRIB_ARCH，读不到为 all
+}
+
+// openwrtPkgFormat 按包管理器决定下载 ipk 还是 apk：apk 系（25.12+）优先，
+// 否则 opkg 系；两者都没有返回空串。
+func openwrtPkgFormat() string {
+	for _, b := range []string{"apkg", "apk"} {
+		if _, err := exec.LookPath(b); err == nil {
+			return "apk"
+		}
+	}
+	if _, err := exec.LookPath("opkg"); err == nil {
+		return "ipk"
+	}
+	return ""
+}
+
+// distribArch 读 /etc/openwrt_release 里的设备架构（如 aarch64_cortex-a53）。
+func distribArch() string {
+	data, err := os.ReadFile("/etc/openwrt_release")
+	if err != nil {
+		return ""
+	}
+	m := regexp.MustCompile(`DISTRIB_ARCH=["']?([\w.+-]+)`)
+	if mm := m.FindSubmatch(data); mm != nil {
+		return string(mm[1])
+	}
+	return ""
+}
+
+// openwrtPkgArch 把 DISTRIB_ARCH 映射到架构精简包名后缀，与包安装脚本
+// postinst 的 KEEP 映射保持一致；映射不上返回空串（退回通用版）。
+func openwrtPkgArch(arch string) string {
+	switch {
+	case arch == "":
+		return ""
+	case strings.HasPrefix(arch, "aarch64"), arch == "arm64":
+		return "arm64"
+	case strings.HasPrefix(arch, "arm"):
+		return "armv7"
+	case strings.HasPrefix(arch, "mips64"):
+		return "" // 64 位 MIPS 没有对应 Go 构建，退通用版（实际同样跑不了）
+	case strings.HasPrefix(arch, "mipsel"):
+		return "mipsle"
+	case strings.HasPrefix(arch, "mips"):
+		return "mips"
+	case arch == "x86_64", arch == "amd64":
+		return "amd64"
+	case arch == "riscv64":
+		return "riscv64"
+	case arch == "loongarch64":
+		return "loong64"
+	}
+	return ""
+}
+
+// installedPluginPkg 查当前已安装的 clashv 包名。升级优先原地替换同一个包：
+// 通用版与各精简版互为 CONFLICTS，装错变体会被包管理器直接拒绝。
+func installedPluginPkg(format string) string {
+	if format == "apk" {
+		// apk 数据库每包一段，包名记在 P: 行；路径按 apk-tools 版本两处都试
+		for _, p := range []string{"/usr/lib/apk/db/installed", "/lib/apk/db/installed"} {
+			data, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			for _, ln := range strings.Split(string(data), "\n") {
+				if name, ok := strings.CutPrefix(ln, "P:"); ok {
+					for _, want := range pluginPkgNames {
+						if name == want {
+							return want
+						}
+					}
+				}
+			}
+		}
+		bin := "apk"
+		if _, err := exec.LookPath("apkg"); err == nil {
+			bin = "apkg"
+		}
+		for _, name := range pluginPkgNames {
+			// info -e：<包>已安装时退出码为 0；旧版 apk 不认识该参数也不致错装
+			if err := exec.Command(bin, "info", "-e", name).Run(); err == nil {
+				return name
+			}
+		}
+		return ""
+	}
+	out, err := exec.Command("opkg", "list-installed").Output()
+	if err != nil {
+		return ""
+	}
+	for _, ln := range strings.Split(string(out), "\n") {
+		f := strings.Fields(ln)
+		for _, want := range pluginPkgNames {
+			if len(f) >= 2 && f[0] == want {
+				return want
+			}
+		}
+	}
+	return ""
+}
+
+// PluginPackagePlan 为当前设备选定升级包（纯本地探测，不访问网络）；
+// 非 OpenWrt 环境返回 nil。
+func (m *Manager) PluginPackagePlan() *PluginPkg {
+	format := openwrtPkgFormat()
+	if format == "" {
+		return nil
+	}
+	arch := distribArch()
+	name := installedPluginPkg(format)
+	if name == "" {
+		if short := openwrtPkgArch(arch); short != "" {
+			name = "luci-app-clashv-" + short
+		} else {
+			name = "luci-app-clashv"
+		}
+	}
+	if arch == "" {
+		arch = "all"
+	}
+	return &PluginPkg{Name: name, Format: format, Arch: arch}
+}
+
+// pluginAssetRe 构造 Release 资产文件名的匹配规则：包名后紧跟数字开头的版本号
+// （分隔符 ipk 用 _、apk 可能用 -），末段可选 _架构.扩展名。通用版的规则不会
+// 误吃架构精简版——精简版包名在通用版名后多出 "-<arch>"，版本段不再是数字开头。
+func pluginAssetRe(name, format string) *regexp.Regexp {
+	return regexp.MustCompile(`^` + regexp.QuoteMeta(name) + `[._-][0-9][\w.+-]*(_[\w.+-]+)?\.` + format + `$`)
+}
+
+// PreparePluginUpgrade 查询在线仓库最新 Release，匹配当前设备的 ipk/apk 并
+// 下载到临时目录；安装由 InstallDownloadedPlugin 在响应返回后的后台执行。
+func (m *Manager) PreparePluginUpgrade(ctx context.Context) (ver string, pkg PluginPkg, file string, err error) {
+	plan := m.PluginPackagePlan()
+	if plan == nil {
+		return "", pkg, "", fmt.Errorf("未识别 OpenWrt 包管理器（opkg/apk），无法在线更新")
+	}
+	s, gerr := m.cfg.Get()
+	if gerr != nil {
+		return "", pkg, "", gerr
+	}
+	rel, gerr := m.fetchRelease(ctx, s.PluginRepo)
+	if gerr != nil {
+		return "", pkg, "", gerr
+	}
+	assetURL, ok := rel.findAsset(pluginAssetRe(plan.Name, plan.Format))
+	if !ok {
+		return "", pkg, "", fmt.Errorf("最新版本 %s 没有 %s 的 %s 包", rel.TagName, plan.Name, plan.Format)
+	}
+	if gerr = m.beginUpgrade("plugin", "准备下载 "+rel.TagName); gerr != nil {
+		return "", pkg, "", gerr
+	}
+	file = filepath.Join(os.TempDir(), filepath.Base(assetURL))
+	slog.Info("开始下载插件更新包", "version", rel.TagName, "pkg", plan.Name, "url", assetURL)
+	if gerr = m.downloadFile(ctx, m.downloadCandidates(assetURL), file); gerr != nil {
+		m.finishProgress("error", "下载失败: "+gerr.Error())
+		os.Remove(file)
+		return "", pkg, "", gerr
+	}
+	m.finishProgress("install", "下载完成，安装中…")
+	return rel.TagName, *plan, file, nil
+}
+
+// InstallDownloadedPlugin 用系统包管理器安装下载好的包，装完的 postinst 会
+// 自动重启服务。服务被杀前 HTTP 响应必须已经发出，所以只能在后台 goroutine 跑。
+func (m *Manager) InstallDownloadedPlugin(pkg PluginPkg, file string) error {
+	var cmd *exec.Cmd
+	if pkg.Format == "apk" {
+		bin := "apk"
+		if _, err := exec.LookPath("apkg"); err == nil {
+			bin = "apkg"
+		}
+		cmd = exec.Command(bin, "add", "--allow-untrusted", file) // 自建包未签名，须跳过签名校验
+	} else {
+		cmd = exec.Command("opkg", "install", file)
+	}
+	out, err := cmd.CombinedOutput()
+	os.Remove(file)
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		if len(msg) > 300 {
+			msg = msg[:300] + "…"
+		}
+		slog.Warn("插件包安装失败", "pkg", pkg.Name, "out", msg)
+		m.finishProgress("error", "安装失败: "+msg)
+		return fmt.Errorf("安装失败: %s", msg)
+	}
+	slog.Info("插件包安装完成，postinst 将重启服务", "pkg", pkg.Name)
+	m.finishProgress("done", "已安装 "+pkg.Name)
+	return nil
+}
+
+// LatestPluginRelease 查询插件仓库最新 Release（含 ID，供新旧比较）。
+func (m *Manager) LatestPluginRelease(ctx context.Context) (*ghRelease, error) {
+	s, err := m.cfg.Get()
+	if err != nil {
+		return nil, err
+	}
+	return m.fetchRelease(ctx, s.PluginRepo)
+}
+
+// InstalledPluginReleaseID 查本地版本对应 Release 的数字 ID；查不到（自编译
+// 版本、老 tag 没发过 Release）返回 0，调用方退回 tag 字符串比较。
+func (m *Manager) InstalledPluginReleaseID(ctx context.Context, ver string) int64 {
+	s, err := m.cfg.Get()
+	if err != nil {
+		return 0
+	}
+	rel, err := m.fetchReleaseByTag(ctx, s.PluginRepo, "v"+strings.TrimPrefix(ver, "v"))
+	if err != nil {
+		return 0
+	}
+	return rel.ID
+}
+
+// UpgradePlugin 非 OpenWrt 环境的兜底自更新：下载新版本裸二进制并替换自身，
+// 替换后需重启服务生效。Release 里没有裸二进制资产，OpenWrt 一律走包流程。
 // 返回 (新版本, 是否需要重启服务)。
 func (m *Manager) UpgradePlugin(ctx context.Context) (string, bool, error) {
 	s, err := m.cfg.Get()
