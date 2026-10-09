@@ -749,8 +749,8 @@ function currentOf(g) {
 </template>
 
 <style scoped>
-.run-badge { display: flex; align-items: center; gap: 10px; }
-.run-text { font-size: 21px; font-weight: 700; }
+.run-badge { display: flex; align-items: center; gap: 10px; flex: none; }
+.run-text { font-size: 21px; font-weight: 700; white-space: nowrap; }
 .pulse { width: 12px; height: 12px; border-radius: 50%; background: #5a5f6d; position: relative; }
 .pulse::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid transparent; }
 .run-badge.on .pulse { background: var(--green); }
@@ -840,10 +840,11 @@ function currentOf(g) {
 .traffic-nums .meta-item .v { font-size: 16px; }
 .trip-reset { flex: none; margin-left: auto; }
 
-/* 运行状态行：状态居左、控制按钮贴右 */
-.hero-top { display: flex; align-items: center; gap: 12px; }
-.hero-actions { margin-left: auto; }
-.plugin-ver { font-size: 12.5px; color: var(--text-dim); }
+/* 运行状态行：状态居左、控制按钮贴右；极窄/字体放大时不许文字断行，
+   真放不下让按钮组整体换行并继续贴右 */
+.hero-top { display: flex; align-items: center; gap: 12px; width: 100%; flex-wrap: wrap; }
+.hero-actions { margin-left: auto; flex-wrap: nowrap; }
+.plugin-ver { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; }
 /* 瓦片行网格：7 块（状态 3 + 快捷 4）挤同一排 7 列等宽；与流量瓦片行同列规格，上下分隔线逐列对齐 */
 .hero-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
 /* 标签/值不折行：瓦片变窄后换行会破坏等高观感，放不下宁可横向收紧 */

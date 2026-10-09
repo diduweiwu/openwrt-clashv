@@ -5,7 +5,172 @@ import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NPro
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
-import HelpTip from '../components/HelpTip.vue'
+import HelpModal from '../components/HelpModal.vue'
+
+// 设置项问号说明弹窗内容：k=小节标题（作用/开关影响/默认与建议/注意），v=正文。
+// 行内不再放可见描述，全部收进弹窗，设置页只留名称+控件。
+const HELP = {
+  mixedPort: {
+    title: '混合代理端口',
+    rows: [
+      { k: '作用', v: 'HTTP 与 SOCKS5 共用的代理端口，局域网设备手动配置代理时填这个端口。' },
+      { k: '默认与建议', v: '默认 7890，建议保持；端口被占用再改。' },
+    ],
+  },
+  token: {
+    title: '界面访问令牌',
+    rows: [
+      { k: '作用', v: '保护管理界面：设置后，局域网内其他设备打开本页面需要先输入令牌。' },
+      { k: '默认与建议', v: '默认不启用；局域网内使用建议设置一个，仅本机访问可留空。' },
+      { k: '小提示', v: '右侧闪电按钮可随机生成 32 位令牌，垃圾桶按钮一键清空（即停用）。' },
+    ],
+  },
+  luciAuth: {
+    title: 'OpenWrt 登录校验',
+    rows: [
+      { k: '作用', v: '开启后必须先登录 OpenWrt 才能使用本界面：从 LuCI 菜单进入会自动放行；直接访问 路由器IP:9097 会自动跳转到 LuCI 的 ClashV 页（未登录 LuCI 时就是登录页）。' },
+      { k: '开关影响', v: '退出 OpenWrt 登录后界面立即失效；关闭校验则知道地址的任何人都能打开界面。' },
+      { k: '默认与建议', v: '默认开启，建议保持；本机访问与界面访问令牌不受影响。' },
+    ],
+  },
+  downloadProxy: {
+    title: '下载加速前缀',
+    rows: [
+      { k: '作用', v: '内核/插件从 GitHub 下载时套用此前缀加速。' },
+      { k: '默认与建议', v: '默认 https://gh-proxy.com，建议保持；直连 GitHub 够快可留空。' },
+      { k: '注意', v: '对私有仓库无效，私有仓库下载将直连 GitHub。' },
+    ],
+  },
+  tun: {
+    title: 'TUN 模式',
+    rows: [
+      { k: '作用', v: '创建虚拟网卡接管全局流量（含 UDP），需要内核 tun 模块。' },
+      { k: '开关影响', v: '开启后全局流量（含 UDP）都经内核处理；关闭时自动改用防火墙接管局域网 TCP（透明代理），无需手动配置。' },
+      { k: '默认与建议', v: '默认关闭，建议保持；需要接管 UDP/全局流量时再开。' },
+    ],
+  },
+  tunStack: {
+    title: 'TUN 协议栈',
+    rows: [
+      { k: '作用', v: '选择 TUN 模式的网络栈实现：system 走系统网络栈，gvisor 为纯用户态实现，mixed 混合两者。' },
+      { k: '默认与建议', v: '默认 mixed，建议保持。' },
+    ],
+  },
+  dns: {
+    title: '接管 DNS',
+    rows: [
+      { k: '作用', v: '由 mihomo 内核处理局域网域名解析。' },
+      { k: '开关影响', v: '关闭后下方所有 DNS 选项都不再生效，域名解析走路由器原路径。' },
+      { k: '默认与建议', v: '默认开启，建议保持；透明代理/TUN 模式下建议开启。' },
+    ],
+  },
+  dnsMode: {
+    title: 'DNS 解析模式',
+    rows: [
+      { k: '作用', v: 'fake-ip 返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备。' },
+      { k: '说明', v: '国外域名已自动经代理用国外 DNS 防污染复核。' },
+      { k: '默认与建议', v: '默认 fake-ip，建议保持。' },
+    ],
+  },
+  dnsHijack: {
+    title: 'DNS 劫持模式',
+    rows: [
+      { k: '作用', v: '决定局域网设备的 DNS 查询如何进入内核。防火墙转发：强制接管所有设备的 DNS（包括手动改过 DNS 的设备）；dnsmasq：只覆盖使用路由器 DNS 的设备，设备自行配了 DNS 就会绕过内核（redir-host 下表现为部分网站打不开）；禁用：不做劫持。' },
+      { k: '默认与建议', v: '默认防火墙转发，建议保持。' },
+    ],
+  },
+  dnsV4: {
+    title: 'IPv4 劫持',
+    rows: [
+      { k: '作用', v: '把局域网 IPv4 的 53 端口 DNS 查询重定向到内核；防火墙转发与 TUN 模式均生效，保存后自动应用。' },
+      { k: '默认与建议', v: '默认开启，建议保持。' },
+    ],
+  },
+  dnsV6: {
+    title: 'IPv6 劫持',
+    rows: [
+      { k: '作用', v: '同 IPv4 劫持，作用于 IPv6。' },
+      { k: '开关影响', v: '不劫持时 IPv6 设备的域名解析走原路径，可能绕过内核。' },
+      { k: '默认与建议', v: '默认关闭；宽带无 IPv6 或无需接管时保持关闭。' },
+    ],
+  },
+  platform: {
+    title: '平台',
+    rows: [
+      { k: '作用', v: '自动识别设备架构，无需配置；下载内核时按此平台名匹配对应文件。' },
+      { k: '说明', v: '绿色表示识别成功；橙色「不支持自动下载」表示当前架构没有对应内核包，需手动放置内核文件。' },
+    ],
+  },
+  memLimit: {
+    title: '内存限制',
+    rows: [
+      { k: '作用', v: '内核内存接近上限时更积极地回收内存（GOMEMLIMIT）。' },
+      { k: '开关影响', v: '设得过小会用 CPU 开销换内存（回收更频繁）；0 表示不限制。' },
+      { k: '默认与建议', v: '默认 0 不限制；小内存设备建议 64～128。' },
+    ],
+  },
+  coreUpdate: {
+    title: '更新内核',
+    rows: [
+      { k: '作用', v: '从 GitHub 下载最新版 mihomo 内核并安装。' },
+      { k: '默认与建议', v: '建议：发现新版本再升级即可。' },
+    ],
+  },
+  pluginVersion: {
+    title: '当前版本',
+    rows: [
+      { k: '作用', v: '显示正在运行的插件版本；「检查更新」拿它与在线仓库的最新版比较。' },
+    ],
+  },
+  pluginRepo: {
+    title: '在线仓库地址',
+    rows: [
+      { k: '作用', v: 'GitHub 仓库（owner/repo），检查更新与下载安装包都从这里获取。' },
+      { k: '默认与建议', v: '默认 diduweiwu/openwrt-clashv。' },
+    ],
+  },
+  githubToken: {
+    title: 'GitHub 访问令牌',
+    rows: [
+      { k: '作用', v: '仓库为私有时必填：查询 Release 与下载安装包会携带此令牌，需要该仓库的读取权限（classic token 勾选 repo，fine-grained token 勾选 Contents 只读）。' },
+      { k: '注意', v: '下载加速前缀对私有仓库无效，将直连 GitHub。' },
+      { k: '默认与建议', v: '公开仓库留空即可；私有仓库不填会报「仓库不存在」。' },
+    ],
+  },
+  pluginUpdate: {
+    title: '更新插件',
+    rows: [
+      { k: '作用', v: '从在线仓库获取最新 Release，自动匹配设备架构的 ipk/apk 安装包并安装，安装完成后服务自动重启。' },
+      { k: '默认与建议', v: '建议：发现新版本再升级即可。' },
+    ],
+  },
+  restart: {
+    title: '重启服务',
+    rows: [
+      { k: '作用', v: '重启 ClashV 插件服务进程；修改界面访问令牌后需重启才能生效。' },
+    ],
+  },
+  backupCreate: {
+    title: '备份当前状态',
+    rows: [
+      { k: '作用', v: '把全部设置、订阅配置与列表、自定义规则和内核程序打包为一个备份文件（不含运行缓存与日志），支持创建多份。' },
+    ],
+  },
+  backupList: {
+    title: '备份列表',
+    rows: [
+      { k: '作用', v: '查看已有备份，可选择一份恢复或删除。' },
+      { k: '注意', v: '恢复会覆盖当前全部设置、订阅与自定义规则；内核在运行时会自动重启。' },
+    ],
+  },
+  reset: {
+    title: '重置所有配置',
+    rows: [
+      { k: '作用', v: '停止内核，把设置、自定义规则、运行状态、日志全部恢复到插件安装时的初始状态；订阅配置（含当前激活项）与内核程序保留。' },
+      { k: '注意', v: '操作不可恢复，需两次确认。' },
+    ],
+  },
+}
 
 function fmtMB(n) {
   return (n / 1048576).toFixed(1) + ' MB'
@@ -375,15 +540,13 @@ const tab = ref('general')
         <div class="rows">
           <div class="row">
             <div class="row-text">
-              <span class="rt">混合代理端口<HelpTip text="默认 7890，建议保持，端口被占用再改" /></span>
-              <span class="rs">HTTP 与 SOCKS5 共用的代理端口，局域网设备手动配置代理时填它</span>
+              <span class="rt">混合代理端口<HelpModal v-bind="HELP.mixedPort" /></span>
             </div>
             <n-input-number v-model:value="form.mixed_port" :min="1" :max="65535" class="num" />
           </div>
           <div class="row">
             <div class="row-text">
-              <span class="rt">界面访问令牌<HelpTip text="默认不启用；局域网内使用建议设置，仅本机访问可留空" /></span>
-              <span class="rs">保护管理界面：设置后局域网内打开本页面需先输入令牌</span>
+              <span class="rt">界面访问令牌<HelpModal v-bind="HELP.token" /></span>
             </div>
             <n-input-group class="ctl">
               <n-input
@@ -403,15 +566,13 @@ const tab = ref('general')
           </div>
           <div class="row" v-if="store.status?.openwrt">
             <div class="row-text">
-              <span class="rt">OpenWrt 登录校验<HelpTip text="默认开启，建议保持；本机访问与访问令牌不受影响" /></span>
-              <span class="rs">开启后必须先登录 OpenWrt 才能使用界面：从 LuCI 菜单进入自动放行；直接访问 路由器IP:9097 会自动跳转到 LuCI 的 ClashV 页（未登录 LuCI 时是登录页），退出 OpenWrt 登录后界面立即失效</span>
+              <span class="rt">OpenWrt 登录校验<HelpModal v-bind="HELP.luciAuth" /></span>
             </div>
             <n-switch v-model:value="form.luci_auth" />
           </div>
           <div class="row">
             <div class="row-text">
-              <span class="rt">下载加速前缀<HelpTip text="默认 https://gh-proxy.com，建议保持" /></span>
-              <span class="rs">内核/插件从 GitHub 下载时套用此前缀加速，直连 GitHub 够快可留空</span>
+              <span class="rt">下载加速前缀<HelpModal v-bind="HELP.downloadProxy" /></span>
             </div>
             <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.com" style="width: 210px" />
           </div>
@@ -424,15 +585,13 @@ const tab = ref('general')
       <div class="rows">
         <div class="row">
           <div class="row-text">
-            <span class="rt">TUN 模式<HelpTip text="默认关闭，建议保持；需接管 UDP/全局流量时再开" /></span>
-            <span class="rs">接管全局流量（含 UDP，需内核 tun 模块）；关闭时自动用防火墙接管局域网 TCP（透明代理），无需手动配置</span>
+            <span class="rt">TUN 模式<HelpModal v-bind="HELP.tun" /></span>
           </div>
           <n-switch v-model:value="form.tun" />
         </div>
         <div class="row" v-if="form.tun">
           <div class="row-text">
-            <span class="rt">TUN 协议栈<HelpTip text="默认 mixed，建议保持" /></span>
-            <span class="rs">system 走系统网络栈、gvisor 纯用户态实现，mixed 混合两者</span>
+            <span class="rt">TUN 协议栈<HelpModal v-bind="HELP.tunStack" /></span>
           </div>
           <n-select v-model:value="form.tun_stack" :options="[{ value: 'mixed', label: 'mixed' }, { value: 'system', label: 'system' }, { value: 'gvisor', label: 'gvisor' }]" class="ctl" style="width: 130px" />
         </div>
@@ -450,15 +609,13 @@ const tab = ref('general')
       <div class="rows">
         <div class="row">
           <div class="row-text">
-            <span class="rt">接管 DNS<HelpTip text="默认开启，建议保持" /></span>
-            <span class="rs">由 mihomo 处理局域网域名解析，透明代理/TUN 模式建议开启</span>
+            <span class="rt">接管 DNS<HelpModal v-bind="HELP.dns" /></span>
           </div>
           <n-switch v-model:value="form.dns" />
         </div>
         <div class="row" v-if="form.dns">
           <div class="row-text">
-            <span class="rt">DNS 解析模式<HelpTip text="默认 fake-ip，建议保持" /></span>
-            <span class="rs">fake-ip 返回假 IP（198.18.x.x），域名规则匹配最准；redir-host 返回真实 IP，兼容不支持假 IP 的设备（国外域名已自动经代理用国外 DNS 防污染复核）</span>
+            <span class="rt">DNS 解析模式<HelpModal v-bind="HELP.dnsMode" /></span>
           </div>
           <n-select
             v-model:value="form.dns_mode"
@@ -469,8 +626,7 @@ const tab = ref('general')
         </div>
         <div class="row" v-if="form.dns && store.status?.openwrt">
           <div class="row-text">
-            <span class="rt">DNS 劫持模式<HelpTip text="默认防火墙转发，建议保持" /></span>
-            <span class="rs">防火墙转发强制接管所有设备的 DNS（包括手动改过 DNS 的设备）；dnsmasq 转发只覆盖使用路由器 DNS 的设备，设备自行配了 DNS 就会绕过内核（redir-host 下表现为部分网站打不开）</span>
+            <span class="rt">DNS 劫持模式<HelpModal v-bind="HELP.dnsHijack" /></span>
           </div>
           <n-select
             v-model:value="form.dns_hijack"
@@ -481,15 +637,13 @@ const tab = ref('general')
         </div>
         <div class="row" v-if="form.dns">
           <div class="row-text">
-            <span class="rt">IPv4 劫持<HelpTip text="默认开启，建议保持" /></span>
-            <span class="rs">把局域网 IPv4 的 53 端口查询重定向到内核 DNS；防火墙转发与 TUN 模式均生效，保存后自动应用</span>
+            <span class="rt">IPv4 劫持<HelpModal v-bind="HELP.dnsV4" /></span>
           </div>
           <n-switch v-model:value="form.dns_hijack_ipv4" />
         </div>
         <div class="row" v-if="form.dns">
           <div class="row-text">
-            <span class="rt">IPv6 劫持<HelpTip text="默认关闭；宽带无 IPv6 或无需接管时保持关闭" /></span>
-            <span class="rs">同 IPv4 劫持，作用于 IPv6；不劫持时 IPv6 设备的域名解析走原路径，可能绕过内核</span>
+            <span class="rt">IPv6 劫持<HelpModal v-bind="HELP.dnsV6" /></span>
           </div>
           <n-switch v-model:value="form.dns_hijack_ipv6" />
         </div>
@@ -510,8 +664,7 @@ const tab = ref('general')
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">平台</span>
-            <span class="rs">自动识别设备架构，无需配置，下载内核时按此平台名匹配文件</span>
+            <span class="rt">平台<HelpModal v-bind="HELP.platform" /></span>
           </div>
           <span class="mono" :style="{ color: coreInfo.platform ? 'var(--green)' : 'var(--orange)' }">
             {{ coreInfo.platform || '不支持自动下载' }}
@@ -519,8 +672,7 @@ const tab = ref('general')
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">内存限制<HelpTip text="默认 0 不限制；小内存设备建议 64～128" /></span>
-            <span class="rs">内核接近上限时更积极回收内存（GOMEMLIMIT），设得过小会增加 CPU 开销换内存</span>
+            <span class="rt">内存限制<HelpModal v-bind="HELP.memLimit" /></span>
           </div>
           <n-input-number v-model:value="form.core_mem_limit" :show-button="false" :min="0" :max="16384" class="num">
             <template #suffix><span class="unit">MB</span></template>
@@ -528,14 +680,11 @@ const tab = ref('general')
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">更新内核<HelpTip text="建议：发现新版本再升级即可" /></span>
-            <span class="rs">
-              <template v-if="coreLatest">
-                最新 {{ coreLatest.latest }}
-                <template v-if="coreLatest.has_update">（可更新）</template>
-                <template v-else>（已是最新）</template>
-              </template>
-              <template v-else>从 GitHub 下载最新 mihomo</template>
+            <span class="rt">更新内核<HelpModal v-bind="HELP.coreUpdate" /></span>
+            <span class="rs" v-if="coreLatest">
+              最新 {{ coreLatest.latest }}
+              <template v-if="coreLatest.has_update">（可更新）</template>
+              <template v-else>（已是最新）</template>
             </span>
           </div>
           <div class="btn-pair">
@@ -571,22 +720,19 @@ const tab = ref('general')
       <div class="rows">
         <div class="row">
           <div class="row-text">
-            <span class="rt">当前版本</span>
-            <span class="rs">正在运行的插件版本，「检查更新」拿它与在线仓库的最新版比较</span>
+            <span class="rt">当前版本<HelpModal v-bind="HELP.pluginVersion" /></span>
           </div>
           <span class="mono">{{ store.status?.plugin_version === 'dev' ? '开发版' : store.status?.plugin_version ? 'v' + store.status.plugin_version : '…' }}</span>
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">在线仓库地址<HelpTip text="默认 diduweiwu/openwrt-clashv" /></span>
-            <span class="rs">GitHub 仓库（owner/repo），检查更新与下载安装包都从这里获取</span>
+            <span class="rt">在线仓库地址<HelpModal v-bind="HELP.pluginRepo" /></span>
           </div>
           <n-input v-model:value="form.plugin_repo" placeholder="owner/repo" style="width: 210px" />
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">GitHub 访问令牌<HelpTip text="公开仓库留空即可；私有仓库不填会报「仓库不存在」" /></span>
-            <span class="rs">仓库为私有时必填：查询 Release 与下载安装包会携带此令牌，需要该仓库的读取权限（classic token 勾 repo，fine-grained 勾 Contents 只读）。注意下载加速前缀对私有仓库无效，将直连 GitHub</span>
+            <span class="rt">GitHub 访问令牌<HelpModal v-bind="HELP.githubToken" /></span>
           </div>
           <n-input
             v-model:value="form.github_token"
@@ -598,15 +744,12 @@ const tab = ref('general')
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">更新插件<HelpTip text="建议：发现新版本再升级即可" /></span>
-            <span class="rs">
-              <template v-if="pluginLatest">
-                最新 {{ pluginLatest.latest }}
-                <template v-if="pluginLatest.pkg"> · 匹配包 {{ pluginLatest.pkg.name }}（{{ pluginLatest.pkg.format }}）</template>
-                <template v-if="pluginLatest.has_update">（可更新）</template>
-                <template v-else>（已是最新）</template>
-              </template>
-              <template v-else>从在线仓库获取最新 Release，自动匹配设备架构的 ipk/apk 安装包</template>
+            <span class="rt">更新插件<HelpModal v-bind="HELP.pluginUpdate" /></span>
+            <span class="rs" v-if="pluginLatest">
+              最新 {{ pluginLatest.latest }}
+              <template v-if="pluginLatest.pkg"> · 匹配包 {{ pluginLatest.pkg.name }}（{{ pluginLatest.pkg.format }}）</template>
+              <template v-if="pluginLatest.has_update">（可更新）</template>
+              <template v-else>（已是最新）</template>
             </span>
           </div>
           <div class="btn-pair">
@@ -636,8 +779,7 @@ const tab = ref('general')
         </div>
         <div class="row" v-if="store.status?.openwrt">
           <div class="row-text">
-            <span class="rt">重启服务</span>
-            <span class="rs">修改令牌后需重启</span>
+            <span class="rt">重启服务<HelpModal v-bind="HELP.restart" /></span>
           </div>
           <n-button size="small" @click="restartService">
             <template #icon><AppIcon name="restart" :size="13" /></template>重启
@@ -651,8 +793,7 @@ const tab = ref('general')
       <div class="rows">
         <div class="row">
           <div class="row-text">
-            <span class="rt">备份当前状态</span>
-            <span class="rs">打包全部设置、订阅配置与列表、自定义规则和内核程序为一个备份文件（不含运行缓存与日志），支持创建多份</span>
+            <span class="rt">备份当前状态<HelpModal v-bind="HELP.backupCreate" /></span>
           </div>
           <n-button size="small" type="primary" secondary @click="openBackupCreate">
             <template #icon><AppIcon name="save" :size="13" /></template>备份
@@ -660,8 +801,7 @@ const tab = ref('general')
         </div>
         <div class="row">
           <div class="row-text">
-            <span class="rt">备份列表</span>
-            <span class="rs">查看已有备份，选择一份恢复或删除</span>
+            <span class="rt">备份列表<HelpModal v-bind="HELP.backupList" /></span>
           </div>
           <n-button size="small" @click="openBackupList">
             <template #icon><AppIcon name="clock" :size="13" /></template>管理{{ backups.length ? `（${backups.length}）` : '' }}
@@ -675,8 +815,7 @@ const tab = ref('general')
       <div class="rows">
         <div class="row">
           <div class="row-text">
-            <span class="rt">重置所有配置</span>
-            <span class="rs">停止内核，把设置、自定义规则、运行状态、日志全部恢复到插件安装时的初始状态；订阅配置（含当前激活项）与内核程序保留。操作不可恢复，需两次确认</span>
+            <span class="rt">重置所有配置<HelpModal v-bind="HELP.reset" /></span>
           </div>
           <n-button type="error" ghost size="small" :loading="resetting" @click="resetAll">
             <template #icon><AppIcon name="trash" :size="13" /></template>重置
