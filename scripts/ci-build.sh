@@ -273,8 +273,10 @@ if [ "$STAGE" = "package" ] || [ "$STAGE" = "all" ]; then
   mkdir -p "$OUT_DIR"
   find bin -name "$PATTERN" -exec cp {} "$OUT_DIR/" \;
   # darwin 裸二进制随 Release 上传（只搭 ipk 目标的车，两个矩阵产物不重复）：
-  # 本地 mac 开发时插件自更新走裸二进制路径，见 scripts/dev.sh
-  [ "$TARGET" = "ipk" ] && cp bin/clashv-darwin-* "$OUT_DIR"/
+  # 本地 mac 开发时插件自更新走裸二进制路径（按 clashv-<goos>-<goarch> 匹配
+  # 资产），见 scripts/dev.sh。⚠ 此处 cwd 已 cd 进 SDK，产物在仓库根 bin/，
+  # $SDK/bin 是 SDK 自己的包输出目录里没有它们
+  [ "$TARGET" = "ipk" ] && cp "$REPO_ROOT"/bin/clashv-darwin-* "$OUT_DIR"/
   ls "$OUT_DIR"/* >/dev/null 2>&1 || {
     echo "ERROR: bin/ 下未找到匹配 $PATTERN 的产物" >&2
     exit 1
