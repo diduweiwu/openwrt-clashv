@@ -605,7 +605,7 @@ function currentOf(g) {
       preset="card"
       title="切换订阅"
       :show="showSwitch"
-      :style="{ width: '520px', maxWidth: '94vw' }"
+      :style="{ width: '620px', maxWidth: '94vw' }"
       @update:show="showSwitch = false"
     >
       <div class="switch-body">
@@ -650,7 +650,7 @@ function currentOf(g) {
       preset="card"
       title="出站模式"
       :show="showMode"
-      :style="{ width: '440px', maxWidth: '94vw' }"
+      :style="{ width: '540px', maxWidth: '94vw' }"
       @update:show="showMode = false"
     >
       <div class="mode-body">
@@ -678,7 +678,7 @@ function currentOf(g) {
       preset="card"
       title="DNS 设置"
       :show="showDns"
-      :style="{ width: '440px', maxWidth: '94vw' }"
+      :style="{ width: '540px', maxWidth: '94vw' }"
       @update:show="showDns = false"
     >
       <div class="mode-body">
@@ -719,7 +719,7 @@ function currentOf(g) {
       preset="card"
       title="TUN 设置"
       :show="showTun"
-      :style="{ width: '440px', maxWidth: '94vw' }"
+      :style="{ width: '540px', maxWidth: '94vw' }"
       @update:show="showTun = false"
     >
       <div class="mode-body">
@@ -769,7 +769,7 @@ function currentOf(g) {
       preset="card"
       title="混合端口使用说明"
       :show="showPort"
-      :style="{ width: '560px', maxWidth: '94vw' }"
+      :style="{ width: '660px', maxWidth: '94vw' }"
       @update:show="showPort = false"
     >
       <div class="help-body">
@@ -791,7 +791,7 @@ function currentOf(g) {
       preset="card"
       :title="cfgEditing ? '编辑订阅文件' : '运行时配置（config.yaml）'"
       :show="showConfig"
-      :style="{ width: '760px', maxWidth: '94vw' }"
+      :style="{ width: '860px', maxWidth: '94vw' }"
       @update:show="showConfig = false"
     >
       <template v-if="!cfgEditing">

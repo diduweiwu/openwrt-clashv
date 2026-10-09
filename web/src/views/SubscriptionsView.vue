@@ -141,7 +141,9 @@ const columns = computed(() => [
   },
   {
     title: '订阅地址', key: 'url', className: 'col-url',
-    render: p => h('span', { class: 'mono url-txt', title: p.url }, p.url),
+    render: p => p.source === 'nodes'
+      ? h('span', { class: 'mono url-txt', title: `手动节点 · 模板 ${p.template || '白名单'}` }, `手动节点 · 模板 ${p.template || '白名单'}`)
+      : h('span', { class: 'mono url-txt', title: p.url }, p.url),
   },
   {
     title: '流量', key: 'traffic', className: 'col-traffic',
@@ -337,7 +339,7 @@ onMounted(() => {
       preset="card"
       title="定时更新订阅"
       :show="showSchedule"
-      :style="{ width: '460px', maxWidth: '94vw' }"
+      :style="{ width: '560px', maxWidth: '94vw' }"
       @update:show="showSchedule = false"
     >
       <div class="sched-form">

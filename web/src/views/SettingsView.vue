@@ -1,7 +1,7 @@
 <script setup>
 // 设置页：基础设置、TUN/DNS、内核更新（mihomo）、插件更新
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane } from 'naive-ui'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -542,8 +542,87 @@ async function deleteBackup(b) {
 onMounted(() => { load(); refreshBackups(); resumeUpgrade() })
 onBeforeUnmount(stopProgPoll)
 
-// 设置分区 tab：通用（代理基础+访问控制+下载加速）/ 网络 / 内核 / 插件
+// 设置分区 tab：通用（代理基础+访问控制+下载加速）/ 订阅（配置模板）/ 网络 / 内核 / 插件
 const tab = ref('general')
+
+// ---- 配置模板（订阅 tab）：手动节点方式添加订阅时注入 proxies 与 __ALL_PROXIES__ ----
+const templates = ref([])
+const tplLoading = ref(false)
+const showTplModal = ref(false)
+const tplEditing = ref(null) // 正在编辑/查看的模板元数据；null=新建
+const tplForm = reactive({ name: '', content: '' })
+const tplSaving = ref(false)
+const tplDeleting = ref('')
+
+async function loadTemplates() {
+  tplLoading.value = true
+  try {
+    const r = await api.get('/api/templates')
+    templates.value = r.templates || []
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    tplLoading.value = false
+  }
+}
+// 首次切到订阅 tab 再拉取，避免多余的启动请求
+watch(tab, v => { if (v === 'subs' && !templates.value.length) loadTemplates() })
+
+function openTplNew() {
+  tplEditing.value = null
+  tplForm.name = ''
+  tplForm.content = ''
+  showTplModal.value = true
+}
+
+async function openTplEdit(t) {
+  try {
+    const r = await api.get(`/api/templates/${encodeURIComponent(t.name)}/content`)
+    tplEditing.value = t
+    tplForm.name = t.name
+    tplForm.content = r.content
+    showTplModal.value = true
+  } catch (e) {
+    toast(e.message, 'error')
+  }
+}
+
+async function saveTpl() {
+  tplSaving.value = true
+  try {
+    if (tplEditing.value) {
+      await api.put(`/api/templates/${encodeURIComponent(tplEditing.value.name)}`, { content: tplForm.content })
+      toast('模板已保存', 'success')
+    } else {
+      await api.post('/api/templates', { name: tplForm.name.trim(), content: tplForm.content })
+      toast('模板已创建', 'success')
+    }
+    showTplModal.value = false
+    loadTemplates()
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    tplSaving.value = false
+  }
+}
+
+async function deleteTpl(t) {
+  if (!(await ask('删除模板', `确定删除模板「${t.name}」？使用它的手动节点订阅将无法更新。`))) return
+  tplDeleting.value = t.name
+  try {
+    await api.del(`/api/templates/${encodeURIComponent(t.name)}`)
+    toast('已删除', 'success')
+    loadTemplates()
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    tplDeleting.value = ''
+  }
+}
+
+const tplModalTitle = computed(() =>
+  tplEditing.value ? (tplEditing.value.builtin ? '查看内置模板' : '编辑模板') : '新增模板')
+const tplViewing = computed(() => !!tplEditing.value?.builtin)
 </script>
 
 <template>
@@ -555,6 +634,7 @@ const tab = ref('general')
       </div>
       <n-tabs v-model:value="tab" type="segment" size="small" class="tabs">
         <n-tab-pane name="general"><template #tab>通用</template></n-tab-pane>
+        <n-tab-pane name="subs"><template #tab>订阅</template></n-tab-pane>
         <n-tab-pane name="network"><template #tab>网络</template></n-tab-pane>
         <n-tab-pane name="core"><template #tab>内核</template></n-tab-pane>
         <n-tab-pane name="plugin"><template #tab>插件</template></n-tab-pane>
@@ -606,6 +686,46 @@ const tab = ref('general')
         </div>
       </n-card>
     </template>
+
+    <!-- 订阅：配置模板（手动节点方式添加订阅时的骨架） -->
+    <n-card v-if="tab === 'subs'">
+      <template #header>
+        <div class="card-head">
+          <span>配置模板</span>
+          <span class="card-sub">订阅页用「手动节点」添加时，节点注入模板的 proxies 段并替换 __ALL_PROXIES__；内置模板不可修改删除</span>
+        </div>
+      </template>
+      <template #header-extra>
+        <n-button size="small" type="primary" secondary @click="openTplNew">
+          <template #icon><AppIcon name="plus" :size="13" /></template>新增模板
+        </n-button>
+      </template>
+      <n-spin :show="tplLoading">
+        <div v-if="!templates.length" class="tpl-empty">
+          <n-empty description="还没有模板，点右上角「新增模板」创建" style="padding: 24px 0" />
+        </div>
+        <div v-else class="tpl-list">
+          <div v-for="t in templates" :key="t.name" class="tpl-row">
+            <div class="row-text">
+              <span class="rt mono">
+                {{ t.name }}
+                <n-tag v-if="t.builtin" size="small" :bordered="false" type="default">内置</n-tag>
+              </span>
+              <span class="rs">{{ fmtTime(t.updated_at) }} · {{ fmtSize(t.size) }}</span>
+            </div>
+            <div class="btn-pair">
+              <n-button size="small" @click="openTplEdit(t)">
+                <template #icon><AppIcon :name="t.builtin ? 'file-text' : 'edit'" :size="13" /></template>
+                {{ t.builtin ? '查看' : '编辑' }}
+              </n-button>
+              <n-button size="small" type="error" ghost :disabled="t.builtin" :loading="tplDeleting === t.name" @click="deleteTpl(t)">
+                <template #icon><AppIcon name="trash" :size="13" /></template>删除
+              </n-button>
+            </div>
+          </div>
+        </div>
+      </n-spin>
+    </n-card>
 
     <!-- 网络：TUN 与 DNS 拆成两张卡，互不混淆 -->
     <n-card v-if="tab === 'network'" title="TUN">
@@ -852,7 +972,7 @@ const tab = ref('general')
     <!-- 创建备份弹窗：自动名可编辑 -->
     <n-modal
       preset="card" title="创建备份" :show="showBackupCreate"
-      :style="{ width: '480px', maxWidth: '94vw' }"
+      :style="{ width: '580px', maxWidth: '94vw' }"
       @update:show="showBackupCreate = false"
     >
       <div class="backup-body">
@@ -868,7 +988,7 @@ const tab = ref('general')
     <!-- 备份列表弹窗：恢复 / 删除 -->
     <n-modal
       preset="card" title="备份列表" :show="showBackupList"
-      :style="{ width: '620px', maxWidth: '94vw' }"
+      :style="{ width: '720px', maxWidth: '94vw' }"
       @update:show="showBackupList = false"
     >
       <n-spin :show="backupsLoading">
@@ -888,6 +1008,41 @@ const tab = ref('general')
       </n-spin>
       <div class="backup-foot" style="margin-top: 10px">
         <span class="page-sub">恢复会覆盖当前全部设置、订阅与自定义规则；内核在运行时会自动重启</span>
+      </div>
+    </n-modal>
+
+    <!-- 模板新增/编辑/查看弹窗：内置模板只读 -->
+    <n-modal
+      preset="card" :title="tplModalTitle" :show="showTplModal"
+      :style="{ width: '780px', maxWidth: '94vw' }"
+      @update:show="showTplModal = false"
+    >
+      <div class="tpl-form">
+        <n-input
+          v-model:value="tplForm.name"
+          :disabled="!!tplEditing"
+          :placeholder="tplViewing ? '' : '模板名（中文/字母/数字/中划线，如 我的模板）'"
+        />
+        <n-input
+          v-model:value="tplForm.content"
+          type="textarea"
+          :rows="18"
+          class="tpl-content"
+          :readonly="tplViewing"
+          placeholder="模板内容（YAML）…"
+        />
+        <p class="page-sub" v-if="tplViewing">内置模板不可修改或删除；需要改动可复制内容新建模板</p>
+        <p class="page-sub" v-else>
+          模板须包含 <code>proxies: ~</code> 占位段（添加订阅时被节点列表替换）；proxy-groups 里的 <code>__ALL_PROXIES__</code> 会展开成全部节点名
+        </p>
+        <div class="tpl-foot">
+          <n-button quaternary @click="showTplModal = false">
+            <template #icon><AppIcon name="close" :size="13" /></template>{{ tplViewing ? '关闭' : '取消' }}
+          </n-button>
+          <n-button v-if="!tplViewing" type="primary" :loading="tplSaving" @click="saveTpl">
+            <template #icon><AppIcon name="check" :size="14" /></template>保存
+          </n-button>
+        </div>
       </div>
     </n-modal>
 
@@ -933,6 +1088,13 @@ const tab = ref('general')
 .backup-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .backup-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; }
 .backup-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg-card-2); border: 1px solid var(--border); }
+/* 配置模板（订阅 tab）：列表行与弹窗 */
+.tpl-list { display: flex; flex-direction: column; gap: 8px; }
+.tpl-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg-card-2); border: 1px solid var(--border); }
+.tpl-row .rt { gap: 8px; font-size: 13px; }
+.tpl-form { display: flex; flex-direction: column; gap: 12px; }
+.tpl-content :deep(textarea) { font-family: var(--mono, ui-monospace, monospace); font-size: 12px; line-height: 1.55; }
+.tpl-foot { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* ---- 手机/平板：行内控件换到文案下方铺满，开关保持靠右 ---- */
 @media (max-width: 760px) {
@@ -941,5 +1103,7 @@ const tab = ref('general')
   .row > .n-switch { margin-left: auto; }
   .prog-side { width: 100%; }
   .prog { width: auto; flex: 1; }
+  .tpl-row { flex-wrap: wrap; }
+  .tpl-row .btn-pair { margin-left: auto; }
 }
 </style>

@@ -19,7 +19,7 @@ const show = ref(false)
   </span>
   <n-modal
     preset="card" :title="title" :show="show"
-    :style="{ width: '480px', maxWidth: '94vw' }"
+    :style="{ width: '580px', maxWidth: '94vw' }"
     @update:show="show = false"
   >
     <div class="hm-rows">

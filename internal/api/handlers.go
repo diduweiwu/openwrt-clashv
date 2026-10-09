@@ -333,11 +333,28 @@ func (d *deps) handleProfileList(w http.ResponseWriter, r *http.Request) {
 
 func (d *deps) handleProfileAdd(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name string `json:"name"`
-		URL  string `json:"url"`
-		UA   string `json:"ua"`
+		Name     string `json:"name"`
+		URL      string `json:"url"`
+		UA       string `json:"ua"`
+		Template string `json:"template"` // 手动节点方式：注入用的模板名
+		Nodes    string `json:"nodes"`    // 手动节点方式：多行节点链接/base64
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.URL == "" {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法 JSON"))
+		return
+	}
+	// 手动节点方式：转换节点注入模板生成订阅，无需 URL
+	if body.Nodes != "" {
+		p, skipped, err := d.prof.AddNodes(body.Name, body.Template, body.Nodes)
+		if err != nil {
+			writeErr(w, 400, err)
+			return
+		}
+		d.afterProfileAdded(p.ID)
+		writeJSON(w, 200, addResp{Profile: p, Skipped: skipped})
+		return
+	}
+	if body.URL == "" {
 		writeErr(w, 400, errStr("缺少 url 字段"))
 		return
 	}
@@ -350,12 +367,23 @@ func (d *deps) handleProfileAdd(w http.ResponseWriter, r *http.Request) {
 	if body.UA != "" {
 		_ = d.cfg.Update(func(u *config.Settings) { u.CustomUA = body.UA })
 	}
-	// 首个订阅自动激活
+	d.afterProfileAdded(p.ID)
+	writeJSON(w, 200, addResp{Profile: p})
+}
+
+// afterProfileAdded 首个订阅自动激活。
+func (d *deps) afterProfileAdded(id string) {
 	s, _ := d.cfg.Get()
 	if s.ActiveProfile == "" {
-		_ = d.cfg.Update(func(u *config.Settings) { u.ActiveProfile = p.ID })
+		_ = d.cfg.Update(func(u *config.Settings) { u.ActiveProfile = id })
 	}
-	writeJSON(w, 200, p)
+}
+
+// addResp 订阅添加结果：内嵌 Profile 字段平铺输出，skipped 为节点
+// 转换中解析失败被跳过的行提示（URL 订阅恒为空且不输出）。
+type addResp struct {
+	profiles.Profile
+	Skipped []string `json:"skipped,omitempty"`
 }
 
 // handleCoreConfig 返回当前合成给 mihomo 的运行时配置（config.yaml）。
@@ -437,12 +465,31 @@ func (d *deps) handleProfileActivate(w http.ResponseWriter, r *http.Request) {
 func (d *deps) handleProfileEdit(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var body struct {
-		Name string `json:"name"`
-		URL  string `json:"url"`
-		UA   string `json:"ua"`
+		Name     string `json:"name"`
+		URL      string `json:"url"`
+		UA       string `json:"ua"`
+		Template string `json:"template"` // 手动节点订阅：模板名
+		Nodes    string `json:"nodes"`    // 手动节点订阅：节点文本（留空沿用）
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, 400, errStr("请求体不是合法 JSON"))
+		return
+	}
+	// 手动节点订阅：改名/换模板/改节点，内容有变重新生成
+	if cur, err := d.prof.Get(id); err == nil && cur.Source == "nodes" {
+		p, changed, skipped, err := d.prof.EditNodes(id, body.Name, body.Template, body.Nodes)
+		if err != nil {
+			writeErr(w, 400, err)
+			return
+		}
+		s, _ := d.cfg.Get()
+		restarted := false
+		if changed && s.ActiveProfile == id && d.mgr.Running() {
+			if err := d.mgr.Restart(); err == nil {
+				restarted = true
+			}
+		}
+		writeJSON(w, 200, map[string]any{"profile": p, "redownloaded": changed, "restarted": restarted, "skipped": skipped})
 		return
 	}
 	p, redownloaded, err := d.prof.Edit(id, body.Name, body.URL, body.UA)

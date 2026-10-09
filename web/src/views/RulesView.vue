@@ -286,7 +286,7 @@ watch(
       preset="card"
       :title="editIndex >= 0 ? '编辑规则' : '添加规则'"
       :show="showRuleModal"
-      :style="{ width: '480px', maxWidth: '94vw' }"
+      :style="{ width: '580px', maxWidth: '94vw' }"
       @update:show="showRuleModal = false"
     >
       <div class="rule-form">

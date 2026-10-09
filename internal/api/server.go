@@ -18,6 +18,7 @@ import (
 	"clashv/internal/config"
 	"clashv/internal/core"
 	"clashv/internal/profiles"
+	"clashv/internal/templates"
 	"clashv/internal/web"
 )
 
@@ -25,6 +26,7 @@ import (
 type deps struct {
 	cfg      *config.Manager
 	prof     *profiles.Manager
+	tpl      *templates.Manager
 	mgr      *core.Manager
 	ver      string
 	updating atomic.Bool // 批量更新进行中标记（手动全部更新 / 定时任务共用）
@@ -46,9 +48,14 @@ const authCookieName = "clashv_auth"
 
 // Serve 启动 HTTP 服务（阻塞）。
 func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, version string) error {
-	d := &deps{cfg: cfg, prof: prof, mgr: mgr, ver: version}
+	tpl := templates.New(cfg)
+	d := &deps{cfg: cfg, prof: prof, tpl: tpl, mgr: mgr, ver: version}
 	if err := cfg.EnsureDirs(); err != nil {
 		return err
+	}
+	// 内置配置模板缺失即播种（用户删文件也能自愈）
+	if err := tpl.EnsureBuiltin(); err != nil {
+		slog.Warn("内置模板初始化失败", "err", err)
 	}
 	// 上次运行可能残留 dnsmasq 转发/防火墙规则（持久化），内核未起时会把
 	// LAN DNS 指向死端口、TCP 指向死监听
@@ -92,6 +99,13 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("DELETE /api/profiles/{id}", d.handleProfileDelete)
 	mux.HandleFunc("GET /api/profiles/{id}/content", d.handleProfileContentGet)
 	mux.HandleFunc("PUT /api/profiles/{id}/content", d.handleProfileContentPut)
+
+	// 配置模板（手动节点方式添加订阅时注入 proxies 与 __ALL_PROXIES__）
+	mux.HandleFunc("GET /api/templates", d.handleTemplateList)
+	mux.HandleFunc("POST /api/templates", d.handleTemplateCreate)
+	mux.HandleFunc("GET /api/templates/{name}/content", d.handleTemplateContent)
+	mux.HandleFunc("PUT /api/templates/{name}", d.handleTemplateUpdate)
+	mux.HandleFunc("DELETE /api/templates/{name}", d.handleTemplateDelete)
 
 	// 设置
 	mux.HandleFunc("GET /api/settings", d.handleSettingsGet)

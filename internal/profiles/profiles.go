@@ -24,6 +24,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"clashv/internal/config"
+	"clashv/internal/subconv"
+	"clashv/internal/templates"
 )
 
 // Profile 是一条订阅的元数据。
@@ -39,6 +41,11 @@ type Profile struct {
 	Download int64 `json:"download,omitempty"`
 	Total    int64 `json:"total,omitempty"`
 	Expire   int64 `json:"expire,omitempty"` // 到期时间 unix 秒
+	// 手动节点订阅（source=nodes）：无 URL，内容 = 节点转换后注入模板；
+	// nodes 保存原始粘贴文本，更新/编辑时用它重新转换生成
+	Source   string `json:"source,omitempty"`   // ""=订阅链接；"nodes"=手动节点
+	Template string `json:"template,omitempty"` // 注入用的模板名
+	Nodes    string `json:"nodes,omitempty"`    // 原始节点文本（支持 base64 整段）
 }
 
 type metaFile struct {
@@ -48,6 +55,7 @@ type metaFile struct {
 // Manager 管理订阅文件。
 type Manager struct {
 	cfg *config.Manager
+	tpl *templates.Manager
 	hc  *http.Client
 }
 
@@ -55,6 +63,7 @@ type Manager struct {
 func New(cfg *config.Manager) *Manager {
 	return &Manager{
 		cfg: cfg,
+		tpl: templates.New(cfg),
 		hc: &http.Client{
 			Timeout: 60 * time.Second,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -190,11 +199,133 @@ func (m *Manager) Add(name, url, ua string) (Profile, error) {
 	return p, nil
 }
 
-// Update 重新下载订阅内容（沿用添加时的 User-Agent）。
+// nodesMaxBytes 限制手动节点输入大小，防超长文本撑爆元数据。
+const nodesMaxBytes = 256 << 10
+
+// AddNodes 手动节点方式添加订阅：转换节点 → 注入模板 → 落盘。
+// 返回元数据与逐行跳过提示（部分行解析失败不影响其余节点；全部失败时整体报错）。
+func (m *Manager) AddNodes(name, templateName, input string) (Profile, []string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "节点订阅"
+	}
+	if len(input) > nodesMaxBytes {
+		return Profile{}, nil, fmt.Errorf("节点内容超过 256KB 上限")
+	}
+	nodes, failed := subconv.Parse(input)
+	if len(nodes) == 0 {
+		return Profile{}, nil, subconv.ParseMustErr(failed)
+	}
+	templateName = strings.TrimSpace(templateName)
+	if templateName == "" {
+		templateName = templates.DefaultName
+	}
+	tplData, err := m.tpl.Content(templateName)
+	if err != nil {
+		return Profile{}, nil, fmt.Errorf("读取模板失败: %w", err)
+	}
+	data, err := templates.Render(string(tplData), nodes)
+	if err != nil {
+		return Profile{}, nil, err
+	}
+	id := newID(name, "nodes:"+templateName)
+	p := Profile{
+		ID: id, Name: name, UpdatedAt: time.Now().Unix(), Size: int64(len(data)),
+		Source: "nodes", Template: templateName, Nodes: input,
+	}
+	if err := m.write(p, []byte(data)); err != nil {
+		return Profile{}, nil, err
+	}
+	return p, failMsgs(failed), nil
+}
+
+// regenerate 用保存的原始节点 + 当前模板内容重新生成订阅文件（模板可能已被编辑）。
+func (m *Manager) regenerate(p *Profile) ([]string, error) {
+	nodes, failed := subconv.Parse(p.Nodes)
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("保存的节点内容无法解析，请编辑订阅重新粘贴节点")
+	}
+	tplData, err := m.tpl.Content(p.Template)
+	if err != nil {
+		return nil, fmt.Errorf("读取模板失败: %w", err)
+	}
+	data, err := templates.Render(string(tplData), nodes)
+	if err != nil {
+		return nil, err
+	}
+	p.UpdatedAt = time.Now().Unix()
+	p.Size = int64(len(data))
+	p.Upload, p.Download, p.Total, p.Expire = 0, 0, 0, 0
+	if err := m.write(*p, []byte(data)); err != nil {
+		return nil, err
+	}
+	return failMsgs(failed), nil
+}
+
+// EditNodes 修改手动节点订阅（名称/模板/节点文本）。nodes 留空沿用原节点，
+// 模板或节点变化时重新生成。返回元数据、内容是否重建、跳过行提示。
+func (m *Manager) EditNodes(id, name, templateName, input string) (Profile, bool, []string, error) {
+	p, err := m.Get(id)
+	if err != nil {
+		return p, false, nil, err
+	}
+	if p.Source != "nodes" {
+		return p, false, nil, fmt.Errorf("该订阅不是手动节点订阅")
+	}
+	changed := false
+	if name = strings.TrimSpace(name); name != "" && name != p.Name {
+		p.Name = name
+		changed = true
+	}
+	newTpl := strings.TrimSpace(templateName)
+	if newTpl != "" && newTpl != p.Template {
+		if _, err := m.tpl.Content(newTpl); err != nil {
+			return p, false, nil, fmt.Errorf("读取模板失败: %w", err)
+		}
+		p.Template = newTpl
+	}
+	newInput := input
+	if len([]byte(newInput)) > nodesMaxBytes {
+		return p, false, nil, fmt.Errorf("节点内容超过 256KB 上限")
+	}
+	if strings.TrimSpace(newInput) == "" {
+		newInput = p.Nodes // 留空沿用原节点（只改名/换模板）
+	}
+	var skipped []string
+	if newInput != p.Nodes || strings.TrimSpace(templateName) != "" {
+		p.Nodes = newInput
+		if skipped, err = m.regenerate(&p); err != nil {
+			return Profile{}, false, nil, err
+		}
+		changed = true
+	} else if changed {
+		if err := m.writeMeta(p); err != nil {
+			return p, false, nil, err
+		}
+	}
+	return p, changed, skipped, nil
+}
+
+// failMsgs 把解析失败明细转成「第N行 原因」提示列表（空行/注释行不会进 failed）。
+func failMsgs(failed []subconv.Fail) []string {
+	var out []string
+	for _, f := range failed {
+		out = append(out, fmt.Sprintf("第%d行 %s", f.Line, f.Reason))
+	}
+	return out
+}
+
+// Update 刷新订阅：URL 订阅重新下载；手动节点订阅用保存的节点 + 当前模板重新生成。
 func (m *Manager) Update(id string) (Profile, error) {
 	p, err := m.Get(id)
 	if err != nil {
 		return p, err
+	}
+	if p.Source == "nodes" {
+		if _, err := m.regenerate(&p); err != nil {
+			return p, err
+		}
+		return p, nil
 	}
 	data, info, err := m.download(p.URL, p.UA)
 	if err != nil {

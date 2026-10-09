@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"clashv/internal/config"
+	"clashv/internal/templates"
 )
 
 // BackupInfo 是一条备份记录（列表展示用）。
@@ -88,6 +89,14 @@ func (m *Manager) CreateBackup(name string) (BackupInfo, error) {
 		}
 		if data, err := os.ReadFile(filepath.Join(m.cfg.ProfilesDir(), p.ID+".meta.json")); err == nil {
 			files["profiles/"+p.ID+".meta.json"] = data
+		}
+	}
+	// 配置模板（手动节点订阅依赖，不备份会丢生成来源）
+	if tpls, err := templates.New(m.cfg).List(); err == nil {
+		for _, t := range tpls {
+			if data, err := os.ReadFile(filepath.Join(m.cfg.Home(), "templates", t.Name+".yaml")); err == nil {
+				files["templates/"+t.Name+".yaml"] = data
+			}
 		}
 	}
 	if data, err := os.ReadFile(m.cfg.CustomRulesPath()); err == nil {
@@ -234,6 +243,12 @@ func (m *Manager) RestoreBackup(name string) (bool, error) {
 				profileFiles = map[string][]byte{}
 			}
 			profileFiles[strings.TrimPrefix(f.Name, "profiles/")] = data
+		case strings.HasPrefix(f.Name, "templates/"):
+			data, err := readZipFile(f)
+			if err != nil {
+				return false, fmt.Errorf("读取备份内容失败: %w", err)
+			}
+			otherFiles[f.Name] = data
 		case f.Name == "custom-rules.txt":
 			data, err := readZipFile(f)
 			if err != nil {
@@ -275,6 +290,31 @@ func (m *Manager) RestoreBackup(name string) (bool, error) {
 			return false, err
 		}
 	}
+	// 模板：整目录重建（旧备份没有 templates/ 则只保留内置播种）
+	tplDir := filepath.Join(m.cfg.Home(), "templates")
+	if err := os.MkdirAll(tplDir, 0o755); err != nil {
+		return false, err
+	}
+	if old, err := os.ReadDir(tplDir); err == nil {
+		for _, e := range old {
+			if !e.IsDir() {
+				_ = os.Remove(filepath.Join(tplDir, e.Name()))
+			}
+		}
+	}
+	for name, data := range otherFiles {
+		if !strings.HasPrefix(name, "templates/") {
+			continue
+		}
+		base := strings.TrimPrefix(name, "templates/")
+		if base == "" || strings.Contains(base, "..") || strings.Contains(base, "/") {
+			continue
+		}
+		if err := os.WriteFile(filepath.Join(tplDir, base), data, 0o644); err != nil {
+			return false, err
+		}
+	}
+	_ = templates.New(m.cfg).EnsureBuiltin() // 内置模板自愈兜底
 	// 备份里带了内核就写回当前内核路径（0o755 可执行）；旧备份没有则保留现状
 	if coreEntry != nil {
 		corePath := m.cfg.CorePath()
