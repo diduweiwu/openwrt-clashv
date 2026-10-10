@@ -1,6 +1,6 @@
 <script setup>
 // 首页：运行状态、当前订阅、流量概览、快速切换节点
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag, NSwitch } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
@@ -54,6 +54,152 @@ async function coreAction(action) {
 async function refreshStatus() {
   try { store.status = await api.get('/api/status') } catch { /* 忽略 */ }
 }
+
+// ---- 版本检查更新：插件 tag 与内核版本瓦片右侧的循环图标，点击查最新版，
+// ---- 有更新弹窗确认后直接升级（与设置页共用后端接口与升级任务槽位）----
+
+const pluginChecking = ref(false)
+const pluginBusy = ref(false) // 插件升级全流程进行中（下载 + 安装 + 等服务重启）
+
+// 检查插件更新：已是最新给个 toast；有新版本弹窗确认后升级
+async function checkPluginUpdate() {
+  if (pluginChecking.value || pluginBusy.value) return
+  pluginChecking.value = true
+  try {
+    const r = await api.get('/api/plugin/latest')
+    if (!r.has_update) {
+      // latest 是 Release tag 本身（带 v 前缀），不要再拼 v
+      toast(r.latest ? `插件已是最新（${r.latest}）` : '插件已是最新', 'success')
+      return
+    }
+    const cur = status.value?.plugin_version ? 'v' + status.value.plugin_version : '当前版本'
+    const pkg = r.pkg ? `匹配包 ${r.pkg.name}（${r.pkg.format}），` : ''
+    if (await ask('插件更新', `发现新版本 ${r.latest}（当前 ${cur}），${pkg}安装完成后服务会自动重启、界面短暂失联。确定升级？`)) {
+      await upgradePlugin()
+    }
+  } catch (e) {
+    toast(e.message, 'error', 6000)
+  } finally {
+    pluginChecking.value = false
+  }
+}
+
+// 升级插件：下载接口返回即安装包已到路由器，安装与服务重启在后台进行；
+// 轮询升级进度读安装结果，等服务失联再恢复 = 新版本上线，整页刷新加载新界面
+async function upgradePlugin() {
+  pluginBusy.value = true
+  try {
+    const r = await api.post('/api/plugin/upgrade')
+    if (r.need_restart) {
+      // 非 OpenWrt 裸二进制流程：已替换自身，需手动重启
+      toast('插件已更新，请手动重启服务生效', 'success', 6000)
+      return
+    }
+    toast('安装包已下载，正在安装，服务将自动重启…', 'success', 6000)
+    const deadline = Date.now() + 180000
+    let downSeen = false
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 2000))
+      try {
+        const p = await api.get('/api/upgrade/progress')
+        if (p?.stage === 'error') { toast(p.message || '安装失败', 'error', 8000); return }
+        if (p?.stage === 'done') { toast('安装完成，但服务未自动重启（可能未开机自启），请手动重启生效', 'success', 8000); return }
+      } catch { /* 进度查询失败不致命，下轮再试 */ }
+      try {
+        await api.get('/api/status')
+        if (downSeen) {
+          toast('服务已重启，正在加载新版本…', 'success')
+          setTimeout(() => location.reload(), 1200)
+          return
+        }
+      } catch { downSeen = true }
+    }
+    toast('等待服务重启超时，请稍后刷新页面确认版本', 'error', 8000)
+  } catch (e) {
+    toast(e.message, 'error', 6000)
+  } finally {
+    pluginBusy.value = false
+  }
+}
+
+const coreChecking = ref(false)
+const coreUpgrading = ref(false)
+const coreStageText = ref('') // 内核升级中的瓦片值替代文案（下载中 xx% / 安装中…）
+let coreProgTimer = null
+
+// 检查内核更新：已是最新给个 toast；有新版本弹窗确认后下载安装。
+// 升级进行中图标变为取消入口（再次点击确认取消）。
+async function checkCoreUpdate() {
+  if (coreUpgrading.value) {
+    if (await ask('取消升级', '内核升级正在进行中，确定取消？')) {
+      try { await api.post('/api/upgrade/cancel') } catch { /* 任务可能刚自行结束 */ }
+    }
+    return
+  }
+  if (coreChecking.value) return
+  // 互斥只锁「查最新+确认」阶段：升级动辄几分钟，coreChecking 若挂到升级结束，
+  // 升级中的取消点击会被它拦下永远进不来（升级期由 coreUpgrading 看管）
+  let go = false
+  coreChecking.value = true
+  try {
+    const r = await api.get('/api/core/latest')
+    if (!r.has_update) {
+      toast(r.latest ? `内核已是最新（${r.latest}）` : '内核已是最新', 'success')
+      return
+    }
+    const cur = status.value?.core?.version || '未安装'
+    go = await ask('升级内核', `当前 ${cur}，最新 ${r.latest}，确认下载并安装？视网络情况可能需要几分钟`)
+  } catch (e) {
+    toast(e.message, 'error', 6000)
+  } finally {
+    coreChecking.value = false
+  }
+  if (go) await upgradeCore()
+}
+
+// 升级内核：升级接口是长任务（完成才返回），期间轮询升级进度把阶段/百分比
+// 显示在瓦片值上；下载完成会自动重启运行中的内核
+async function upgradeCore() {
+  coreUpgrading.value = true
+  coreStageText.value = '准备中…'
+  startCoreProg()
+  try {
+    const r = await api.post('/api/core/upgrade')
+    toast(`内核已更新到 ${r.version}`, 'success', 5000)
+    await refreshStatus()
+    loadProxies()
+  } catch (e) {
+    if (e.message === '已取消') toast('已取消内核升级')
+    else toast(e.message, 'error', 6000)
+  } finally {
+    stopCoreProg()
+    coreStageText.value = ''
+    coreUpgrading.value = false
+  }
+}
+
+// 轮询升级进度（仅供展示；升级接口自身返回即任务终态，漏轮几次无害）
+function startCoreProg() {
+  stopCoreProg()
+  const tick = async () => {
+    try {
+      const p = await api.get('/api/upgrade/progress')
+      if (p?.active && p.kind === 'core') {
+        coreStageText.value = p.percent > 0
+          ? `下载中 ${Math.round(p.percent)}%`
+          : (p.message || '处理中…')
+      }
+    } catch { /* 下轮再试 */ }
+  }
+  tick()
+  coreProgTimer = setInterval(tick, 600)
+}
+
+function stopCoreProg() {
+  if (coreProgTimer) { clearInterval(coreProgTimer); coreProgTimer = null }
+}
+
+onBeforeUnmount(stopCoreProg)
 
 // ---- 当前订阅 ----
 async function loadProfiles() {
@@ -396,10 +542,19 @@ function currentOf(g) {
           <div class="run-badge">
             <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
           </div>
-          <!-- 当前服务的插件版本（/api/status 的 plugin_version；内核版本在下方瓦片里） -->
-          <span v-if="status?.plugin_version" class="plugin-ver" title="插件版本">
+          <!-- 当前服务的插件版本（/api/status 的 plugin_version；内核版本在下方瓦片里），
+               tag 内循环图标点击检查更新，有新版弹窗确认后直接升级 -->
+          <n-tag v-if="status?.plugin_version" size="small" round :bordered="false" class="plugin-tag" title="插件版本">
             {{ status.plugin_version === 'dev' ? '开发版' : 'v' + status.plugin_version }}
-          </span>
+            <button
+              class="tag-refresh"
+              :title="pluginBusy ? '插件升级中…' : '检查插件更新'"
+              :disabled="pluginBusy"
+              @click.stop="checkPluginUpdate"
+            >
+              <AppIcon name="refresh" :size="11" :class="{ spin: pluginChecking || pluginBusy }" />
+            </button>
+          </n-tag>
           <n-flex class="hero-actions" :size="10">
             <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态红色幽灵「停止」；主操作排在重启前面 -->
             <n-button
@@ -426,8 +581,19 @@ function currentOf(g) {
         <!-- 瓦片行：状态 3 块 + 快捷 4 块（TUN/DNS/混合端口/出站模式）挤同一排等宽，齿轮弹对应设置弹窗 -->
         <div class="hero-tiles">
           <div class="meta-item">
-            <span class="k"><AppIcon name="cpu" :size="13" />内核版本</span>
-            <span class="v mono">{{ status?.core?.version || '未安装' }}</span>
+            <span class="k">
+              <AppIcon name="cpu" :size="13" />内核版本
+              <button
+                class="tile-gear"
+                :title="coreUpgrading ? '取消内核升级' : '检查内核更新'"
+                @click="checkCoreUpdate"
+              >
+                <AppIcon name="refresh" :size="12" :class="{ spin: coreChecking || coreUpgrading }" />
+              </button>
+            </span>
+            <span class="v mono" :class="{ dim: !!coreStageText }">
+              {{ coreStageText || status?.core?.version || '未安装' }}
+            </span>
           </div>
           <div class="meta-item">
             <span class="k"><AppIcon name="server" :size="13" />平台架构</span>
@@ -912,7 +1078,20 @@ function currentOf(g) {
    真放不下让按钮组整体换行并继续贴右 */
 .hero-top { display: flex; align-items: center; gap: 12px; width: 100%; flex-wrap: wrap; }
 .hero-actions { margin-left: auto; flex-wrap: nowrap; }
-.plugin-ver { font-size: 12.5px; color: var(--text-dim); white-space: nowrap; }
+/* hero 插件版本 tag：内容行内居中，右侧内嵌检查更新小钮 */
+.plugin-tag { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.tag-refresh {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; padding: 0;
+  border: none; border-radius: 50%;
+  background: transparent; cursor: pointer;
+  color: currentColor; opacity: 0.6;
+}
+.tag-refresh:hover { opacity: 1; color: var(--accent); }
+.tag-refresh:disabled { cursor: default; opacity: 0.6; color: currentColor; }
+/* 检查/升级进行中的转圈（插件 tag 与内核瓦片的循环图标共用） */
+.spin { animation: tile-spin 0.9s linear infinite; }
+@keyframes tile-spin { to { transform: rotate(360deg); } }
 /* 瓦片行网格：7 块（状态 3 + 快捷 4）挤同一排 7 列等宽；与流量瓦片行同列规格，上下分隔线逐列对齐 */
 .hero-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
 /* 标签/值不折行：瓦片变窄后换行会破坏等高观感，放不下宁可横向收紧 */
