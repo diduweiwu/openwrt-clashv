@@ -115,12 +115,13 @@ scripts/             交叉编译脚本
 
 ### 方式一：opkg / apk 包（推荐）
 
-**一键安装**：SSH 到路由器执行，脚本自动识别设备架构与包管理器（opkg/apk）、检查架构支持与依赖（ca-bundle/kmod-tun）、按需经 gh-proxy.com 加速下载对应的 Release 包并安装（apk 自动带 `--allow-untrusted`，已装旧包名 `clashv` 会先询问卸载）：
+**一键安装**：SSH 到路由器，复制下面这一条命令执行即可——脚本自动识别设备架构与包管理器（opkg/apk）、检查架构支持与依赖（ca-bundle/kmod-tun）、按需经 gh-proxy.com 加速下载对应的 Release 包并安装（apk 自动带 `--allow-untrusted`，已装旧包名 `clashv` 会先询问卸载）：
 
 ```bash
-wget -O /tmp/clashv-install.sh https://raw.githubusercontent.com/diduweiwu/openwrt-clashv/master/scripts/install.sh
-sh /tmp/clashv-install.sh
+wget -O /tmp/clashv-install.sh "https://gh-proxy.com/https://raw.githubusercontent.com/diduweiwu/openwrt-clashv/master/scripts/install.sh" && sh /tmp/clashv-install.sh
 ```
+
+> 下载脚本这一步同样套了 gh-proxy.com 加速（`raw.githubusercontent.com` 直连常不可达）；若加速域名失效，去掉前缀 `https://gh-proxy.com/` 直连重试。wget 报 SSL/证书错误时先 `opkg update && opkg install ca-bundle` 再重试（官方固件自带，精简固件可能缺）。
 
 常用选项：`-y` 非交互（加速代理按默认「是」）、`--no-proxy` 直连下载、`--tag v0.1.24` 装指定版本、`--token <令牌>` 私有仓库鉴权（默认读环境变量 `GITHUB_TOKEN`）、`--pkg luci-app-clashv` 强制装通用版，全部选项见 `sh /tmp/clashv-install.sh --help`。
 
