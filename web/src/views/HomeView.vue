@@ -6,6 +6,7 @@ import { api } from '../api.js'
 import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
+import SetupWizard from '../components/SetupWizard.vue'
 import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
@@ -26,6 +27,12 @@ const selectableGroups = computed(() => groups.value.filter(g => g.type === 'Sel
 
 const status = computed(() => store.status)
 const traffic = computed(() => store.traffic)
+
+// ---- 初始化引导：内核或订阅任一未就位时亮出入口（新手一步步配置；全就绪则不出现） ----
+const wizardEntry = computed(() =>
+  !!status.value && (!status.value.core?.installed || !status.value.profile),
+)
+const showWizard = ref(false)
 
 async function loadProxies(silent = true) {
   if (!status.value?.running) { proxies.value = {}; return }
@@ -538,9 +545,13 @@ function currentOf(g) {
       <n-flex vertical :size="16">
         <!-- 运行状态与控制按钮同行（普通尺寸小按钮贴右），瓦片独占下一行 -->
         <div class="hero-top">
-          <!-- 状态指示由侧栏 logo 行的状态点承担，这里只留文字 -->
+          <!-- 状态指示由侧栏 logo 行的状态点承担，这里只留文字；
+               内核/订阅未就位时提供初始化引导入口（与订阅卡空态同一入口） -->
           <div class="run-badge">
             <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
+            <n-button v-if="wizardEntry" size="tiny" type="primary" secondary title="逐步下载内核、添加订阅并启动" @click="showWizard = true">
+              <template #icon><AppIcon name="zap" :size="12" /></template>初始化引导
+            </n-button>
           </div>
           <!-- 当前服务的插件版本（/api/status 的 plugin_version；内核版本在下方瓦片里），
                tag 内循环图标点击检查更新，有新版弹窗确认后直接升级 -->
@@ -670,7 +681,13 @@ function currentOf(g) {
           </n-button>
         </div>
       </div>
-      <n-empty v-if="!status?.profile" description="未设置订阅，请先选择并启用" />
+      <n-empty v-if="!status?.profile" description="未设置订阅，请先选择并启用">
+        <template #extra>
+          <n-button size="small" type="primary" secondary @click="showWizard = true">
+            <template #icon><AppIcon name="zap" :size="13" /></template>初始化引导
+          </n-button>
+        </template>
+      </n-empty>
       <template v-else>
         <div class="sub-row">
           <span class="sub-name">{{ status.profile }}</span>
@@ -765,6 +782,9 @@ function currentOf(g) {
 
     <!-- 添加订阅弹窗（首页原地弹出） -->
     <SubFormModal :open="showAdd" @close="showAdd = false" @added="onSubAdded" />
+
+    <!-- 初始化引导弹窗（下载内核 → 添加订阅 → 启动运行） -->
+    <SetupWizard :open="showWizard" @close="showWizard = false" />
 
     <!-- 切换订阅弹窗 -->
     <n-modal
@@ -993,7 +1013,7 @@ function currentOf(g) {
 </template>
 
 <style scoped>
-.run-badge { display: flex; align-items: center; flex: none; }
+.run-badge { display: flex; align-items: center; gap: 10px; flex: none; }
 .run-text { font-size: 21px; font-weight: 700; white-space: nowrap; }
 /* 状态项做成小卡片瓦片：浅底圆角，标签在上、值在下；min-width 归零让 7 列网格能均匀收缩 */
 .meta-item {

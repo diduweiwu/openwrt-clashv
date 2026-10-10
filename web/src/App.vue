@@ -54,6 +54,8 @@ watch(
   async (installed) => {
     if (installed === false && !coreAsked) {
       coreAsked = true
+      // 初始化引导开着时由引导接管下载流程（含任务恢复），这里不再重复询问
+      if (store.wizardOpen) return
       // 已有下载任务在上跑（如刷新页面前发起的）：恢复进度弹窗跟进，不再重复询问
       try {
         const p = await api.get('/api/upgrade/progress')

@@ -7,6 +7,7 @@ export const store = reactive({
   status: null,        // /api/status 结果
   traffic: { up: 0, down: 0, up_total: 0, down_total: 0, connections: 0, memory_mb: 0 },
   history: [],         // 最近 120 秒 {up, down}
+  wizardOpen: false,   // 初始化引导弹窗打开中：App.vue 的「未检测到内核」自动询问避让，避免两处同时引导下载
 })
 
 // ---- Naive UI 主题（跟随 resolvedTheme，App 与离散 API 共用同一份） ----
