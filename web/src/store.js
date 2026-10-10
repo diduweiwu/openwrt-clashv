@@ -8,7 +8,23 @@ export const store = reactive({
   traffic: { up: 0, down: 0, up_total: 0, down_total: 0, connections: 0, memory_mb: 0 },
   history: [],         // 最近 120 秒 {up, down}
   wizardOpen: false,   // 初始化引导弹窗打开中：App.vue 的「未检测到内核」自动询问避让，避免两处同时引导下载
+  wizardAuto: false,   // 本次引导是否自动弹出：自动模式显示「不再自动弹出」勾选，手动入口打开时不显示
 })
+
+// ---- 初始化引导「不再自动弹出」标志（localStorage）----
+// 只约束自动弹出：用户勾选并关闭引导后写标志，此后打开页面不再自动弹；
+// 首页手动入口不受影响，随时可用。
+export const SETUP_DISMISS_KEY = 'clashv_setup_dismissed'
+
+// 是否已被用户永久关闭自动引导。localStorage 不可用（隐私模式等）时视为未关闭。
+export function setupDismissed() {
+  try { return localStorage.getItem(SETUP_DISMISS_KEY) === '1' } catch { return false }
+}
+
+// 永久关闭自动引导（勾选「不再自动弹出」后关闭弹窗时调用）。
+export function dismissSetup() {
+  try { localStorage.setItem(SETUP_DISMISS_KEY, '1') } catch { /* 忽略 */ }
+}
 
 // ---- Naive UI 主题（跟随 resolvedTheme，App 与离散 API 共用同一份） ----
 export const naiveTheme = computed(() => (resolvedTheme.value === 'dark' ? darkTheme : null))

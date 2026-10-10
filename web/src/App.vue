@@ -2,7 +2,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { NButton, NConfigProvider, NModal, NProgress, NSpin, dateZhCN, zhCN } from 'naive-ui'
 import Sidebar from './components/Sidebar.vue'
-import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes, pushTraffic } from './store.js'
+import SetupWizard from './components/SetupWizard.vue'
+import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes, pushTraffic, setupDismissed } from './store.js'
 import { api } from './api.js'
 
 let statusTimer = null
@@ -47,8 +48,31 @@ onUnmounted(() => {
   stopDlProgPoll()
 })
 
-// ---- 内核缺失检测：发现未安装内核时弹窗询问是否下载 ----
-let coreAsked = false // 每次页面会话只问一次，取消后不再自动弹
+// ---- 内核缺失检测 + 初始化引导自动弹出 ----
+// 自动弹规则：配置未就绪（缺内核或缺激活订阅）时，打开页面自动弹引导（每会话至多
+// 一次）；用户勾选「不再自动弹出」并关闭后（setupDismissed）永不再自动弹，此时内核
+// 缺失回退到旧的提醒弹窗。手动入口（首页按钮）不受任何影响。
+let coreAsked = false // 内核缺失提醒每会话只问一次，取消后不再自动弹
+let autoWizardDone = false // 首访自动引导每会话至多弹一次
+
+// 自动弹出初始化引导（自动模式：引导内显示「不再自动弹出」勾选）
+function openAutoWizard() {
+  coreAsked = true
+  store.wizardAuto = true
+  store.wizardOpen = true
+}
+
+// 首次拿到完整状态时判断是否自动弹（覆盖「内核已装但没订阅」的新装场景）
+watch(
+  () => store.status,
+  (s) => {
+    if (!s || autoWizardDone || store.wizardOpen) return
+    autoWizardDone = true
+    if (setupDismissed()) return
+    if (!s.core?.installed || !s.profile) openAutoWizard()
+  },
+)
+
 watch(
   () => store.status?.core?.installed,
   async (installed) => {
@@ -56,15 +80,21 @@ watch(
       coreAsked = true
       // 初始化引导开着时由引导接管下载流程（含任务恢复），这里不再重复询问
       if (store.wizardOpen) return
-      // 已有下载任务在上跑（如刷新页面前发起的）：恢复进度弹窗跟进，不再重复询问
-      try {
-        const p = await api.get('/api/upgrade/progress')
-        if (p?.active && p.kind === 'core') {
-          resumeCoreDownload()
-          return
-        }
-      } catch { /* 查询失败走正常询问 */ }
-      askCoreDownload()
+      // 用户已永久关闭自动引导：保留原「任务恢复/内核缺失提醒」兜底
+      if (setupDismissed()) {
+        try {
+          const p = await api.get('/api/upgrade/progress')
+          if (p?.active && p.kind === 'core') {
+            resumeCoreDownload()
+            return
+          }
+        } catch { /* 查询失败走正常询问 */ }
+        askCoreDownload()
+        return
+      }
+      // 内核未装（首次打开页面的常见情况）：直接自动弹引导，引导内可下载内核并
+      // 恢复进行中的下载任务（detect 查询 progress），无需旧确认弹窗
+      openAutoWizard()
     }
   },
 )
@@ -170,6 +200,10 @@ async function startCoreDownload() {
         </router-view>
       </main>
     </div>
+
+    <!-- 初始化引导弹窗：挂全局（自动弹出可能发生在任意路由），open 源在 store，
+         首页入口（手动模式）与首访自动弹出共用一个实例 -->
+    <SetupWizard :open="store.wizardOpen" @close="store.wizardOpen = false" />
 
     <!-- 内核下载进度弹窗（下载中不可关闭防误触丢进度视图，中断走「取消下载」按钮） -->
     <n-modal

@@ -8,14 +8,16 @@
 //             添加成功后确保该订阅处于激活态（后端仅首个订阅自动激活，此处兜底）；
 //   步骤 3 —— 汇总校验内核与订阅是否到位，一键启动内核并轮询直到运行中。
 // 弹窗打开期间 store.wizardOpen 置真，App.vue 的「未检测到内核」自动询问会避让，
-// 避免两处同时引导下载。
+// 避免两处同时引导下载。自动弹出（store.wizardAuto，App.vue 首访触发）时底部显示
+// 「不再自动弹出」勾选：勾选并关闭后写 localStorage 标志（setupDismissed），此后
+// 不再自动弹；手动入口（首页按钮）打开时不显示勾选、也不读写该标志，不受影响。
 //
 // 使用示例：
 //   <SetupWizard :open="showWizard" @close="showWizard = false" />
 import { computed, reactive, ref, watch } from 'vue'
-import { NButton, NModal, NProgress, NStep, NSteps } from 'naive-ui'
+import { NButton, NCheckbox, NModal, NProgress, NStep, NSteps } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, fmtBytes } from '../store.js'
+import { store, toast, fmtBytes, dismissSetup } from '../store.js'
 import AppIcon from './AppIcon.vue'
 import SubFormBody from './SubFormBody.vue'
 
@@ -37,18 +39,28 @@ const status = computed(() => store.status)
 const coreInstalled = computed(() => !!status.value?.core?.installed)
 const hasProfile = computed(() => !!status.value?.profile)
 
+// 「不再自动弹出」勾选：仅自动弹出时显示；勾选状态下关闭弹窗（任意关闭方式，
+// 含完成按钮）即写 localStorage 标志，此后不再自动弹。手动打开不显示也不生效。
+const dontAsk = ref(false)
+
 // ---- 打开/关闭：同步全局向导标志（App.vue 守卫用），打开时定位步骤 ----
 watch(
   () => props.open,
   (v) => {
     store.wizardOpen = v
-    if (v) detect()
-    else cleanup()
+    if (v) {
+      dontAsk.value = false
+      detect()
+    } else {
+      store.wizardAuto = false // 关闭后清掉自动模式标记，避免下次手动打开误显勾选
+      cleanup()
+    }
   },
 )
 
-// 关闭弹窗的统一出口：清理轮询与进行中状态
+// 关闭弹窗的统一出口：按勾选落盘「不再自动弹出」，清理轮询与进行中状态
 function close() {
+  if (store.wizardAuto && dontAsk.value) dismissSetup()
   cleanup()
   emit('close')
 }
@@ -270,8 +282,7 @@ async function launchCore() {
       </n-steps>
 
       <div class="wiz-body">
-        <!-- 步骤 1：下载内核 -->
-        <div v-if="step === 1" class="wiz-pane">
+        <!-- 步骤 1：下载内核 -->        <div v-if="step === 1" class="wiz-pane">
           <template v-if="coreInstalled">
             <div class="done-row">
               <span class="done-ico"><AppIcon name="check" :size="16" /></span>
@@ -399,6 +410,12 @@ async function launchCore() {
           </template>
         </div>
       </div>
+
+      <!-- 仅自动弹出时显示：勾选并关闭后写 localStorage 标志，此后不再自动弹；
+           手动入口打开不显示此行、也不写标志 -->
+      <div v-if="store.wizardAuto" class="wiz-dismiss">
+        <n-checkbox v-model:checked="dontAsk" size="small">完成配置后不再自动弹出</n-checkbox>
+      </div>
     </div>
   </n-modal>
 </template>
@@ -406,6 +423,9 @@ async function launchCore() {
 <style scoped>
 .wiz { display: flex; flex-direction: column; gap: 16px; }
 .wiz-steps { padding: 2px 6px 0; }
+/* 「不再自动弹出」勾选行：贴近弹窗底部，弱化展示 */
+.wiz-dismiss { border-top: 1px dashed var(--border); padding-top: 10px; }
+.wiz-dismiss .n-checkbox { font-size: 12.5px; }
 /* 内容区定高防步骤切换跳动，超出出竖向滚动 */
 .wiz-body { min-height: 300px; max-height: 56vh; overflow-y: auto; }
 .wiz-pane { display: flex; flex-direction: column; gap: 10px; }

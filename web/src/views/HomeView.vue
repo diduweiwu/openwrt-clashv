@@ -6,7 +6,6 @@ import { api } from '../api.js'
 import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
-import SetupWizard from '../components/SetupWizard.vue'
 import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
@@ -29,10 +28,16 @@ const status = computed(() => store.status)
 const traffic = computed(() => store.traffic)
 
 // ---- 初始化引导：内核或订阅任一未就位时亮出入口（新手一步步配置；全就绪则不出现） ----
+// 手动打开与自动弹出（App.vue）共用 store.wizardOpen；手动模式标记 wizardAuto=false，
+// 引导内不显示「不再自动弹出」勾选、也不写关闭标志
 const wizardEntry = computed(() =>
   !!status.value && (!status.value.core?.installed || !status.value.profile),
 )
-const showWizard = ref(false)
+
+function openWizard() {
+  store.wizardAuto = false
+  store.wizardOpen = true
+}
 
 async function loadProxies(silent = true) {
   if (!status.value?.running) { proxies.value = {}; return }
@@ -549,7 +554,7 @@ function currentOf(g) {
                内核/订阅未就位时提供初始化引导入口（与订阅卡空态同一入口） -->
           <div class="run-badge">
             <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
-            <n-button v-if="wizardEntry" size="tiny" type="primary" secondary title="逐步下载内核、添加订阅并启动" @click="showWizard = true">
+            <n-button v-if="wizardEntry" size="tiny" type="primary" secondary title="逐步下载内核、添加订阅并启动" @click="openWizard">
               <template #icon><AppIcon name="zap" :size="12" /></template>初始化引导
             </n-button>
           </div>
@@ -683,7 +688,7 @@ function currentOf(g) {
       </div>
       <n-empty v-if="!status?.profile" description="未设置订阅，请先选择并启用">
         <template #extra>
-          <n-button size="small" type="primary" secondary @click="showWizard = true">
+          <n-button size="small" type="primary" secondary @click="openWizard">
             <template #icon><AppIcon name="zap" :size="13" /></template>初始化引导
           </n-button>
         </template>
@@ -782,9 +787,7 @@ function currentOf(g) {
 
     <!-- 添加订阅弹窗（首页原地弹出） -->
     <SubFormModal :open="showAdd" @close="showAdd = false" @added="onSubAdded" />
-
-    <!-- 初始化引导弹窗（下载内核 → 添加订阅 → 启动运行） -->
-    <SetupWizard :open="showWizard" @close="showWizard = false" />
+    <!-- 初始化引导弹窗已上移 App.vue 全局挂载（自动弹出需跨路由可见），首页入口只设 store 状态 -->
 
     <!-- 切换订阅弹窗 -->
     <n-modal
