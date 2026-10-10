@@ -575,8 +575,8 @@ function currentOf(g) {
             </n-button>
           </div>
           <!-- 当前服务的插件版本（/api/status 的 plugin_version；内核版本在下方瓦片里），
-               tag 内循环图标点击检查更新，有新版弹窗确认后直接升级 -->
-          <n-tag v-if="status?.plugin_version" size="small" round :bordered="false" class="plugin-tag" title="插件版本">
+               info 蓝区别于默认灰 tag；tag 内循环图标点击检查更新，有新版弹窗确认后直接升级 -->
+          <n-tag v-if="status?.plugin_version" size="small" round :bordered="false" type="info" class="plugin-tag" title="插件版本">
             {{ status.plugin_version === 'dev' ? '开发版' : 'v' + status.plugin_version }}
             <button
               class="tag-refresh"
@@ -677,7 +677,7 @@ function currentOf(g) {
               </button>
             </span>
             <span class="v">
-              <n-tag size="small" round :bordered="false">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
+              <n-tag size="small" round :bordered="false" type="primary">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
             </span>
           </div>
         </div>
@@ -833,7 +833,7 @@ function currentOf(g) {
               @click="switchSelected = p.id"
             >
               <span class="s-name">{{ p.name }}</span>
-              <n-tag v-if="switchActive === p.id" size="small" round :bordered="false">当前</n-tag>
+              <n-tag v-if="switchActive === p.id" size="small" round :bordered="false" type="primary">当前</n-tag>
             </button>
           </div>
         </div>
@@ -870,7 +870,7 @@ function currentOf(g) {
         >
           <span class="m-name">
             {{ m.label }}
-            <n-tag v-if="(status?.mode || 'rule') === m.value" size="small" round :bordered="false">当前</n-tag>
+            <n-tag v-if="(status?.mode || 'rule') === m.value" size="small" round :bordered="false" type="primary">当前</n-tag>
             <span v-if="modeBusy === m.value" class="m-busy">切换中…</span>
           </span>
           <span class="m-desc">{{ m.desc }}</span>
@@ -1124,8 +1124,10 @@ function currentOf(g) {
    真放不下让按钮组整体换行并继续贴右 */
 .hero-top { display: flex; align-items: center; gap: 12px; width: 100%; flex-wrap: wrap; }
 .hero-actions { margin-left: auto; flex-wrap: nowrap; }
-/* hero 插件版本 tag：内容行内居中，右侧内嵌检查更新小钮 */
-.plugin-tag { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+/* hero 插件版本 tag：tag 内容区改行内 flex 精确居中（默认 block 下按钮走 baseline
+   混排，文本与图标中心会有细微错位），右侧内嵌检查更新小钮 */
+.plugin-tag { white-space: nowrap; }
+.plugin-tag :deep(.n-tag__content) { display: inline-flex; align-items: center; gap: 4px; }
 .tag-refresh {
   display: inline-flex; align-items: center; justify-content: center;
   width: 14px; height: 14px; padding: 0;
