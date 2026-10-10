@@ -286,15 +286,17 @@ function stopProgPoll() {
   if (progTimer) { clearInterval(progTimer); progTimer = null }
 }
 
-// 页面加载时后端已有进行中的升级任务（如刷新页面前发起的内核下载），恢复进度显示，
-// 否则再点升级只会收到「已有升级任务在进行中」却看不到进度
-async function resumeUpgrade() {
+// 周期感知进行中的升级任务：首页等别处发起的下载卡住时，切到设置页也能看到
+// 「升级进度」行（含取消按钮），不会因为本地 upgrading 标志未置位而无从中止。
+// 本地已在跟进（coreUpgrading/pluginUpgrading）时跳过，避免与进度轮询重复。
+async function senseUpgradeTask() {
+  if (coreUpgrading.value || pluginUpgrading.value) return
   try {
     const p = await api.get('/api/upgrade/progress')
     if (!p?.active) return
     if (p.kind === 'core') { coreUpgrading.value = true; startProgPoll('core') }
     else if (p.kind === 'plugin') { pluginUpgrading.value = true; startProgPoll('plugin') }
-  } catch { /* 忽略，不影响页面其余加载 */ }
+  } catch { /* 忽略，下轮再感知 */ }
 }
 
 async function load() {
@@ -609,8 +611,13 @@ async function deleteBackup(b) {
   }
 }
 
-onMounted(() => { load(); refreshBackups(); resumeUpgrade() })
-onBeforeUnmount(stopProgPoll)
+let senseTimer = null
+onMounted(() => {
+  load(); refreshBackups()
+  senseUpgradeTask()
+  senseTimer = setInterval(senseUpgradeTask, 3000)
+})
+onBeforeUnmount(() => { stopProgPoll(); if (senseTimer) { clearInterval(senseTimer); senseTimer = null } })
 
 // 设置分区 tab：通用（代理基础+访问控制+下载加速）/ 订阅（配置模板）/ 网络 / 内核 / 插件
 const tab = ref('general')

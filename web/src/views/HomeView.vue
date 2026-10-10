@@ -73,11 +73,27 @@ async function refreshStatus() {
 const pluginChecking = ref(false)
 const pluginBusy = ref(false) // 插件升级全流程进行中（下载 + 安装 + 等服务重启）
 
-// 检查插件更新：已是最新给个 toast；有新版本弹窗确认后升级
+// 检查插件更新：已是最新给个 toast；有新版本弹窗确认后升级。
+// 升级进行中（pluginBusy，含其他页面发起的）图标为纯进度展示：不可再点、悬浮见百分比。
+const pluginStageText = ref('') // 升级中的进度文案（tag 悬浮提示，如「下载中 45%」）
+
+// 查询是否有别处发起、本页未跟进的升级任务；有则提示进度并返回 true（调用方终止检查）
+async function upgradeTaskBusy(kind) {
+  try {
+    const p = await api.get('/api/upgrade/progress')
+    if (p?.active && p.kind === kind) {
+      toast(`升级任务进行中（${p.percent > 0 ? `下载中 ${Math.round(p.percent)}%` : p.message || '处理中'}），可在「设置」页查看与取消`, 'info', 5000)
+      return true
+    }
+  } catch { /* 查询失败按无任务处理 */ }
+  return false
+}
+
 async function checkPluginUpdate() {
   if (pluginChecking.value || pluginBusy.value) return
   pluginChecking.value = true
   try {
+    if (await upgradeTaskBusy('plugin')) return
     const r = await api.get('/api/plugin/latest')
     if (!r.has_update) {
       // latest 是 Release tag 本身（带 v 前缀），不要再拼 v
@@ -100,6 +116,7 @@ async function checkPluginUpdate() {
 // 轮询升级进度读安装结果，等服务失联再恢复 = 新版本上线，整页刷新加载新界面
 async function upgradePlugin() {
   pluginBusy.value = true
+  pluginStageText.value = ''
   try {
     const r = await api.post('/api/plugin/upgrade')
     if (r.need_restart) {
@@ -114,6 +131,10 @@ async function upgradePlugin() {
       await new Promise(r => setTimeout(r, 2000))
       try {
         const p = await api.get('/api/upgrade/progress')
+        // 记录进度文案供 tag 悬浮提示（下载中 xx%）
+        if (p?.active && p.kind === 'plugin') {
+          pluginStageText.value = p.percent > 0 ? `下载中 ${Math.round(p.percent)}%` : p.message || '安装中…'
+        }
         if (p?.stage === 'error') { toast(p.message || '安装失败', 'error', 8000); return }
         if (p?.stage === 'done') { toast('安装完成，但服务未自动重启（可能未开机自启），请手动重启生效', 'success', 8000); return }
       } catch { /* 进度查询失败不致命，下轮再试 */ }
@@ -131,6 +152,7 @@ async function upgradePlugin() {
     toast(e.message, 'error', 6000)
   } finally {
     pluginBusy.value = false
+    pluginStageText.value = ''
   }
 }
 
@@ -140,20 +162,14 @@ const coreStageText = ref('') // 内核升级中的瓦片值替代文案（下�
 let coreProgTimer = null
 
 // 检查内核更新：已是最新给个 toast；有新版本弹窗确认后下载安装。
-// 升级进行中图标变为取消入口（再次点击确认取消）。
+// 升级进行中（coreUpgrading，含其他页面发起的）图标为纯进度展示：点击不动作、
+// 悬浮见百分比；中止统一去「设置 → 内核」的升级进度行（或初始化引导内）。
 async function checkCoreUpdate() {
-  if (coreUpgrading.value) {
-    if (await ask('取消升级', '内核升级正在进行中，确定取消？')) {
-      try { await api.post('/api/upgrade/cancel') } catch { /* 任务可能刚自行结束 */ }
-    }
-    return
-  }
-  if (coreChecking.value) return
-  // 互斥只锁「查最新+确认」阶段：升级动辄几分钟，coreChecking 若挂到升级结束，
-  // 升级中的取消点击会被它拦下永远进不来（升级期由 coreUpgrading 看管）
+  if (coreUpgrading.value || coreChecking.value) return
   let go = false
   coreChecking.value = true
   try {
+    if (await upgradeTaskBusy('core')) return
     const r = await api.get('/api/core/latest')
     if (!r.has_update) {
       toast(r.latest ? `内核已是最新（${r.latest}）` : '内核已是最新', 'success')
@@ -564,7 +580,7 @@ function currentOf(g) {
             {{ status.plugin_version === 'dev' ? '开发版' : 'v' + status.plugin_version }}
             <button
               class="tag-refresh"
-              :title="pluginBusy ? '插件升级中…' : '检查插件更新'"
+              :title="pluginBusy ? (pluginStageText || '插件升级中…') : '检查插件更新'"
               :disabled="pluginBusy"
               @click.stop="checkPluginUpdate"
             >
@@ -601,7 +617,8 @@ function currentOf(g) {
               <AppIcon name="cpu" :size="13" />内核版本
               <button
                 class="tile-gear"
-                :title="coreUpgrading ? '取消内核升级' : '检查内核更新'"
+                :title="coreUpgrading ? (coreStageText || '内核升级中…') : '检查内核更新'"
+                :disabled="coreUpgrading"
                 @click="checkCoreUpdate"
               >
                 <AppIcon name="refresh" :size="12" :class="{ spin: coreChecking || coreUpgrading }" />
@@ -1038,6 +1055,12 @@ function currentOf(g) {
   color: currentColor; opacity: 0.55;
 }
 .tile-gear:hover { opacity: 1; color: var(--accent); background: var(--hover); }
+/* 升级中禁用（纯进度展示）：置灰且不出现 hover 反馈，悬浮 title 仍显示进度 */
+.tile-gear:disabled,
+.tile-gear:disabled:hover {
+  opacity: 0.6; cursor: default;
+  color: currentColor; background: transparent;
+}
 
 /* 出站模式 / DNS 弹窗的选项卡片 */
 .mode-body { display: flex; flex-direction: column; gap: 8px; }
