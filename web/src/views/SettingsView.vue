@@ -886,20 +886,20 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
         </div>
         <div class="row">
           <div class="row-text">
+            <span class="rt">平台<HelpModal v-bind="HELP.platform" /></span>
+          </div>
+          <span class="mono" :style="{ color: coreInfo.platform ? 'var(--green)' : 'var(--orange)' }">
+            {{ coreInfo.platform || '不支持自动下载' }}
+          </span>
+        </div>
+        <div class="row">
+          <div class="row-text">
             <span class="rt">内核渠道<HelpModal v-bind="HELP.coreChannel" /></span>
           </div>
           <n-radio-group v-model:value="form.core_channel" name="core_channel" class="ctl">
             <n-radio-button value="release">正式版 Release</n-radio-button>
             <n-radio-button value="alpha">抢先版 Alpha</n-radio-button>
           </n-radio-group>
-        </div>
-        <div class="row">
-          <div class="row-text">
-            <span class="rt">平台<HelpModal v-bind="HELP.platform" /></span>
-          </div>
-          <span class="mono" :style="{ color: coreInfo.platform ? 'var(--green)' : 'var(--orange)' }">
-            {{ coreInfo.platform || '不支持自动下载' }}
-          </span>
         </div>
         <div class="row">
           <div class="row-text">
