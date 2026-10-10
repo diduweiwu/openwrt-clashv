@@ -115,7 +115,16 @@ scripts/             交叉编译脚本
 
 ### 方式一：opkg / apk 包（推荐）
 
-直接从 GitHub Release 下载（Actions 构建自动发布）。每个 SDK 产出 8 个包，8 包互斥、同一设备装一个即可：
+**一键安装**：SSH 到路由器执行，脚本自动识别设备架构与包管理器（opkg/apk）、检查架构支持与依赖（ca-bundle/kmod-tun）、按需经 gh-proxy.com 加速下载对应的 Release 包并安装（apk 自动带 `--allow-untrusted`，已装旧包名 `clashv` 会先询问卸载）：
+
+```bash
+wget -O /tmp/clashv-install.sh https://raw.githubusercontent.com/diduweiwu/openwrt-clashv/master/scripts/install.sh
+sh /tmp/clashv-install.sh
+```
+
+常用选项：`-y` 非交互（加速代理按默认「是」）、`--no-proxy` 直连下载、`--tag v0.1.24` 装指定版本、`--token <令牌>` 私有仓库鉴权（默认读环境变量 `GITHUB_TOKEN`）、`--pkg luci-app-clashv` 强制装通用版，全部选项见 `sh /tmp/clashv-install.sh --help`。
+
+**手动安装**：直接从 GitHub Release 下载（Actions 构建自动发布）。每个 SDK 产出 8 个包，8 包互斥、同一设备装一个即可：
 
 - `luci-app-clashv` **通用版**：内置 7 种架构二进制（`luci-app-` 前缀表明是 LuCI 插件包），任意设备直接安装，装后自动保留当前架构
 - `luci-app-clashv-<arch>` **架构精简版** ×7（arm64/armv7/mips/mipsle/amd64/riscv64/loong64）：只含单一架构二进制，包体约为通用版 1/7，装机前按设备 `DISTRIB_ARCH` 选择
