@@ -105,7 +105,7 @@ const HELP = {
     title: '平台',
     rows: [
       { k: '作用', v: '自动识别设备架构，无需配置；下载内核时按此平台名匹配对应文件。' },
-      { k: '说明', v: '绿色表示识别成功；橙色「不支持自动下载」表示当前架构没有对应内核包，需手动放置内核文件。' },
+      { k: '说明', v: '绿色表示识别成功；橙色「不支持自动下载」表示当前架构没有对应内核包，可用下方「手动上传内核」自行安装。' },
     ],
   },
   memLimit: {
@@ -121,6 +121,14 @@ const HELP = {
     rows: [
       { k: '作用', v: '从 GitHub 下载当前渠道最新版 mihomo 内核并安装；抢先版（Alpha）更新频繁，可随时升级到最新构建。' },
       { k: '默认与建议', v: '建议：发现新版本再升级即可。' },
+    ],
+  },
+  coreUpload: {
+    title: '手动上传内核',
+    rows: [
+      { k: '作用', v: '从本地文件安装内核：支持原始二进制或 mihomo Release 的 .gz 压缩包（自动识别解压）。上传后自动重命名为当前渠道的内核文件名、添加执行权限并试运行校验（要求能在本设备执行且确为 mihomo），全部通过才替换现有内核；内核在运行时会自动重启加载。' },
+      { k: '渠道归属', v: '安装到哪个渠道跟随上方「内核渠道」设置；上传文件本身的渠道不做校验——把正式版内核装进 Alpha 渠道也不会被拦截。' },
+      { k: '安全性', v: '校验失败（架构不符、文件损坏、不是 mihomo）只清理临时文件，现有内核不受影响。' },
     ],
   },
   pluginVersion: {
@@ -400,6 +408,44 @@ async function downloadCore() {
 async function upgradeCore() {
   if (!(await ask('升级内核', `确认下载并安装 mihomo ${coreLatest.value.latest}？视网络情况可能需要几分钟`))) return
   await downloadCore()
+}
+
+// ---- 手动上传内核：选文件 → 确认 → 上传（后端校验通过才替换当前渠道内核）----
+const coreUploading = ref(false)
+const coreFileInput = ref(null)
+
+function pickCoreFile() {
+  coreFileInput.value?.click()
+}
+
+// 选中文件后确认并上传；清空 value 让同一个文件可以重复选择。
+// 安装到哪个渠道跟随已保存的「内核渠道」设置——表单里改了还没保存时先拦下，
+// 提示先保存，避免界面显示的渠道和实际安装的渠道对不上。
+async function onCoreFilePicked(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  if (coreInfo.value.channel && form.core_channel !== coreInfo.value.channel) {
+    toast('内核渠道已改动但尚未保存，请先点底部「保存」再上传', 'error', 6000)
+    return
+  }
+  const label = form.core_channel === 'alpha' ? '抢先版（Alpha）' : '正式版（Release）'
+  const running = store.status?.running
+  if (!(await ask('上传内核', `将把「${file.name}」安装为${label}渠道内核：校验通过才会替换现有内核${running ? '，内核会自动重启' : ''}。确定上传？`))) return
+  coreUploading.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const r = await api.upload('/api/core/upload', fd)
+    toast(`内核已安装 ${r.version}（${label}）`, 'success', 5000)
+    coreInfo.value = await api.get('/api/core/status')
+    coreLatest.value = null
+    store.status = await api.get('/api/status')
+  } catch (e2) {
+    toast(e2.message, 'error', 6000)
+  } finally {
+    coreUploading.value = false
+  }
 }
 
 async function checkPlugin() {
@@ -873,13 +919,22 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             </span>
           </div>
           <div class="btn-pair">
-            <n-button size="small" :disabled="coreUpgrading" @click="checkCore">
+            <n-button size="small" :disabled="coreUpgrading || coreUploading" @click="checkCore">
               <template #icon><AppIcon name="search" :size="13" /></template>检查更新
             </n-button>
-            <n-button v-if="coreLatest?.has_update" type="primary" size="small" :loading="coreUpgrading" @click="upgradeCore">
+            <n-button v-if="coreLatest?.has_update" type="primary" size="small" :loading="coreUpgrading" :disabled="coreUploading" @click="upgradeCore">
               <template #icon><AppIcon name="download" :size="13" /></template>{{ coreBtnText }}
             </n-button>
           </div>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">手动上传内核<HelpModal v-bind="HELP.coreUpload" /></span>
+            <span class="rs">支持二进制或 .gz 压缩包，校验通过才安装为{{ form.core_channel === 'alpha' ? '抢先版（Alpha）' : '正式版（Release）' }}渠道内核</span>
+          </div>
+          <n-button size="small" :loading="coreUploading" :disabled="coreUpgrading" @click="pickCoreFile">
+            <template #icon><AppIcon name="upload" :size="13" /></template>上传
+          </n-button>
         </div>
         <div class="row" v-if="coreUpgrading">
           <div class="row-text">
@@ -902,6 +957,9 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
         </div>
       </div>
     </n-card>
+
+    <!-- 手动上传内核的隐藏文件选择器（按钮在内核卡片内触发） -->
+    <input ref="coreFileInput" type="file" class="core-file" @change="onCoreFilePicked" />
 
     <!-- 插件 -->
     <n-card v-if="tab === 'plugin'" title="ClashV 插件">
@@ -1121,6 +1179,8 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 .row .n-input-group { width: fit-content; margin-left: auto; }
 .prog { width: 180px; flex-shrink: 0; }
 .prog-side { display: flex; align-items: center; gap: 8px; flex: none; }
+/* 手动上传内核的隐藏文件选择器 */
+.core-file { display: none; }
 /* 常规流式布局：跟在卡片后面，不再悬浮遮挡内容 */
 .save-bar { display: flex; justify-content: flex-end; padding: 2px 0 10px; }
 /* 备份弹窗：内容列 + 弹窗底部说明/按钮行；列表行左右分布 */

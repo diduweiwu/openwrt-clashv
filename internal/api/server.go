@@ -119,6 +119,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("GET /api/core/latest", d.handleCoreLatest)
 	mux.HandleFunc("GET /api/core/config", d.handleCoreConfig)
 	mux.HandleFunc("POST /api/core/upgrade", d.handleCoreUpgrade)
+	mux.HandleFunc("POST /api/core/upload", d.handleCoreUpload)
 	mux.HandleFunc("GET /api/core/mode", d.handleCoreModeGet)
 	mux.HandleFunc("PUT /api/core/mode", d.handleCoreModePut)
 

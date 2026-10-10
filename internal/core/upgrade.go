@@ -547,19 +547,8 @@ func (m *Manager) CoreStatus(ctx context.Context) CoreStatus {
 		}
 	}
 	if out, err := exec.Command(path, "-v").Output(); err == nil {
-		line := strings.SplitN(string(out), "\n", 2)[0]
 		st.Installed = true
-		st.Version = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "Mihomo Meta"))
-		if v := strings.Fields(st.Version); len(v) > 0 {
-			// 正式版形如 "Mihomo Meta v1.19.2 linux arm64 ..."，取版本号；
-			// Alpha 版没有 v 前缀版本号，取 "alpha-<commit>" 字段
-			for _, f := range v {
-				if (strings.HasPrefix(f, "v") && strings.Contains(f, ".")) || strings.HasPrefix(f, "alpha-") {
-					st.Version = f
-					break
-				}
-			}
-		}
+		st.Version = coreVersionFromOutput(string(out))
 	}
 	return st
 }

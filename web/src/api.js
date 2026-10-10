@@ -10,16 +10,18 @@ export function setToken(t) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
-async function request(method, url, body) {
+// opts.raw：body 已经是可直接交给 fetch 的内容（如 FormData），不再做 JSON 序列化、
+// 也不设 Content-Type（multipart 边界由浏览器生成）。
+async function request(method, url, body, opts = {}) {
   const headers = {}
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (body !== undefined && !opts.raw) headers['Content-Type'] = 'application/json'
   const token = getToken()
   if (token) headers['X-Clashv-Token'] = token
 
   const res = await fetch(url, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? (opts.raw ? body : JSON.stringify(body)) : undefined,
   })
 
   let data = {}
@@ -41,7 +43,7 @@ async function request(method, url, body) {
     const input = prompt('请输入访问令牌（设置中配置的 Token）')
     if (input) {
       setToken(input)
-      return request(method, url, body)
+      return request(method, url, body, opts)
     }
     throw new Error('需要访问令牌')
   }
@@ -55,4 +57,6 @@ export const api = {
   post: (url, body = {}) => request('POST', url, body),
   put: (url, body = {}) => request('PUT', url, body),
   del: (url) => request('DELETE', url),
+  // 文件上传：body 为 FormData，鉴权与 401 处理与普通请求一致
+  upload: (url, formData) => request('POST', url, formData, { raw: true }),
 }

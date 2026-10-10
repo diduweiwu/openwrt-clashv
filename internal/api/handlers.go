@@ -782,6 +782,33 @@ func (d *deps) handleCoreUpgrade(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"version": version})
 }
 
+// maxCoreUploadSize 手动上传内核的大小上限，与 core 包下载上限（maxAssetSize）同值。
+const maxCoreUploadSize = 256 << 20
+
+// handleCoreUpload 手动上传内核（multipart/form-data，字段名 file）。内容支持
+// 原始二进制或 mihomo Release 的 .gz 压缩包（后端按文件头识别）；安装到哪个
+// 渠道跟随当前设置的 core_channel，文件本身是 Release 还是 Alpha 不校验。
+// 校验（试运行）通过才替换现有内核，失败不影响现有内核。返回 {version}。
+func (d *deps) handleCoreUpload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxCoreUploadSize)
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		if strings.Contains(err.Error(), "request body too large") {
+			writeErr(w, http.StatusBadRequest, errStr("文件过大，请上传 256MB 以内的内核文件"))
+			return
+		}
+		writeErr(w, http.StatusBadRequest, errStr("请用 multipart/form-data 的 file 字段携带内核文件"))
+		return
+	}
+	defer file.Close()
+	version, err := d.mgr.UploadCore(r.Context(), file)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"version": version})
+}
+
 // handleUpgradeProgress 查询当前升级任务（内核/插件）的下载进度。
 func (d *deps) handleUpgradeProgress(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, d.mgr.Progress())
