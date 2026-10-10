@@ -37,7 +37,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Read PKG_VERSION
         id: v
         run: |
@@ -67,15 +67,17 @@ jobs:
           #（快、tag 冻结不漂移），拉取失败自动回落 openwrt.org tarball 直下
           - name: apk
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      # node 24：vite 构建用（Node 20 已于 2026-04 EOL）；action 本身的运行时
+      # 也自 v5 起切到 node24，消除「Node.js 20 is deprecated」警告
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -98,7 +100,7 @@ jobs:
       # kmod 的重新打包（该步骤占包编译阶段 8 成以上耗时），只剩插件本体 ~25s
       - name: Restore OpenWrt SDK Cache
         id: sdkcache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: tmp/${{ matrix.target.name == 'ipk' && 'SDK' || 'SNAPSDK' }}
           key: openwrt-sdk-${{ matrix.target.name }}-${{ steps.sdkname.outputs.name }}
@@ -133,13 +135,13 @@ jobs:
       # 白白上传几个 GB。缓存完整命中时 key 不可覆盖，跳过保存。
       - name: Save OpenWrt SDK Cache
         if: github.ref == 'refs/heads/master' && steps.sdkcache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: tmp/${{ matrix.target.name == 'ipk' && 'SDK' || 'SNAPSDK' }}
           key: openwrt-sdk-${{ matrix.target.name }}-${{ steps.sdkname.outputs.name }}
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: luci-app-clashv-${{ matrix.target.name }}
           path: tmp/out/*
@@ -156,12 +158,12 @@ jobs:
     steps:
       # gh release create 需要从 git remote 推断仓库，必须先 checkout；
       # fetch-depth: 0 拉全量历史与 tag，才能生成上一个 tag 以来的提交列表
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           merge-multiple: true
           path: ./release
