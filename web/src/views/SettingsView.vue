@@ -988,12 +988,17 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           <div class="row-text">
             <span class="rt">GitHub 访问令牌<HelpModal v-bind="HELP.githubToken" /></span>
           </div>
-          <n-input
-            v-model:value="form.github_token"
-            type="password"
-            show-password-on="click"
-            placeholder="ghp_… / github_pat_…，留空不启用"
-          />
+          <n-input-group class="ctl">
+            <n-input
+              v-model:value="form.github_token"
+              type="password"
+              show-password-on="click"
+              placeholder="ghp_… / github_pat_…，留空不启用"
+            />
+            <n-button title="清空令牌" :disabled="!form.github_token" @click="form.github_token = ''">
+              <template #icon><AppIcon name="trash" :size="14" /></template>
+            </n-button>
+          </n-input-group>
         </div>
         <div class="row">
           <div class="row-text">
@@ -1177,17 +1182,15 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 .row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .rt { display: flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 500; }
 .rs { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-/* 行尾控件统一列宽：下拉/输入框/按钮左缘对齐成一条竖线（右缘本就贴行尾），
-   变量挂在 .row 上，弹窗等其他区域的 btn-pair 不受影响 */
+/* 行尾输入类控件统一列宽：下拉/输入框左缘对齐成一条竖线（右缘本就贴行尾）；
+   按钮不参与拉宽，保持自然尺寸。变量挂在 .row 上，弹窗等区域的 btn-pair 不受影响 */
 .row { --ctl-w: 210px; }
-.row .ctl, .row > .n-input, .row > .n-button, .row .num { width: var(--ctl-w); }
-.row .btn-pair { width: var(--ctl-w); }
-.row .btn-pair :deep(.n-button) { flex: 1; }
+.row .ctl, .row > .n-input, .row .num { width: var(--ctl-w); }
 .btn-pair { display: flex; gap: 8px; flex: none; }
 .unit { color: var(--text-dim); font-size: 12.5px; }
 /* 当前版本行右侧：渠道标识 + 版本/状态文本 */
 .ver-side { display: flex; align-items: center; gap: 8px; flex: none; }
-/* 令牌行：组整体等宽，输入框填充组内剩余（旁边两个图标按钮） */
+/* 令牌行：组整体等宽，输入框填充组内剩余（旁边图标按钮保持自然宽度） */
 .row .n-input-group { width: var(--ctl-w); margin-left: auto; }
 .row .n-input-group > .n-input { flex: 1; min-width: 0; }
 .prog { width: 180px; flex-shrink: 0; }
@@ -1212,7 +1215,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 /* ---- 手机/平板：行内控件换到文案下方铺满，开关保持靠右 ---- */
 @media (max-width: 760px) {
   .row { flex-wrap: wrap; }
-  .row .ctl, .row .num, .row > .n-input, .row > .n-button, .row .btn-pair, .row .n-input-group { width: 100% !important; }
+  .row .ctl, .row .num, .row > .n-input, .row .n-input-group { width: 100% !important; }
   .row > .n-switch { margin-left: auto; }
   .prog-side { width: 100%; }
   .prog { width: auto; flex: 1; }
