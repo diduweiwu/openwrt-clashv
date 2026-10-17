@@ -185,8 +185,8 @@ function onMoreSelect(key) {
   width: 156px;
   flex: none;
   background: var(--sidebar);
-  /* 分隔线用内容区背景色（--bg）：像右侧底色延伸过来的一条线，比灰色描边更柔和统一 */
-  border-right: 1px solid var(--bg);
+  /* 分隔线用描边色（--border）：与卡片描边同源。浅色下侧栏纯白、内容区灰底，若用 --bg 会融进背景看不到线 */
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 20px 16px;
@@ -298,7 +298,7 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
     padding: 10px 14px; gap: 8px;
     flex-wrap: wrap; /* 兜底：放不下时换行而不是裁切 */
     border-right: none;
-    border-bottom: 1px solid var(--bg); /* 顶部横条模式分隔线跟随改到下缘，同样用内容区背景色 */
+    border-bottom: 1px solid var(--border); /* 顶部横条模式分隔线跟随改到下缘，与卡片描边同色 */
   }
   .logo { font-size: 15px; gap: 6px; }
   nav { flex-direction: row; flex: 1; gap: 2px; }
