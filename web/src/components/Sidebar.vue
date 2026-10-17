@@ -58,7 +58,7 @@ function pickTheme(v) {
   applyTheme()
 }
 
-// ---- 移动端「更多」下拉：主题切换（运行状态点已直接显示在导航行；桌面端这些在侧栏底部） ----
+// ---- 移动端「更多」下拉：主题切换（桌面端这些入口在侧栏底部） ----
 const moreOptions = computed(() =>
   themeOptions.map(o => ({
     ...o,
@@ -74,23 +74,23 @@ function onMoreSelect(key) {
 <template>
   <aside class="sidebar" :class="{ collapsed }">
     <div class="logo">
-      <!-- ClashV logo：Clash 猫（线条用 currentColor 继承侧栏白色，粗细按小尺寸展示微调） -->
-      <svg viewBox="0 0 48 48" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-        <path stroke-linejoin="round" d="M27.19,42.5a89.0444,89.0444,0,0,1-14.6813-1.5725S13.94,12.3721,17.9209,5.5357c-.13-.297,2.9919,1.2125,4.4218,6.2665a25.5569,25.5569,0,0,1,4.8471-.47"/>
-        <ellipse cx="21.2404" cy="20.3089" rx="1.6708" ry="2.1301"/>
-        <path stroke-linejoin="round" d="M27.19,42.5a89.0444,89.0444,0,0,0,14.6813-1.5725S40.44,12.3721,36.4583,5.5357c.03-.2006-3.59,1.7549-4.4218,6.2665a25.5582,25.5582,0,0,0-4.8471-.47"/>
-        <ellipse cx="33.1398" cy="20.3089" rx="1.6708" ry="2.1301"/>
-        <path stroke-miterlimit="5.7143" d="M12.5083,40.927C10.5777,40.6,7.56,40.6178,6.4685,37.44c-1.0674-3.107.4377-6.6708,3.7411-7.0453"/>
-        <path stroke-miterlimit="5.7143" d="M25.4634,26.3872a1.4666,1.4666,0,0,0,1.4726-1.4725"/>
-        <path stroke-miterlimit="5.7143" d="M28.4091,26.3872a1.4666,1.4666,0,0,1-1.4726-1.4725"/>
-      </svg>
-      <span>ClashV</span>
-      <!-- 运行状态点：logo 行最右固定位置（原底部状态行收缩而来），状态文字收进悬浮提示 -->
-      <span
-        class="dot logo-dot"
+      <!-- logo 徽标：运行状态的唯一标识——运行中绿底白猫呼吸闪动、启动中橙底快闪（与原状态点同节奏），停止时透明底恢复常规线条；状态文字收进悬浮提示 -->
+      <div
+        class="logo-badge"
         :class="{ on: store.status?.running, wait: !store.status?.running && store.status?.starting }"
         :title="store.status?.running ? '运行中' : store.status?.starting ? '启动中…' : '已停止'"
-      ></span>
+      >
+        <svg viewBox="0 0 48 48" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path stroke-linejoin="round" d="M27.19,42.5a89.0444,89.0444,0,0,1-14.6813-1.5725S13.94,12.3721,17.9209,5.5357c-.13-.297,2.9919,1.2125,4.4218,6.2665a25.5569,25.5569,0,0,1,4.8471-.47"/>
+          <ellipse cx="21.2404" cy="20.3089" rx="1.6708" ry="2.1301"/>
+          <path stroke-linejoin="round" d="M27.19,42.5a89.0444,89.0444,0,0,0,14.6813-1.5725S40.44,12.3721,36.4583,5.5357c.03-.2006-3.59,1.7549-4.4218,6.2665a25.5582,25.5582,0,0,0-4.8471-.47"/>
+          <ellipse cx="33.1398" cy="20.3089" rx="1.6708" ry="2.1301"/>
+          <path stroke-miterlimit="5.7143" d="M12.5083,40.927C10.5777,40.6,7.56,40.6178,6.4685,37.44c-1.0674-3.107.4377-6.6708,3.7411-7.0453"/>
+          <path stroke-miterlimit="5.7143" d="M25.4634,26.3872a1.4666,1.4666,0,0,0,1.4726-1.4725"/>
+          <path stroke-miterlimit="5.7143" d="M28.4091,26.3872a1.4666,1.4666,0,0,1-1.4726-1.4725"/>
+        </svg>
+      </div>
+      <span>ClashV</span>
     </div>
 
     <nav>
@@ -125,9 +125,6 @@ function onMoreSelect(key) {
         </svg>
         <span>{{ n.label }}</span>
       </router-link>
-
-      <!-- 移动端运行状态点：紧挨「设置」右侧显示，不随底部区一起隐藏 -->
-      <span class="dot nav-dot" :class="{ on: store.status?.running, wait: !store.status?.running && store.status?.starting }"></span>
 
       <!-- 移动端「更多」：主题切换收进下拉（桌面端隐藏，这些在侧栏底部） -->
       <n-dropdown trigger="click" placement="bottom-end" :options="moreOptions" @select="onMoreSelect">
@@ -201,11 +198,28 @@ function onMoreSelect(key) {
   font-size: 17px; font-weight: 700; color: var(--text);
   padding: 0 8px;
   letter-spacing: 0.3px;
-  position: relative; /* 供运行状态点绝对定位到行最右，不挤占 logo/标题 */
 }
-/* 运行状态点：logo 行最右固定（原底部状态行收缩而来，状态文字走 title 悬浮）；比导航里的点大一号更醒目
-   （.dot 基类在样式表更靠后，这里用双类名提高优先级盖过它的 8px） */
-.dot.logo-dot { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 11px; height: 11px; }
+/* logo 徽标容器：34px 圆形底座，是运行状态的唯一标识——运行绿底呼吸闪动、启动橙底快闪、停止透明恢复线条 */
+.logo-badge {
+  width: 34px; height: 34px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  color: var(--text);
+  transition: background 0.25s, color 0.25s;
+}
+.logo-badge.on {
+  --glow: rgba(63, 185, 111, 0.35);
+  background: var(--green);
+  color: #fff;
+  animation: logo-pulse 1.6s ease-in-out infinite;
+}
+.logo-badge.wait {
+  --glow: rgba(232, 161, 60, 0.35);
+  background: var(--orange);
+  color: #fff;
+  animation: logo-pulse 1s ease-in-out infinite;
+}
+@keyframes logo-pulse { 50% { box-shadow: 0 0 0 5px var(--glow); opacity: 0.8; } }
 nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
   display: flex; align-items: center; gap: 15px;
@@ -229,8 +243,6 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   cursor: pointer;
   flex: none;
 }
-/* 运行状态点：仅移动端在导航行显示（桌面端在侧栏底部状态行里） */
-.nav-dot { display: none; }
 .bottom { display: flex; flex-direction: column; gap: 10px; }
 /* 连接/CPU/内存迷你卡：细分隔线 + 三行小卡，置于运行状态上方 */
 .side-stats {
@@ -250,14 +262,6 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .mem-tip { font-size: 12px; line-height: 2; }
 .mem-tip b { font-weight: 600; margin-left: 6px; }
 .mem-tip .dim { opacity: 0.65; font-weight: 400; }
-.dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #5a5f6d;
-}
-/* 运行=绿点慢闪（1.6s，与启动中的 1s 快闪区分），停止=灰点常亮 */
-.dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); animation: blink 1.6s ease-in-out infinite; }
-.dot.wait { background: var(--orange); box-shadow: 0 0 6px var(--orange); animation: blink 1s ease-in-out infinite; }
-@keyframes blink { 50% { opacity: 0.35; } }
 .theme-btn {
   /* 与上方 .status-line 的 0 8px 内边距对齐：图标落在状态点同一垂直线上 */
   width: 100%;
@@ -286,12 +290,10 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
     padding-right: 12px;
   }
   .sidebar.collapsed .logo { justify-content: center; padding: 0; }
-  .sidebar.collapsed .logo span:not(.logo-dot) { display: none; }
+  .sidebar.collapsed .logo span { display: none; }
   .sidebar.collapsed .nav-item { justify-content: center; gap: 0; padding: 10px 0; }
   .sidebar.collapsed .nav-item span { display: none; }
   .sidebar.collapsed .side-stats { display: none; }
-  /* 收起态：状态点改挂小猫右上角（角标式），底部不再有状态行 */
-  .sidebar.collapsed .logo-dot { top: -3px; right: 1px; transform: none; }
   .sidebar.collapsed .theme-btn,
   .sidebar.collapsed .collapse-btn { justify-content: center; padding: 0; }
 }
@@ -309,12 +311,9 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   /* 一行要容下 logo + 7 个页面 + 「更多」共 8 项（320px 极窄屏也不换行），图标项收紧到 27px 宽 */
   .nav-item { padding: 7px 5px; }
   .nav-item span { display: none; }
-  /* 底部区（迷你卡/主题钮/折叠钮）隐藏：状态点显示在导航行，主题进「更多」下拉 */
+  /* 底部区（迷你卡/主题钮/折叠钮）隐藏：主题进「更多」下拉，运行状态由 logo 徽标承担 */
   .bottom { display: none; }
   .more-btn { display: flex; }
-  .nav-dot { display: block; flex: none; align-self: center; }
-  /* 移动端 logo 行不显示状态点：导航行的 nav-dot 已承担，避免出现两颗 */
-  .logo-dot { display: none; }
 }
 @media (max-width: 420px) {
   /* 极窄屏：logo 文字让位，只留小猫 */

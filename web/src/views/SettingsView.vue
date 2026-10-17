@@ -1,7 +1,7 @@
 <script setup>
 // 设置页：基础设置、TUN/DNS、内核更新（mihomo）、插件更新
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NRadioButton, NRadioGroup, NSelect, NSpin, NSwitch, NTabs, NTabPane, NTag } from 'naive-ui'
+import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -903,10 +903,15 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           <div class="row-text">
             <span class="rt">内核渠道<HelpModal v-bind="HELP.coreChannel" /></span>
           </div>
-          <n-radio-group v-model:value="form.core_channel" name="core_channel" class="ctl">
-            <n-radio-button value="release">正式版 Release</n-radio-button>
-            <n-radio-button value="alpha">抢先版 Alpha</n-radio-button>
-          </n-radio-group>
+          <n-select
+            v-model:value="form.core_channel"
+            class="ctl"
+            style="width: 150px"
+            :options="[
+              { value: 'release', label: '正式版 Release' },
+              { value: 'alpha', label: '抢先版 Alpha' },
+            ]"
+          />
         </div>
         <div class="row">
           <div class="row-text">
