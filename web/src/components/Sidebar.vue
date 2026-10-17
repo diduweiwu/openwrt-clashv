@@ -184,9 +184,12 @@ function onMoreSelect(key) {
 .sidebar {
   width: 156px;
   flex: none;
-  background: var(--sidebar);
-  /* 分隔线用描边色（--border）：与卡片描边同源。浅色下侧栏纯白、内容区灰底，若用 --bg 会融进背景看不到线 */
-  border-right: 1px solid var(--border);
+  /* 卡片化：与右侧 n-card 同风格（同底色/14px 圆角/1px 描边）；上下 margin 8px 与内容区首卡顶部对齐，
+     左 margin 10px 与 .content 左右留白一致；flex stretch 下高度自动为满高减去上下 margin */
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 8px 0 8px 10px;
   display: flex;
   flex-direction: column;
   padding: 20px 16px;
@@ -294,11 +297,12 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 }
 @media (max-width: 760px) {
   .sidebar {
-    width: 100%; flex-direction: row; align-items: center;
+    /* 横条同样卡片化：width 放弃 100% 改靠 column stretch 自适应（否则叠加 margin 会溢出），
+       左右 margin 与 .content 留白一致，整圈描边圆角由基础规则继承 */
+    width: auto; flex-direction: row; align-items: center;
     padding: 10px 14px; gap: 8px;
     flex-wrap: wrap; /* 兜底：放不下时换行而不是裁切 */
-    border-right: none;
-    border-bottom: 1px solid var(--border); /* 顶部横条模式分隔线跟随改到下缘，与卡片描边同色 */
+    margin: 8px 10px 0;
   }
   .logo { font-size: 15px; gap: 6px; }
   nav { flex-direction: row; flex: 1; gap: 2px; }
