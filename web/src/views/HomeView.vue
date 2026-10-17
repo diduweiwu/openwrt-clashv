@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag, NSwitch } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
+import { useGroupTest, GROUP_TYPES } from '../useGroupTest.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
 import AppIcon from '../components/AppIcon.vue'
@@ -13,8 +14,6 @@ const busy = ref('')
 const proxies = ref({})
 const activeProfile = ref(null) // 当前激活订阅的完整信息（含流量）
 const subBusy = ref(false)
-
-const GROUP_TYPES = ['Selector', 'URLTest', 'Fallback', 'LoadBalance', 'Relay']
 
 const groups = computed(() =>
   Object.values(proxies.value)
@@ -415,6 +414,15 @@ async function saveProfileContent() {
 // ---- 快速切换：分组手风琴，默认全展开、可折叠；节点点击先确认再切换 ----
 const folded = ref({}) // 组名 → 是否折叠（缺省 false = 展开）
 
+// 整组测速（与代理页共用：逐节点限并发 + 进度 + 延迟实时回填）
+const { testing, testProg, testGroup } = useGroupTest(proxies)
+
+// 组头测速入口：先展开该组，让用户看到延迟逐个回填的过程
+async function startGroupTest(g) {
+  folded.value[g.name] = false
+  await testGroup(g)
+}
+
 function delayOf(nodeName) {
   const h = proxies.value[nodeName]?.history
   return Array.isArray(h) && h.length ? h[h.length - 1].delay : 0
@@ -775,12 +783,24 @@ function currentOf(g) {
       <n-empty v-else-if="selectableGroups.length === 0" description="订阅中没有可手动选择的代理组" />
       <div v-else class="group-acc">
         <div v-for="g in selectableGroups" :key="g.name" class="grp">
-          <button class="grp-head" @click="folded[g.name] = !folded[g.name]">
-            <span class="g-name">{{ g.name }}</span>
-            <span class="g-count">{{ g.all.length }} 节点</span>
-            <span class="g-now">{{ currentOf(g) }}</span>
-            <span class="g-arrow" :class="{ open: !folded[g.name] }">›</span>
-          </button>
+          <!-- 组头拆成并列两元素：折叠热区 + 测速钮（button 内不允许再嵌 button） -->
+          <div class="grp-head">
+            <button class="grp-fold" @click="folded[g.name] = !folded[g.name]">
+              <span class="g-name">{{ g.name }}</span>
+              <span class="g-count">{{ g.all.length }} 节点</span>
+              <span class="g-now">{{ currentOf(g) }}</span>
+              <span class="g-arrow" :class="{ open: !folded[g.name] }">›</span>
+            </button>
+            <n-button
+              class="grp-test" size="small" quaternary
+              title="整组测速：逐个测组内节点延迟并刷新"
+              :loading="testing === g.name" :disabled="testing !== ''"
+              @click="startGroupTest(g)"
+            >
+              <template #icon><AppIcon name="zap" :size="13" /></template>
+              {{ testing === g.name ? `测速中 ${testProg}` : '测速' }}
+            </n-button>
+          </div>
           <div v-show="!folded[g.name]" class="grp-body">
             <button
               v-for="node in g.all"
@@ -1162,15 +1182,23 @@ function currentOf(g) {
   display: flex; flex-direction: column; gap: 10px;
   max-height: 60vh; overflow-y: auto;
 }
+/* 组头容器：背景与 hover 留在容器上；内部拆折叠热区 + 测速钮两个并列元素 */
 .grp-head {
-  display: flex; align-items: center; gap: 12px;
-  width: 100%; text-align: left;
-  padding: 12px 14px; border-radius: 11px;
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding-right: 10px;
+  border-radius: 11px;
   background: var(--bg-card-2);
-  border: none; cursor: pointer;
-  font: inherit; color: inherit;
 }
 .grp-head:hover { background: var(--hover); }
+/* 折叠热区：组头内除测速钮外的整行（button 内不能嵌 button，故拆开） */
+.grp-fold {
+  display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;
+  padding: 12px 0 12px 14px;
+  background: transparent; border: none; cursor: pointer;
+  font: inherit; color: inherit; text-align: left;
+}
+.grp-test { flex: none; }
 .g-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .g-count { color: var(--text-dim); font-size: 12px; flex: none; }
 .g-now {
@@ -1253,6 +1281,8 @@ function currentOf(g) {
   .traffic-nums .meta-item { height: 62px; }
   .traffic-nums .meta-item .v { font-size: 14px; }
   .sub-bar { max-width: 100%; }
+  /* 窄屏组头放不下四段信息：当前节点与展开的节点卡高亮重复，藏掉保组名完整 */
+  .g-now { display: none; }
 }
 
 /* ---- 手机（≤760，与侧栏转顶栏同断点）：启动/停止 与 重启 竖排贴右，主操作在上 ---- */

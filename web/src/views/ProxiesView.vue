@@ -4,15 +4,14 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, delayColor, ask } from '../store.js'
+import { useGroupTest, GROUP_TYPES } from '../useGroupTest.js'
 import AppIcon from '../components/AppIcon.vue'
 
 const proxies = ref({})
 const loading = ref(true)
-const testing = ref('') // 正在测速的组名
-const testProg = ref('') // 测速进度 "已完成/总数"
 const switching = ref('') // 正在切换的 节点@组
-
-const GROUP_TYPES = ['Selector', 'URLTest', 'Fallback', 'LoadBalance', 'Relay']
+// 整组测速（与首页切换节点共用：逐节点限并发 + 进度 + 延迟回填）
+const { testing, testProg, testGroup } = useGroupTest(proxies)
 
 const groups = computed(() =>
   Object.values(proxies.value)
@@ -57,48 +56,6 @@ async function select(groupName, nodeName) {
     toast(e.message, 'error')
   } finally {
     switching.value = ''
-  }
-}
-
-async function testGroup(g) {
-  testing.value = g.name
-  // 路由器 CPU 弱，内核的整组测速接口会瞬间并发测所有节点导致全部超时，
-  // 这里改为逐节点测速、限制并发，结果实时回填到卡片上。
-  const nodes = g.all.filter(n => {
-    const t = proxies.value[n]?.type
-    return t && !GROUP_TYPES.includes(t)
-  })
-  const total = nodes.length
-  let done = 0
-  let ok = 0
-  const CONCURRENCY = 5
-  const workers = Array.from({ length: Math.min(CONCURRENCY, nodes.length) }, async () => {
-    while (nodes.length) {
-      const node = nodes.shift()
-      try {
-        // 8s：弱 CPU 上 TLS 握手 + 代理链路往返较慢，5s 会把可用节点误判为超时
-        const r = await api.get(
-          `/api/proxies/${encodeURIComponent(node)}/delay?timeout=8000`
-        )
-        const delay = r?.delay || 0
-        if (delay > 0) ok++
-        const p = proxies.value[node]
-        if (p && delay > 0) {
-          const history = Array.isArray(p.history) ? p.history : []
-          history.push({ time: new Date().toISOString(), delay })
-          p.history = history.slice(-10)
-        }
-      } catch { /* 单节点失败按超时处理，不打断整体 */ }
-      done++
-      testProg.value = `${done}/${total}`
-    }
-  })
-  try {
-    await Promise.all(workers)
-    toast(`「${g.name}」测速完成：${ok}/${total} 个节点可用`, ok > 0 ? 'success' : 'error', 5000)
-  } finally {
-    testing.value = ''
-    testProg.value = ''
   }
 }
 
