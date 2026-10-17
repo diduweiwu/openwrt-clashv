@@ -134,7 +134,7 @@ const HELP = {
   pluginVersion: {
     title: '当前版本',
     rows: [
-      { k: '作用', v: '显示正在运行的插件版本；「检查更新」拿它与在线仓库的最新版比较。' },
+      { k: '作用', v: '显示正在运行的插件版本；「检查」拿它与在线仓库的最新版比较。' },
     ],
   },
   pluginRepo: {
@@ -738,7 +738,6 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
                 type="password"
                 show-password-on="click"
                 placeholder="留空不启用"
-                style="width: 220px"
               />
               <n-button title="随机生成 32 位令牌" @click="genToken">
                 <template #icon><AppIcon name="zap" :size="14" /></template>
@@ -758,7 +757,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             <div class="row-text">
               <span class="rt">下载加速前缀<HelpModal v-bind="HELP.downloadProxy" /></span>
             </div>
-            <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.com" style="width: 210px" />
+            <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.com" />
           </div>
         </div>
       </n-card>
@@ -817,7 +816,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           <div class="row-text">
             <span class="rt">TUN 协议栈<HelpModal v-bind="HELP.tunStack" /></span>
           </div>
-          <n-select v-model:value="form.tun_stack" :options="[{ value: 'mixed', label: 'mixed' }, { value: 'system', label: 'system' }, { value: 'gvisor', label: 'gvisor' }]" class="ctl" style="width: 130px" />
+          <n-select v-model:value="form.tun_stack" :options="[{ value: 'mixed', label: 'mixed' }, { value: 'system', label: 'system' }, { value: 'gvisor', label: 'gvisor' }]" class="ctl" />
         </div>
       </div>
     </n-card>
@@ -845,7 +844,6 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             v-model:value="form.dns_mode"
             :options="[{ value: 'fake-ip', label: 'fake-ip' }, { value: 'redir-host', label: 'redir-host' }]"
             class="ctl"
-            style="width: 190px"
           />
         </div>
         <div class="row" v-if="form.dns && store.status?.openwrt">
@@ -856,7 +854,6 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             v-model:value="form.dns_hijack"
             :options="[{ value: 'firewall', label: '防火墙转发' }, { value: 'dnsmasq', label: 'dnsmasq' }, { value: 'off', label: '禁用' }]"
             class="ctl"
-            style="width: 190px"
           />
         </div>
         <div class="row" v-if="form.dns">
@@ -906,7 +903,6 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           <n-select
             v-model:value="form.core_channel"
             class="ctl"
-            style="width: 150px"
             :options="[
               { value: 'release', label: '正式版 Release' },
               { value: 'alpha', label: '抢先版 Alpha' },
@@ -932,7 +928,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           </div>
           <div class="btn-pair">
             <n-button size="small" :disabled="coreUpgrading || coreUploading" @click="checkCore">
-              <template #icon><AppIcon name="search" :size="13" /></template>检查更新
+              <template #icon><AppIcon name="search" :size="13" /></template>检查
             </n-button>
             <n-button v-if="coreLatest?.has_update" type="primary" size="small" :loading="coreUpgrading" :disabled="coreUploading" @click="upgradeCore">
               <template #icon><AppIcon name="download" :size="13" /></template>{{ coreBtnText }}
@@ -986,7 +982,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           <div class="row-text">
             <span class="rt">在线仓库地址<HelpModal v-bind="HELP.pluginRepo" /></span>
           </div>
-          <n-input v-model:value="form.plugin_repo" placeholder="owner/repo" style="width: 210px" />
+          <n-input v-model:value="form.plugin_repo" placeholder="owner/repo" />
         </div>
         <div class="row">
           <div class="row-text">
@@ -997,7 +993,6 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             type="password"
             show-password-on="click"
             placeholder="ghp_… / github_pat_…，留空不启用"
-            style="width: 210px"
           />
         </div>
         <div class="row">
@@ -1012,7 +1007,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           </div>
           <div class="btn-pair">
             <n-button size="small" :disabled="pluginUpgrading" @click="checkPlugin">
-              <template #icon><AppIcon name="search" :size="13" /></template>检查更新
+              <template #icon><AppIcon name="search" :size="13" /></template>检查
             </n-button>
             <n-button v-if="pluginLatest?.has_update" type="primary" size="small" :loading="pluginUpgrading" @click="upgradePlugin">
               <template #icon><AppIcon name="download" :size="13" /></template>{{ pluginBtnText }}
@@ -1182,13 +1177,19 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 .row-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .rt { display: flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 500; }
 .rs { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-.num { width: 110px; }
-.unit { color: var(--text-dim); font-size: 12.5px; }
+/* 行尾控件统一列宽：下拉/输入框/按钮左缘对齐成一条竖线（右缘本就贴行尾），
+   变量挂在 .row 上，弹窗等其他区域的 btn-pair 不受影响 */
+.row { --ctl-w: 210px; }
+.row .ctl, .row > .n-input, .row > .n-button, .row .num { width: var(--ctl-w); }
+.row .btn-pair { width: var(--ctl-w); }
+.row .btn-pair :deep(.n-button) { flex: 1; }
 .btn-pair { display: flex; gap: 8px; flex: none; }
+.unit { color: var(--text-dim); font-size: 12.5px; }
 /* 当前版本行右侧：渠道标识 + 版本/状态文本 */
 .ver-side { display: flex; align-items: center; gap: 8px; flex: none; }
-/* n-input-group 默认 flex 拉伸占满剩余宽度，收缩并靠右与行内其他控件一致 */
-.row .n-input-group { width: fit-content; margin-left: auto; }
+/* 令牌行：组整体等宽，输入框填充组内剩余（旁边两个图标按钮） */
+.row .n-input-group { width: var(--ctl-w); margin-left: auto; }
+.row .n-input-group > .n-input { flex: 1; min-width: 0; }
 .prog { width: 180px; flex-shrink: 0; }
 .prog-side { display: flex; align-items: center; gap: 8px; flex: none; }
 /* 手动上传内核的隐藏文件选择器 */
@@ -1211,7 +1212,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 /* ---- 手机/平板：行内控件换到文案下方铺满，开关保持靠右 ---- */
 @media (max-width: 760px) {
   .row { flex-wrap: wrap; }
-  .row .ctl, .row .num, .row > .n-input { width: 100% !important; }
+  .row .ctl, .row .num, .row > .n-input, .row > .n-button, .row .btn-pair, .row .n-input-group { width: 100% !important; }
   .row > .n-switch { margin-left: auto; }
   .prog-side { width: 100%; }
   .prog { width: auto; flex: 1; }

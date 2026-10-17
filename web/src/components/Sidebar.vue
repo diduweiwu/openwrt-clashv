@@ -220,8 +220,8 @@ function onMoreSelect(key) {
   animation: logo-pulse 1s ease-in-out infinite;
 }
 @keyframes logo-pulse { 50% { box-shadow: 0 0 0 5px var(--glow); opacity: 0.8; } }
-/* 猫在圆内的视觉微调：猫身视觉重心偏右下，往左提 2px、往上 1px 取平衡（4 倍放大下对比定值） */
-.logo-badge svg { transform: translate(-2px, -1px); }
+/* 猫在圆内的视觉微调：用户逐像素校准的最终值（水平居中、上移 1px） */
+.logo-badge svg { transform: translate(0, -1px); }
 nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-item {
   display: flex; align-items: center; gap: 15px;
