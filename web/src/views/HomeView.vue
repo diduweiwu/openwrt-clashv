@@ -351,6 +351,8 @@ const cfgEditing = ref(false)
 const cfgEditContent = ref('')
 const cfgOriginal = ref('')
 const cfgSaving = ref(false)
+// 弹窗全屏态：全屏时卡片定高（96vw × 92vh），查看区/编辑框占满剩余空间
+const cfgFull = ref(false)
 
 async function viewConfig() {
   showConfig.value = true
@@ -1012,14 +1014,21 @@ function currentOf(g) {
       </div>
     </n-modal>
 
-    <!-- 运行时配置查看（编辑态切到订阅原文件） -->
+    <!-- 运行时配置查看（编辑态切到订阅原文件），标题行可切全屏 -->
     <n-modal
       preset="card"
+      class="cfg-modal"
+      :class="{ 'cfg-full': cfgFull }"
       :title="cfgEditing ? '编辑订阅文件' : '运行时配置（config.yaml）'"
       :show="showConfig"
-      :style="{ width: '860px', maxWidth: '94vw' }"
-      @update:show="showConfig = false"
+      :style="cfgFull ? { width: '96vw', maxWidth: '96vw', height: '92vh' } : { width: '860px', maxWidth: '94vw' }"
+      @update:show="showConfig = false; cfgFull = false"
     >
+      <template #header-extra>
+        <n-button size="tiny" quaternary :title="cfgFull ? '退出全屏' : '全屏'" @click="cfgFull = !cfgFull">
+          <template #icon><AppIcon :name="cfgFull ? 'shrink' : 'expand'" :size="14" /></template>
+        </n-button>
+      </template>
       <template v-if="!cfgEditing">
         <pre v-if="!cfgLoading" class="cfg-view mono">{{ cfgContent }}</pre>
         <n-empty v-else description="加载中…" style="padding: 40px 0" />
@@ -1035,7 +1044,8 @@ function currentOf(g) {
           v-model:value="cfgEditContent"
           type="textarea"
           class="cfg-edit mono"
-          :autosize="{ minRows: 20, maxRows: 26 }"
+          :autosize="cfgFull ? false : { minRows: 20, maxRows: 26 }"
+          :resizable="false"
           placeholder="订阅 YAML 内容…"
         />
         <div class="cfg-foot">
@@ -1269,6 +1279,17 @@ function currentOf(g) {
 .cfg-foot .btn-row { display: flex; gap: 8px; flex: none; }
 .cfg-edit :deep(.n-input__textarea-el) { font-size: 12px; line-height: 1.6; tab-size: 2; }
 
+/* 全屏态：底部操作行钉底、查看 pre / 编辑框占满剩余空间（内容区转 flex 见下方全局块）。
+   只在全屏启用，避免影响常规态 naive 默认块级布局 */
+.cfg-full .cfg-view { flex: 1; max-height: none; }
+.cfg-full .cfg-foot { flex: none; margin-top: auto; padding-top: 10px; }
+.cfg-full .cfg-edit { flex: 1; }
+
+/* 编辑态底色与只读态区分：只读 pre 是 --bg-card-2 灰，与 naive inputColor（store.js）同值，
+   编辑框原本看起来和只读一样；这里浅色给白纸底、深色给比弹窗更深的凹陷底 */
+.cfg-edit.n-input { background: var(--bg-card); }
+html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
+
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
   /* 7 块瓦片窄屏固定每行两块（等分而非按内容取宽，避免不齐排布；末行单块占半行与桌面留空同规则） */
@@ -1292,4 +1313,15 @@ function currentOf(g) {
   .hero-actions :deep(.n-button) { margin-right: 0 !important; }
   .hero-actions :deep(.n-button:not(:last-child)) { margin-bottom: 10px; }
 }
+</style>
+
+<style>
+/* 配置弹窗全屏态的 naive 内层调整：n-modal 是 teleport 渲染，传过去的 class 落在卡片根上
+   但不带本组件的 scoped 属性，:deep() 前缀匹配不上，只能放全局；用 cfg-modal/cfg-full
+   限定作用范围（类名仅此弹窗使用） */
+/* 全屏态内容区转纵向 flex：卡片定高（92vh）后查看 pre / 编辑框占满剩余空间；
+   min-height:0 解除 flex 子项默认不收缩限制，否则长内容会把内容区撑出卡片 */
+.cfg-modal.cfg-full .n-card-content { display: flex; flex-direction: column; min-height: 0; }
+/* textarea 内部是 n-scrollbar 包裹：content 定高后，height:100% 的输入区才能跟着撑满 */
+.cfg-modal.cfg-full .cfg-edit .n-scrollbar-content { height: 100%; }
 </style>
