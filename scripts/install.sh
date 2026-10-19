@@ -324,6 +324,7 @@ proxied() {
 # 示例: http_fetch "https://github.com/..." /tmp/a.ipk ""
 http_fetch() {
   url=$1 out=$2 mode=${3:-}
+  [ -n "$out" ] || out=-   # 输出 stdout 时 curl 与 busybox wget 都认 -
   if [ "$DOWNLOADER" = curl ]; then
     if [ -n "$mode" ]; then
       curl -fSL --connect-timeout 20 --retry 2 -H "Authorization: Bearer $TOKEN" -o "$out" "$url"
