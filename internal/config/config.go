@@ -38,6 +38,9 @@ type Settings struct {
 	DNSHijack        string `json:"dns_hijack"`        // DNS 劫持模式: firewall / dnsmasq / off（旁路由必开其一）
 	DNSHijackIPv4    bool   `json:"dns_hijack_ipv4"`   // DNS 劫持 IPv4：防火墙只重定向 v4 的 53 端口 / TUN dns-hijack 用 0.0.0.0:53
 	DNSHijackIPv6    bool   `json:"dns_hijack_ipv6"`   // DNS 劫持 IPv6：同上作用于 v6（默认关，避免影响无 v6/不想接管的网络）
+	AutoRebootEnabled bool  `json:"auto_reboot_enabled"` // 断网自动重启：定时拨测检测地址，不通时自动重启内核尝试恢复
+	AutoRebootURL    string `json:"auto_reboot_url"`   // 断网检测地址（HTTP GET，如 http://www.gstatic.com/generate_204），空为关闭
+	AutoRebootMax    int    `json:"auto_reboot_max"`   // 连续失败期间自动重启内核的次数上限（检测恢复后重新计数），1~10
 	CustomUA         string `json:"custom_ua"`         // 上次使用的自定义订阅 User-Agent（记住，下次预填）
 	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
 	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
@@ -70,6 +73,9 @@ func Defaults() Settings {
 		DNSHijack:        "firewall", // 与 OpenClash 一致：默认防火墙转发 DNS
 		DNSHijackIPv4:    true,       // 默认只劫持 IPv4；IPv6 由用户按需打开
 		DNSHijackIPv6:    false,
+		AutoRebootEnabled: false,
+		AutoRebootURL:     "",
+		AutoRebootMax:     1, // 检测不通默认只自动重启一次，防止反复重启刷屏
 		CustomUA:         "",
 		WorkDir:          "",
 		PluginRepo:       "diduweiwu/openwrt-clashv",
@@ -287,6 +293,14 @@ func (s *Settings) normalize() {
 	case "firewall", "dnsmasq", "off":
 	default:
 		s.DNSHijack = "firewall"
+	}
+	// 断网自动重启：检测地址没写协议头时按 http 补全；次数钳制在 1~10
+	s.AutoRebootURL = strings.TrimSpace(s.AutoRebootURL)
+	if s.AutoRebootURL != "" && !strings.Contains(s.AutoRebootURL, "://") {
+		s.AutoRebootURL = "http://" + s.AutoRebootURL
+	}
+	if s.AutoRebootMax < 1 || s.AutoRebootMax > 10 {
+		s.AutoRebootMax = 1
 	}
 	// DNS 解析模式白名单；历史配置为空时视为 fake-ip
 	s.DNSMode = strings.TrimSpace(s.DNSMode)

@@ -94,6 +94,28 @@ const HELP = {
       { k: '默认与建议', v: '默认关闭；宽带无 IPv6 或无需接管时保持关闭。' },
     ],
   },
+  autoReboot: {
+    title: '断网自动重启',
+    rows: [
+      { k: '作用', v: '开启后插件每 30 秒访问一次检测地址：内核运行中但地址访问不通（超时或返回异常状态码）时，自动重启内核尝试恢复。' },
+      { k: '次数限制', v: '连续失败期间最多自动重启「重启次数上限」次，防止无限重启；期间任意一次检测恢复连通，计数即清零重新开始。' },
+      { k: '默认与建议', v: '默认关闭；内核偶尔假死需要手动重启才能恢复的，建议开启。' },
+    ],
+  },
+  autoRebootURL: {
+    title: '检测地址',
+    rows: [
+      { k: '作用', v: '用于判断「能否上网」的 URL，插件定时 GET 访问它：返回 2xx/3xx 视为正常，超时（10 秒）或 4xx/5xx 视为不通。' },
+      { k: '建议', v: '用轻量无内容的 204 地址最准，如 http://www.gstatic.com/generate_204 或 http://connect.rom.miui.com/generate_204；检测请求走系统路由，内核接管时正好验证真实代理链路。' },
+    ],
+  },
+  autoRebootMax: {
+    title: '重启次数上限',
+    rows: [
+      { k: '作用', v: '同一个故障周期内（连续检测失败期间）最多自动重启内核的次数，1～10 次，默认 1。' },
+      { k: '举例', v: '设为 2：检测不通重启一次，30 秒后再不通再重启一次，之后仍不通就不再重启，直到某次检测恢复连通才重新计数。' },
+    ],
+  },
   coreChannel: {
     title: '内核渠道',
     rows: [
@@ -202,6 +224,9 @@ const form = reactive({
   dns_hijack: 'firewall',
   dns_hijack_ipv4: true,
   dns_hijack_ipv6: false,
+  auto_reboot_enabled: false,
+  auto_reboot_url: '',
+  auto_reboot_max: 1,
   token: '',
   luci_auth: true,
   core_arch: '',
@@ -312,6 +337,9 @@ async function load() {
       dns_hijack: s.dns_hijack || 'firewall',
       dns_hijack_ipv4: s.dns_hijack_ipv4 !== false,
       dns_hijack_ipv6: !!s.dns_hijack_ipv6,
+      auto_reboot_enabled: !!s.auto_reboot_enabled,
+      auto_reboot_url: s.auto_reboot_url || '',
+      auto_reboot_max: s.auto_reboot_max || 1,
       token: s.token || '',
       luci_auth: s.luci_auth !== false,
       core_arch: s.core_arch || '',
@@ -339,6 +367,7 @@ async function save() {
       mixed_port: Number(form.mixed_port) || 7890,
       ui_port: Number(form.ui_port) || 9097,
       core_mem_limit: Math.max(0, Number(form.core_mem_limit) || 0),
+      auto_reboot_max: Math.min(10, Math.max(1, Number(form.auto_reboot_max) || 1)),
     }
     const r = await api.put('/api/settings', payload)
     Object.assign(form, {
@@ -351,6 +380,9 @@ async function save() {
       dns_hijack: r.settings.dns_hijack || 'firewall',
       dns_hijack_ipv4: r.settings.dns_hijack_ipv4 !== false,
       dns_hijack_ipv6: !!r.settings.dns_hijack_ipv6,
+      auto_reboot_enabled: !!r.settings.auto_reboot_enabled,
+      auto_reboot_url: r.settings.auto_reboot_url || '',
+      auto_reboot_max: r.settings.auto_reboot_max || 1,
       token: r.settings.token || '',
       luci_auth: r.settings.luci_auth !== false,
       core_arch: r.settings.core_arch || '',
@@ -867,6 +899,40 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             <span class="rt">IPv6 劫持<HelpModal v-bind="HELP.dnsV6" /></span>
           </div>
           <n-switch v-model:value="form.dns_hijack_ipv6" />
+        </div>
+      </div>
+    </n-card>
+
+    <!-- 断网自动重启：定时拨测检测地址，不通按上限自动重启内核（首页流量行有状态瓦片） -->
+    <n-card v-if="tab === 'network'">
+      <template #header>
+        <div class="card-head">
+          <span>断网自动重启</span>
+          <span class="card-sub">定时访问检测地址，内核运行中但访问不通时自动重启内核尝试恢复；首页可查看检测状态</span>
+        </div>
+      </template>
+      <div class="rows">
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">断网检测<HelpModal v-bind="HELP.autoReboot" /></span>
+          </div>
+          <n-switch v-model:value="form.auto_reboot_enabled" />
+        </div>
+        <div class="row" v-if="form.auto_reboot_enabled">
+          <div class="row-text">
+            <span class="rt">检测地址<HelpModal v-bind="HELP.autoRebootURL" /></span>
+          </div>
+          <n-input
+            v-model:value="form.auto_reboot_url"
+            placeholder="http://www.gstatic.com/generate_204"
+            class="ctl"
+          />
+        </div>
+        <div class="row" v-if="form.auto_reboot_enabled">
+          <div class="row-text">
+            <span class="rt">重启次数上限<HelpModal v-bind="HELP.autoRebootMax" /></span>
+          </div>
+          <n-input-number v-model:value="form.auto_reboot_max" :min="1" :max="10" class="num" />
         </div>
       </div>
     </n-card>

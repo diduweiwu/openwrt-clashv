@@ -3,7 +3,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag, NSwitch } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, tripTotals, resetTrip, delayColor } from '../store.js'
+import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, fmtTime, tripTotals, resetTrip, delayColor } from '../store.js'
 import { useGroupTest, GROUP_TYPES } from '../useGroupTest.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
@@ -25,6 +25,37 @@ const selectableGroups = computed(() => groups.value.filter(g => g.type === 'Sel
 
 const status = computed(() => store.status)
 const traffic = computed(() => store.traffic)
+
+// ---- 断网守护（设置-网络里开启）：流量瓦片行展示检测状态，未启用不占位 ----
+const watchdog = computed(() => {
+  const w = status.value?.watch
+  return w?.enabled ? w : null
+})
+// 状态文案与颜色：待检测（灰）→ 正常（绿）→ 已重启 n/N（橙）→ 达上限（红）。
+// 文案保持短促防瓦片内折行，详情走悬浮提示。
+const watchView = computed(() => {
+  const w = watchdog.value
+  if (!w) return { text: '—', color: 'var(--text-dim)' }
+  if (!w.last_check) return { text: '待检测', color: 'var(--text-dim)' }
+  if (w.last_ok) return { text: '正常', color: 'var(--green)' }
+  if (w.limit_hit) return { text: `达上限 ${w.reboots}/${w.max}`, color: 'var(--red)' }
+  if (w.reboots > 0) return { text: `已重启 ${w.reboots}/${w.max}`, color: 'var(--orange)' }
+  return { text: '检测失败', color: 'var(--orange)' }
+})
+// 瓦片悬浮提示：检测地址、最近检测结果与自动重启时间
+const watchTitle = computed(() => {
+  const w = watchdog.value
+  if (!w) return ''
+  const lines = [
+    `检测地址：${w.url || '未配置'}`,
+    `每 30 秒检测一次，不通自动重启内核（上限 ${w.max} 次）`,
+  ]
+  if (w.last_check) {
+    lines.push(`最近检测：${fmtTime(w.last_check)}（${w.last_ok ? '正常' : '失败'}）`)
+  }
+  if (w.last_reboot) lines.push(`最近自动重启：${fmtTime(w.last_reboot)}`)
+  return lines.join('\n')
+})
 
 // ---- 初始化引导：内核或订阅任一未就位时亮出入口（新手一步步配置；全就绪则不出现） ----
 // 手动打开与自动弹出（App.vue）共用 store.wizardOpen；手动模式标记 wizardAuto=false，
@@ -770,6 +801,11 @@ function currentOf(g) {
           <span class="k"><AppIcon name="history" :size="13" />累计下载</span>
           <span class="v mono" style="color: var(--accent)">{{ fmtBytes(trip.down) }}</span>
         </div>
+        <!-- 断网守护状态瓦片：设置-网络里开启后出现在第五格，未启用不占位 -->
+        <div class="meta-item" v-if="watchdog" :title="watchTitle">
+          <span class="k"><AppIcon name="zap" :size="13" />断网守护</span>
+          <span class="v" :style="{ color: watchView.color }">{{ watchView.text }}</span>
+        </div>
       </div>
       <Sparkline v-if="status?.running" :series="store.history" :height="130" />
       <n-empty v-else description="内核未运行" style="padding: 40px 0" />
@@ -1147,7 +1183,7 @@ function currentOf(g) {
    竖向分隔线与上行逐列对齐 */
 .traffic-nums { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
 .traffic-nums .meta-item { height: 69px; }
-.traffic-nums .meta-item .v { font-size: 16px; }
+.traffic-nums .meta-item .v { font-size: 16px; white-space: nowrap; }
 .trip-reset { flex: none; margin-left: auto; }
 
 /* 运行状态行：状态居左、控制按钮贴右；极窄/字体放大时不许文字断行，

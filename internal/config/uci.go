@@ -29,6 +29,9 @@ import (
 //	    option dns_hijack 'firewall'
 //	    option dns_hijack_ipv4 '1'
 //	    option dns_hijack_ipv6 '0'
+//	    option auto_reboot_enabled '0'
+//	    option auto_reboot_url ''
+//	    option auto_reboot_max '1'
 //	    option custom_ua ''
 //	    option workdir ''
 //	    option plugin_repo 'diduweiwu/openwrt-clashv'
@@ -99,6 +102,11 @@ func (m *Manager) loadUCI(s *Settings) error {
 	if _, ok := getOK("dns_hijack_ipv6"); ok {
 		s.DNSHijackIPv6 = isOn("dns_hijack_ipv6")
 	}
+	if _, ok := getOK("auto_reboot_enabled"); ok {
+		s.AutoRebootEnabled = isOn("auto_reboot_enabled")
+	}
+	setStr(&s.AutoRebootURL, "auto_reboot_url")
+	setInt(&s.AutoRebootMax, "auto_reboot_max")
 	setStr(&s.CustomUA, "custom_ua")
 	setStr(&s.WorkDir, "workdir")
 	setStr(&s.PluginRepo, "plugin_repo")
@@ -146,6 +154,9 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.dns_hijack='%s'", uciSection, s.DNSHijack)
 	line("set %s.dns_hijack_ipv4='%s'", uciSection, onOff(s.DNSHijackIPv4))
 	line("set %s.dns_hijack_ipv6='%s'", uciSection, onOff(s.DNSHijackIPv6))
+	line("set %s.auto_reboot_enabled='%s'", uciSection, onOff(s.AutoRebootEnabled))
+	line("set %s.auto_reboot_url='%s'", uciSection, s.AutoRebootURL)
+	line("set %s.auto_reboot_max='%d'", uciSection, s.AutoRebootMax)
 	line("set %s.custom_ua='%s'", uciSection, s.CustomUA)
 	line("set %s.workdir='%s'", uciSection, s.WorkDir)
 	line("set %s.plugin_repo='%s'", uciSection, s.PluginRepo)

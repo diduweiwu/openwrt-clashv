@@ -118,7 +118,19 @@ func (d *deps) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"mode":           config.NormalizeCoreMode(s.CoreMode),
 		"openwrt":        d.cfg.IsOpenWrt(),
 		"token_required": s.Token != "",
+		// 断网守护：配置项取自设置，运行计数取自内存状态（watch.go）
+		"watch": d.watchStatus(s),
 	})
+}
+
+// watchStatus 组装断网守护状态：配置（开关/地址/上限）+ 运行计数（检测时间、
+// 连续失败、已重启次数、是否达上限）。
+func (d *deps) watchStatus(s config.Settings) map[string]any {
+	st := d.watch.snapshot()
+	st["enabled"] = s.AutoRebootEnabled
+	st["url"] = s.AutoRebootURL
+	st["max"] = s.AutoRebootMax
+	return st
 }
 
 func (d *deps) handleTraffic(w http.ResponseWriter, r *http.Request) {

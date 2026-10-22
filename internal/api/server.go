@@ -30,6 +30,7 @@ type deps struct {
 	mgr      *core.Manager
 	ver      string
 	updating atomic.Bool // 批量更新进行中标记（手动全部更新 / 定时任务共用）
+	watch    watchState  // 断网守护运行状态（内存态，见 watch.go）
 
 	authMu   sync.Mutex              // 保护 authed
 	authed   map[string]luciAuthed   // clashv_auth cookie 值 -> 已验证的 LuCI 会话
@@ -65,6 +66,8 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 		return err
 	}
 	go d.scheduleLoop()
+	// 断网守护：定时拨测检测地址，不通自动重启内核（见 watch.go）
+	go d.watchLoop()
 
 	mux := http.NewServeMux()
 
