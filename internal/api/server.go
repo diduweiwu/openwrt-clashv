@@ -138,9 +138,12 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("POST /api/backup/restore", d.handleBackupRestore)
 	mux.HandleFunc("DELETE /api/backup/{name}", d.handleBackupDelete)
 
-	// 升级进度（内核/插件共用）
-	mux.HandleFunc("GET /api/upgrade/progress", d.handleUpgradeProgress)
-	mux.HandleFunc("POST /api/upgrade/cancel", d.handleUpgradeCancel)
+		// 升级进度（内核/插件共用）
+		mux.HandleFunc("GET /api/upgrade/progress", d.handleUpgradeProgress)
+		mux.HandleFunc("POST /api/upgrade/cancel", d.handleUpgradeCancel)
+
+		// 断网守护：手动拨测检测地址（设置页「检测」按钮与保存时验证共用）
+		mux.HandleFunc("POST /api/watch/test", d.handleWatchTest)
 
 	// 日志（内核/插件）
 	mux.HandleFunc("GET /api/logs", d.handleLogs)

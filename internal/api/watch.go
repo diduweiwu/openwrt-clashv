@@ -4,9 +4,12 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -91,9 +94,26 @@ func (w *watchState) snapshot() map[string]any {
 	}
 }
 
-// probeURL 对检测地址做一次 GET 拨测：走系统路由（被内核接管时即经内核出站，
-// 正好验证真实代理链路）。2xx/3xx 视为连通；超时、DNS/TLS 错误、4xx/5xx 一律
-// 视为不通。响应体只读一小段即丢弃，避免大响应拖慢检测。
+// proxyClient 构造经本机混合端口的拨测 client：检测请求必须经内核代理发出，
+// 测的才是「通过代理能否上网」——透明代理模式只接管局域网转发流量，路由器
+// 本机直连不经过内核（TUN 才接管本机），直连 google.com 这类地址永远不通。
+// 每 30 秒才构造一次，开销可忽略；内核未运行时连接被拒绝，照常视为失败。
+func (d *deps) proxyClient() *http.Client {
+	port := 7890
+	if s, err := d.cfg.Get(); err == nil && s.MixedPort > 0 {
+		port = s.MixedPort
+	}
+	return &http.Client{
+		Timeout: watchTimeout,
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(&url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", port)}),
+		},
+	}
+}
+
+// probeURL 对检测地址做一次 GET 拨测（client 决定直连或经代理）。2xx/3xx 视为
+// 连通；超时、DNS/TLS 错误、4xx/5xx 一律视为不通。响应体只读一小段即丢弃，
+// 避免大响应拖慢检测。
 func probeURL(client *http.Client, url string) bool {
 	resp, err := client.Get(url)
 	if err != nil {
@@ -104,11 +124,37 @@ func probeURL(client *http.Client, url string) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 400
 }
 
-// watchLoop 断网守护主循环：每 30 秒拨测一次检测地址。仅在开关打开、地址
-// 已配置且内核运行中时工作；自动重启后的静默期（2 分钟）内跳过检测，
-// 给内核就绪与网络恢复留时间。拨测失败按设置的重启次数上限自动重启内核。
+// handleWatchTest 手动拨测：设置页「检测」按钮验证检测地址当前是否可达，
+// 与后台守护走同一条经代理路径。内核未运行时代理端口连接失败，返回失败并附提示。
+func (d *deps) handleWatchTest(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法 JSON"))
+		return
+	}
+	raw := strings.TrimSpace(body.URL)
+	if raw == "" {
+		writeErr(w, 400, errStr("缺少检测地址"))
+		return
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
+	}
+	start := time.Now()
+	ok := probeURL(d.proxyClient(), raw)
+	resp := map[string]any{"ok": ok, "ms": time.Since(start).Milliseconds()}
+	if !ok {
+		resp["error"] = "地址当前不可访问（内核未运行、代理链路不通或地址无效）"
+	}
+	writeJSON(w, 200, resp)
+}
+
+// watchLoop 断网守护主循环：每 30 秒经内核代理拨测一次检测地址。仅在开关
+// 打开、地址已配置且内核运行中时工作；自动重启后的静默期（2 分钟）内跳过
+// 检测，给内核就绪与网络恢复留时间。拨测失败按设置的重启次数上限自动重启内核。
 func (d *deps) watchLoop() {
-	client := &http.Client{Timeout: watchTimeout}
 	for {
 		time.Sleep(watchInterval)
 		s, err := d.cfg.Get()
@@ -123,7 +169,7 @@ func (d *deps) watchLoop() {
 		if !d.mgr.Running() || d.mgr.Starting() || d.watch.cooling() {
 			continue
 		}
-		if probeURL(client, url) {
+		if probeURL(d.proxyClient(), url) {
 			if d.watch.recordOK() {
 				slog.Info("断网守护：检测地址已恢复连通，重启计数清零", "url", url)
 			}

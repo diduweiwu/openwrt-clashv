@@ -74,7 +74,7 @@ func Defaults() Settings {
 		DNSHijackIPv4:    true,       // 默认只劫持 IPv4；IPv6 由用户按需打开
 		DNSHijackIPv6:    false,
 		AutoRebootEnabled: false,
-		AutoRebootURL:     "",
+		AutoRebootURL:     "google.com",
 		AutoRebootMax:     1, // 检测不通默认只自动重启一次，防止反复重启刷屏
 		CustomUA:         "",
 		WorkDir:          "",
