@@ -1,15 +1,31 @@
 <script setup>
 // 设置页：基础设置、TUN/DNS、内核更新（mihomo）、插件更新
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSpin, NSwitch, NTabs, NTabPane, NTag } from 'naive-ui'
+import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSlider, NSpin, NSwitch, NTabs, NTabPane, NTag } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
+import { glassEnabled, glassOpacity } from '../glass.js'
 import AppIcon from '../components/AppIcon.vue'
 import HelpModal from '../components/HelpModal.vue'
 
 // 设置项问号说明弹窗内容：k=小节标题（作用/开关影响/默认与建议/注意），v=正文。
 // 行内不再放可见描述，全部收进弹窗，设置页只留名称+控件。
 const HELP = {
+  glass: {
+    title: '磨砂模糊',
+    rows: [
+      { k: '作用', v: '开启后卡片、侧边栏等界面元素改为半透明底 + 背景磨砂模糊（毛玻璃），页面同时衬两个极淡的光斑让效果可见；透明度可用下方滑杆调节。' },
+      { k: '提示', v: '改动即时生效并保存在本浏览器（不占用后端设置）；背景模糊由浏览器渲染，低性能设备如感觉滚动卡顿可关闭。' },
+      { k: '默认与建议', v: '默认关闭；透明度默认 45%，滑杆已限制调节范围，不会透到文字看不清。' },
+    ],
+  },
+  glassOpacity: {
+    title: '磨砂透明度',
+    rows: [
+      { k: '作用', v: '调节磨砂开启时卡片与侧栏背景的透明程度：数值越大越透，越小越接近实心。' },
+      { k: '范围', v: '10%（近乎实心）～ 75%（很透）；默认 45%。字体颜色不随透明度变化，范围内调节都能保持文字清晰。' },
+    ],
+  },
   mixedPort: {
     title: '混合代理端口',
     rows: [
@@ -97,16 +113,17 @@ const HELP = {
   autoReboot: {
     title: '断网自动重启',
     rows: [
-      { k: '作用', v: '开启后插件每 30 秒访问一次检测地址：内核运行中但地址访问不通（超时或返回异常状态码）时，自动重启内核尝试恢复。' },
+      { k: '作用', v: '开启后插件每 30 秒经内核代理访问一次检测地址：地址访问不通（超时或返回异常状态码）时，自动重启内核尝试恢复。' },
       { k: '次数限制', v: '连续失败期间最多自动重启「重启次数上限」次，防止无限重启；期间任意一次检测恢复连通，计数即清零重新开始。' },
-      { k: '默认与建议', v: '默认关闭；内核偶尔假死需要手动重启才能恢复的，建议开启。' },
+      { k: '默认与建议', v: '默认关闭，检测地址默认 google.com；内核偶尔假死需要手动重启才能恢复的，建议开启。' },
     ],
   },
   autoRebootURL: {
     title: '检测地址',
     rows: [
-      { k: '作用', v: '用于判断「能否上网」的 URL，插件定时 GET 访问它：返回 2xx/3xx 视为正常，超时（10 秒）或 4xx/5xx 视为不通。' },
-      { k: '建议', v: '用轻量无内容的 204 地址最准，如 http://www.gstatic.com/generate_204 或 http://connect.rom.miui.com/generate_204；检测请求走系统路由，内核接管时正好验证真实代理链路。' },
+      { k: '作用', v: '用于判断「代理能否上网」的地址，插件定时经内核代理 GET 访问它：返回 2xx/3xx 视为正常，超时（10 秒）或 4xx/5xx 视为不通。' },
+      { k: '建议', v: '默认 google.com，代理正常时能打开就说明链路健康；也可换成机场订阅地址等任意轻量网址。' },
+      { k: '注意', v: '检测请求经内核代理发出（本机直连不走内核，测不了代理链路），所以需要内核运行中才能配置与验证；右侧「检测」按钮可随时手动试。' },
     ],
   },
   autoRebootMax: {
@@ -356,6 +373,37 @@ async function load() {
   }
 }
 
+// ---- 断网检测地址验证：手动「检测」按钮与保存后自动验证共用 ----
+const watchTesting = ref(false)
+
+// testWatchUrl 调后端经内核代理拨测一次地址，结果用 toast 反馈。
+// 后端会自动补 http:// 前缀，与保存时的 normalize 行为一致。
+async function testWatchUrl() {
+  if (watchTesting.value) return
+  watchTesting.value = true
+  try {
+    const r = await api.post('/api/watch/test', { url: form.auto_reboot_url })
+    if (r.ok) toast(`检测地址可用（${r.ms} ms）`, 'success')
+    else toast(r.error || '检测地址当前不可访问', 'warning', 6000)
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    watchTesting.value = false
+  }
+}
+
+// verifyWatchUrlAfterSave 保存成功后的自动验证：开关开着、地址非空且内核
+// 运行中才验（验证走内核代理）。验证结果只提示不拦保存——地址暂时不通
+// 不妨碍先把配置存上，用户可稍后手动再测。
+async function verifyWatchUrlAfterSave() {
+  if (!form.auto_reboot_enabled || !form.auto_reboot_url.trim() || !store.status?.running) return
+  try {
+    const r = await api.post('/api/watch/test', { url: form.auto_reboot_url })
+    if (r.ok) toast(`检测地址验证通过（${r.ms} ms）`, 'success', 4000)
+    else toast('检测地址当前不可访问，已保存配置，可稍后用「检测」再试', 'warning', 6000)
+  } catch { /* 验证失败不影响保存结果 */ }
+}
+
 async function save() {
   saving.value = true
   try {
@@ -405,6 +453,8 @@ async function save() {
     // 渠道切换会换内核文件与重启，同步刷新内核状态展示
     try { coreInfo.value = await api.get('/api/core/status') } catch { /* 状态刷新失败不影响保存结果 */ }
     store.status = await api.get('/api/status')
+    // 断网检测开着时顺带验证一下检测地址（经内核代理），结果只提示不拦保存
+    await verifyWatchUrlAfterSave()
   } catch (e) {
     toast(e.message, 'error')
   } finally {
@@ -793,6 +843,30 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           </div>
         </div>
       </n-card>
+
+      <!-- 界面显示：磨砂模糊（纯浏览器本地偏好，glass.js 持久化，不走后端设置/保存按钮） -->
+      <n-card v-if="tab === 'general'" title="界面显示">
+        <div class="rows">
+          <div class="row">
+            <div class="row-text">
+              <span class="rt">磨砂模糊<HelpModal v-bind="HELP.glass" /></span>
+            </div>
+            <n-switch v-model:value="glassEnabled" />
+          </div>
+          <div class="row" v-if="glassEnabled">
+            <div class="row-text">
+              <span class="rt">磨砂透明度<HelpModal v-bind="HELP.glassOpacity" /></span>
+            </div>
+            <div class="glass-ctl">
+              <n-slider
+                v-model:value="glassOpacity"
+                :min="10" :max="75" :step="5" :format-tooltip="v => v + '%'"
+              />
+              <span class="glass-val mono">{{ glassOpacity }}%</span>
+            </div>
+          </div>
+        </div>
+      </n-card>
     </template>
 
     <!-- 订阅：配置模板（手动节点方式添加订阅时的骨架） -->
@@ -921,12 +995,18 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
         <div class="row" v-if="form.auto_reboot_enabled">
           <div class="row-text">
             <span class="rt">检测地址<HelpModal v-bind="HELP.autoRebootURL" /></span>
+            <span v-if="!store.status?.running" class="rs">内核运行中才能配置与验证（检测经内核代理发出）</span>
           </div>
-          <n-input
-            v-model:value="form.auto_reboot_url"
-            placeholder="http://www.gstatic.com/generate_204"
-            class="ctl"
-          />
+          <n-input-group>
+            <n-input
+              v-model:value="form.auto_reboot_url"
+              placeholder="google.com"
+              :disabled="!store.status?.running"
+            />
+            <n-button :loading="watchTesting" :disabled="!store.status?.running" @click="testWatchUrl">
+              <template #icon><AppIcon name="zap" :size="13" /></template>检测
+            </n-button>
+          </n-input-group>
         </div>
         <div class="row" v-if="form.auto_reboot_enabled">
           <div class="row-text">
@@ -1259,6 +1339,10 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 /* 令牌行：组整体等宽，输入框填充组内剩余（旁边图标按钮保持自然宽度） */
 .row .n-input-group { width: var(--ctl-w); margin-left: auto; }
 .row .n-input-group > .n-input { flex: 1; min-width: 0; }
+/* 磨砂透明度：滑杆 + 当前值文本拼成一列等宽控件（与其他行控件右缘对齐） */
+.glass-ctl { display: flex; align-items: center; gap: 10px; width: var(--ctl-w); }
+.glass-ctl .n-slider { flex: 1; min-width: 0; }
+.glass-val { flex: none; width: 36px; text-align: right; font-size: 12px; color: var(--text-dim); }
 .prog { width: 180px; flex-shrink: 0; }
 .prog-side { display: flex; align-items: center; gap: 8px; flex: none; }
 /* 手动上传内核的隐藏文件选择器 */

@@ -1116,6 +1116,19 @@ function currentOf(g) {
 .meta-item.tint-b { background: var(--tile-b); }
 .meta-item.tint-c { background: var(--tile-c); }
 .meta-item.tint-d { background: var(--tile-d); }
+/* 悬浮光晕：瓦片按自己的 tint 色发光 + 轻微上浮，指示当前悬停位置；触屏无 hover 不受影响。
+   双层阴影：近处定形 + 大半径弥散光（深色背景上彩光衰减快，弥散层补「发光」感） */
+.meta-item { transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease; }
+.meta-item:hover { transform: translateY(-1px); }
+.meta-item.tint-a:hover { border-color: rgba(91, 107, 240, 0.5); box-shadow: 0 4px 14px rgba(91, 107, 240, 0.35), 0 0 26px rgba(91, 107, 240, 0.25); }
+.meta-item.tint-b:hover { border-color: rgba(63, 185, 111, 0.5); box-shadow: 0 4px 14px rgba(63, 185, 111, 0.32), 0 0 26px rgba(63, 185, 111, 0.22); }
+.meta-item.tint-c:hover { border-color: rgba(232, 161, 60, 0.52); box-shadow: 0 4px 14px rgba(232, 161, 60, 0.32), 0 0 26px rgba(232, 161, 60, 0.22); }
+.meta-item.tint-d:hover { border-color: rgba(224, 85, 133, 0.5); box-shadow: 0 4px 14px rgba(224, 85, 133, 0.3), 0 0 26px rgba(224, 85, 133, 0.2); }
+/* 无 tint 的瓦片（理论上首页都有 tint，此处兜底用主题色光晕） */
+.meta-item:hover:not(.tint-a):not(.tint-b):not(.tint-c):not(.tint-d) {
+  border-color: rgba(91, 107, 240, 0.4);
+  box-shadow: 0 4px 18px var(--accent-soft);
+}
 .meta-item .k { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
 /* 瓦片标题行尾的小齿轮：默认很淡，悬停亮起 */
 .tile-gear {

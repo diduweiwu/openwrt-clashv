@@ -13,6 +13,13 @@
   --tile-b: rgba(63, 185, 111, 0.06);
   --tile-c: rgba(232, 161, 60, 0.07);
   --tile-d: rgba(224, 85, 133, 0.05);
+  /* 磨砂玻璃的底色 RGB（取各自主题的 --bg-card，供 rgba(var(--glass-tint), α) 拼接） */
+  --glass-tint: 255, 255, 255;
+  /* 极光光晕色（浅色一套，深色在下方主题块加浓）：白底上彩色更显色，浓度压低防把页面染暗 */
+  --au-1: rgba(91, 107, 240, 0.2);
+  --au-2: rgba(34, 211, 238, 0.13);
+  --au-3: rgba(63, 185, 111, 0.16);
+  --au-4: rgba(224, 85, 133, 0.11);
 }
 
 html[data-theme='dark'] {
@@ -30,6 +37,13 @@ html[data-theme='dark'] {
   --tile-b: rgba(76, 200, 128, 0.08);
   --tile-c: rgba(240, 176, 82, 0.09);
   --tile-d: rgba(238, 106, 150, 0.08);
+  /* 磨砂玻璃底色 RGB（= --bg-card #1e222c） */
+  --glass-tint: 30, 34, 44;
+  /* 极光光晕色（深色加浓：暗底上彩光衰减快，太淡看不出磨砂在透光） */
+  --au-1: rgba(91, 107, 240, 0.4);
+  --au-2: rgba(34, 211, 238, 0.27);
+  --au-3: rgba(63, 185, 111, 0.32);
+  --au-4: rgba(224, 85, 133, 0.2);
 }
 
 html[data-theme='light'] {
@@ -81,3 +95,62 @@ p { margin: 0; }
 .page-enter-active, .page-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
 .page-enter-from { opacity: 0; transform: translateY(6px); }
 .page-leave-to { opacity: 0; transform: translateY(-4px); }
+
+/* ---- 磨砂模糊（设置-通用「界面显示」开启，状态见 glass.js）----
+   开启后卡片/侧栏改为半透明底 + backdrop 模糊；body 铺两团缓慢漂移的极光光晕
+   （伪元素 + 大半径 blur + 纯 transform 动画走 GPU 合成，不触发重绘），
+   让「透明 + 磨砂」始终有东西可透。--glass-alpha（0~1）由透明度滑杆换算而来，
+   越小越透；文字颜色不变，可读性靠模糊背景 + 半透明底共同保证，
+   滑杆已限制最低不透明度防止调到看不见字。 */
+/* 背景必须挪到 html；内容层显式抬高（部分渲染路径下 z-index:-1 的伪元素会被
+   不透明层盖住，显式分层最稳）：光晕垫底、#app 抬在其上 */
+html.glass-on { background: var(--bg); }
+html.glass-on body { background: transparent; }
+html.glass-on #app { position: relative; z-index: 1; }
+html.glass-on body::before,
+html.glass-on body::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(72px);
+  pointer-events: none;
+}
+/* 左上极光：紫蓝 + 青，罩住侧栏与首屏卡片 */
+html.glass-on body::before {
+  width: 62vmax; height: 52vmax;
+  left: -14vmax; top: -20vmax;
+  background:
+    radial-gradient(closest-side, var(--au-1), transparent 70%),
+    radial-gradient(closest-side at 72% 68%, var(--au-2), transparent 72%);
+  animation: aurora-a 26s ease-in-out infinite alternate;
+}
+/* 右下极光：绿 + 玫红，与左上错相呼应 */
+html.glass-on body::after {
+  width: 58vmax; height: 48vmax;
+  right: -16vmax; bottom: -18vmax;
+  background:
+    radial-gradient(closest-side, var(--au-3), transparent 70%),
+    radial-gradient(closest-side at 28% 30%, var(--au-4), transparent 72%);
+  animation: aurora-b 34s ease-in-out infinite alternate;
+}
+@keyframes aurora-a {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate(7vmax, 5vmax) scale(1.14) rotate(9deg); }
+  100% { transform: translate(-4vmax, 9vmax) scale(0.94) rotate(-7deg); }
+}
+@keyframes aurora-b {
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate(-8vmax, -6vmax) scale(1.1) rotate(-8deg); }
+  100% { transform: translate(5vmax, -10vmax) scale(0.92) rotate(6deg); }
+}
+/* 系统开启「减弱动态效果」时停住光晕，只保留静态淡彩 */
+@media (prefers-reduced-motion: reduce) {
+  html.glass-on body::before,
+  html.glass-on body::after { animation: none; }
+}
+html.glass-on .n-card,
+html.glass-on .sidebar {
+  background-color: rgba(var(--glass-tint), var(--glass-alpha));
+  -webkit-backdrop-filter: blur(14px) saturate(1.35);
+  backdrop-filter: blur(14px) saturate(1.35);
+}
