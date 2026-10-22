@@ -324,7 +324,7 @@ async function launchCore() {
                 border-radius="4px"
               />
               <div class="dl-hint">视网络情况可能需要几分钟，可随时取消</div>
-              <n-button size="small" quaternary type="error" @click="cancelDownload">取消下载</n-button>
+              <n-button size="small" quaternary type="error" @click="cancelDownload">取消</n-button>
             </div>
             <template v-else>
               <div v-if="dl.state === 'error'" class="err-row">

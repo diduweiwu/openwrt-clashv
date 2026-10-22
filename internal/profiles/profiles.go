@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -446,10 +448,55 @@ func parseSubInfo(header string) subInfo {
 	return info
 }
 
+// transportError 标记传输层失败（超时/连接重置/拒绝等），供 download 决定
+// 是否值得换路径重试——HTTP 状态码异常或内容校验失败换路径结果一样，不重试。
+type transportError struct{ err error }
+
+func (e *transportError) Error() string { return e.err.Error() }
+func (e *transportError) Unwrap() error { return e.err }
+
 // download 拉取订阅内容并做最低限度校验（必须是 clash/mihomo 配置）。
 // ua 为空时使用默认 UA；很多机场按 UA 决定返回的配置格式，需与添加时保持一致。
-func (m *Manager) download(url, ua string) ([]byte, subInfo, error) {
-	req, err := http.NewRequest("GET", url, nil)
+//
+// 下载路径带兜底：先直连（与历史行为一致），传输层失败（超时/被重置等）时
+// 改经本机混合代理端口再试一次——透明代理只接管局域网转发流量，路由器本机
+// 直连不经过内核，直连被运营商阻断时（节点正常）经代理反而能拉到；TUN 模式
+// 下也等于让内核按规则代拉一次。重试仍失败时返回直连的原始错误（附提示）。
+func (m *Manager) download(rawURL, ua string) ([]byte, subInfo, error) {
+	data, info, err := m.tryDownload(rawURL, ua, nil)
+	var te *transportError
+	if err == nil || !errors.As(err, &te) {
+		return data, info, err
+	}
+	// 直连传输层失败：经本机混合端口重试一次（内核未运行时连接会被拒绝，照常报错）
+	s, cfgErr := m.cfg.Get()
+	if cfgErr != nil || s.MixedPort <= 0 {
+		return data, info, err
+	}
+	proxyURL := &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", s.MixedPort)}
+	slog.Info("订阅直连下载失败，尝试经本机代理端口重新下载", "port", s.MixedPort)
+	if data2, info2, err2 := m.tryDownload(rawURL, ua, proxyURL); err2 == nil {
+		slog.Info("订阅已经代理端口重新下载成功")
+		return data2, info2, nil
+	}
+	return data, info, fmt.Errorf("%w（已经本机代理端口重试，仍失败）", err)
+}
+
+// tryDownload 单次下载尝试：proxy 为 nil 时直连，否则经该 HTTP 代理。
+// 校验逻辑与直连/代理路径共用：内容必须含 proxies 段、非空、上限 20MB。
+func (m *Manager) tryDownload(rawURL, ua string, proxy *url.URL) ([]byte, subInfo, error) {
+	hc := m.hc
+	if proxy != nil {
+		// 低频兜底路径，临时构造代理 client；超时与重定向策略与直连保持一致
+		hc = &http.Client{
+			Timeout: 60 * time.Second,
+			Transport: &http.Transport{
+				Proxy: http.ProxyURL(proxy),
+			},
+			CheckRedirect: m.hc.CheckRedirect,
+		}
+	}
+	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return nil, subInfo{}, fmt.Errorf("订阅地址无效: %w", err)
 	}
@@ -457,9 +504,9 @@ func (m *Manager) download(url, ua string) ([]byte, subInfo, error) {
 		ua = "clash-verge/clashv"
 	}
 	req.Header.Set("User-Agent", ua)
-	resp, err := m.hc.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, subInfo{}, fmt.Errorf("下载订阅失败: %w", err)
+		return nil, subInfo{}, &transportError{fmt.Errorf("下载订阅失败: %w", err)}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {

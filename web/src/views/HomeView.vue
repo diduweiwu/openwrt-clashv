@@ -612,7 +612,7 @@ function currentOf(g) {
           <div class="run-badge">
             <span class="run-text">{{ status?.running ? '运行中' : status?.starting ? '启动中…' : '已停止' }}</span>
             <n-button v-if="wizardEntry" size="tiny" type="primary" secondary title="逐步下载内核、添加订阅并启动" @click="openWizard">
-              <template #icon><AppIcon name="zap" :size="12" /></template>初始化引导
+              <template #icon><AppIcon name="zap" :size="12" /></template>初始化
             </n-button>
           </div>
           <!-- 当前服务的插件版本（/api/status 的 plugin_version；内核版本在下方瓦片里），
@@ -651,9 +651,10 @@ function currentOf(g) {
             </n-button>
           </n-flex>
         </div>
-        <!-- 瓦片行：状态 3 块 + 快捷 4 块（TUN/DNS/混合端口/出站模式）挤同一排等宽，齿轮弹对应设置弹窗 -->
+        <!-- 瓦片行：状态 3 块 + 快捷 4 块（TUN/DNS/混合端口/出站模式）挤同一排等宽，齿轮弹对应设置弹窗；
+             tint-* 四色淡彩底循环（style.css --tile-*），相邻不同色便于区分 -->
         <div class="hero-tiles">
-          <div class="meta-item">
+          <div class="meta-item tint-a">
             <span class="k">
               <AppIcon name="cpu" :size="13" />内核版本
               <button
@@ -669,17 +670,17 @@ function currentOf(g) {
               {{ coreStageText || status?.core?.version || '未安装' }}
             </span>
           </div>
-          <div class="meta-item">
+          <div class="meta-item tint-b">
             <span class="k"><AppIcon name="server" :size="13" />平台架构</span>
             <span class="v mono" :class="{ dim: !status?.core?.platform }">
               {{ status?.core?.platform ? status.core.platform.replace(/^linux-/, '') : '不支持' }}
             </span>
           </div>
-          <div class="meta-item">
+          <div class="meta-item tint-c">
             <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
             <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
           </div>
-          <div class="meta-item">
+          <div class="meta-item tint-d">
             <span class="k">
               <AppIcon name="network" :size="13" />TUN
               <button class="tile-gear" title="TUN 设置" @click="openTun">
@@ -690,7 +691,7 @@ function currentOf(g) {
               {{ status?.tun ? `开启 · ${status.tun_stack || 'mixed'}` : '未开启' }}
             </span>
           </div>
-          <div class="meta-item">
+          <div class="meta-item tint-a">
             <span class="k">
               <AppIcon name="globe" :size="13" />DNS
               <button class="tile-gear" title="DNS 设置" @click="openDns">
@@ -701,7 +702,7 @@ function currentOf(g) {
               {{ status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管' }}
             </span>
           </div>
-          <div class="meta-item">
+          <div class="meta-item tint-b">
             <span class="k">
               <AppIcon name="plug" :size="13" />混合端口
               <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
@@ -710,7 +711,7 @@ function currentOf(g) {
             </span>
             <span class="v mono">{{ status?.mixed_port || '—' }}</span>
           </div>
-          <div class="meta-item">
+          <div class="meta-item tint-c">
             <span class="k">
               <AppIcon name="layers" :size="13" />出站模式
               <button class="tile-gear" title="切换出站模式" @click="showMode = true">
@@ -747,7 +748,7 @@ function currentOf(g) {
       <n-empty v-if="!status?.profile" description="未设置订阅，请先选择并启用">
         <template #extra>
           <n-button size="small" type="primary" secondary @click="openWizard">
-            <template #icon><AppIcon name="zap" :size="13" /></template>初始化引导
+            <template #icon><AppIcon name="zap" :size="13" /></template>初始化
           </n-button>
         </template>
       </n-empty>
@@ -785,24 +786,24 @@ function currentOf(g) {
       </div>
       <!-- 指标做成小卡片瓦片：图标 + 标签在上、数值在下；连接/CPU/内存移至侧栏底部 -->
       <div class="traffic-nums">
-        <div class="meta-item">
+        <div class="meta-item tint-b">
           <span class="k"><AppIcon name="upload" :size="13" />上传</span>
           <span class="v mono" style="color: var(--green)">{{ fmtRate(traffic.up) }}</span>
         </div>
-        <div class="meta-item">
+        <div class="meta-item tint-a">
           <span class="k"><AppIcon name="download" :size="13" />下载</span>
           <span class="v mono" style="color: var(--accent)">{{ fmtRate(traffic.down) }}</span>
         </div>
-        <div class="meta-item">
+        <div class="meta-item tint-b">
           <span class="k"><AppIcon name="history" :size="13" />累计上传</span>
           <span class="v mono" style="color: var(--green)">{{ fmtBytes(trip.up) }}</span>
         </div>
-        <div class="meta-item">
+        <div class="meta-item tint-a">
           <span class="k"><AppIcon name="history" :size="13" />累计下载</span>
           <span class="v mono" style="color: var(--accent)">{{ fmtBytes(trip.down) }}</span>
         </div>
         <!-- 断网守护状态瓦片：设置-网络里开启后出现在第五格，未启用不占位 -->
-        <div class="meta-item" v-if="watchdog" :title="watchTitle">
+        <div class="meta-item tint-c" v-if="watchdog" :title="watchTitle">
           <span class="k"><AppIcon name="zap" :size="13" />断网守护</span>
           <span class="v" :style="{ color: watchView.color }">{{ watchView.text }}</span>
         </div>
@@ -903,7 +904,7 @@ function currentOf(g) {
             :disabled="!switchSelected || switchSelected === switchActive"
             @click="confirmSwitch"
           >
-            <template #icon><AppIcon name="check" :size="14" /></template>确认切换
+            <template #icon><AppIcon name="check" :size="14" /></template>切换
           </n-button>
         </div>
       </div>
@@ -1071,7 +1072,7 @@ function currentOf(g) {
         <div class="cfg-foot">
           <span class="page-sub">要改订阅内容？可编辑订阅原文件，保存后重新拉取订阅会覆盖修改</span>
           <n-button size="small" :disabled="cfgLoading || !activeProfile" @click="editProfileContent">
-            <template #icon><AppIcon name="edit" :size="13" /></template>编辑订阅
+            <template #icon><AppIcon name="edit" :size="13" /></template>编辑
           </n-button>
         </div>
       </template>
@@ -1089,7 +1090,7 @@ function currentOf(g) {
           <div class="btn-row">
             <n-button size="small" :disabled="cfgSaving" @click="cfgEditing = false">取消</n-button>
             <n-button type="primary" size="small" :loading="cfgSaving" @click="saveProfileContent">
-              <template #icon><AppIcon name="check" :size="13" /></template>确认修改
+              <template #icon><AppIcon name="check" :size="13" /></template>保存
             </n-button>
           </div>
         </div>
@@ -1110,6 +1111,11 @@ function currentOf(g) {
   padding: 9px 12px 10px;
   min-width: 0;
 }
+/* 四色淡彩底（色值见 style.css --tile-*）：相邻瓦片不同色便于区分，透明度极低保持清淡 */
+.meta-item.tint-a { background: var(--tile-a); }
+.meta-item.tint-b { background: var(--tile-b); }
+.meta-item.tint-c { background: var(--tile-c); }
+.meta-item.tint-d { background: var(--tile-d); }
 .meta-item .k { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
 /* 瓦片标题行尾的小齿轮：默认很淡，悬停亮起 */
 .tile-gear {

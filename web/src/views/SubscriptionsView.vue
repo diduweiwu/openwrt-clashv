@@ -313,7 +313,7 @@ onMounted(() => {
             定时 · {{ schedSummary }}
           </n-button>
           <n-button size="small" type="primary" ghost :loading="updatingAll" @click="updateAll">
-            <template #icon><AppIcon name="refresh" :size="13" /></template>全部更新
+            <template #icon><AppIcon name="refresh" :size="13" /></template>更新
           </n-button>
         </div>
       </div>

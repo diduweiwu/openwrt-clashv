@@ -196,7 +196,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
         <n-button size="small" :loading="loading" @click="poll(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
         <n-button size="small" type="error" ghost :disabled="!store.status?.running || !activeCount" @click="closeAll">
-          <template #icon><AppIcon name="x-square" :size="13" /></template>关闭全部
+          <template #icon><AppIcon name="x-square" :size="13" /></template>关闭
         </n-button>
       </div>
     </div>
@@ -208,7 +208,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
           <n-tab-pane name="closed"><template #tab>已关闭 {{ closedCount }}</template></n-tab-pane>
         </n-tabs>
         <n-input v-model:value="keyword" size="small" placeholder="过滤：主机 / 规则 / 进程 / 地址…" clearable class="search" />
-        <n-button v-if="sub === 'closed' && closedCount" size="small" @click="clearClosed"><template #icon><AppIcon name="trash" :size="13" /></template>清空已关闭</n-button>
+        <n-button v-if="sub === 'closed' && closedCount" size="small" @click="clearClosed"><template #icon><AppIcon name="trash" :size="13" /></template>清空</n-button>
       </div>
     </n-card>
 

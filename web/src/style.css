@@ -8,6 +8,11 @@
   --orange: #e8a13c;
   --red: #e05555;
   --radius: 14px;
+  /* 首页信息瓦片的四色淡彩底：相邻瓦片不同色便于区分，透明度刻意压得很低（清淡不抢眼） */
+  --tile-a: rgba(91, 107, 240, 0.055);
+  --tile-b: rgba(63, 185, 111, 0.06);
+  --tile-c: rgba(232, 161, 60, 0.07);
+  --tile-d: rgba(224, 85, 133, 0.05);
 }
 
 html[data-theme='dark'] {
@@ -20,6 +25,11 @@ html[data-theme='dark'] {
   --border: rgba(255, 255, 255, 0.07);
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
   --hover: rgba(255, 255, 255, 0.05);
+  /* 深色底上彩色的可见度更低，透明度略高于浅色（仍是似有似无的淡彩） */
+  --tile-a: rgba(116, 130, 255, 0.09);
+  --tile-b: rgba(76, 200, 128, 0.08);
+  --tile-c: rgba(240, 176, 82, 0.09);
+  --tile-d: rgba(238, 106, 150, 0.08);
 }
 
 html[data-theme='light'] {

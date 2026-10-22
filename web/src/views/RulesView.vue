@@ -256,11 +256,11 @@ watch(
         <div class="sec-side">
           <span class="page-sub">共 {{ custom.length }} 条<template v-if="keyword"> · 命中 {{ customFiltered.length }} 条</template> · 越靠前越优先</span>
           <n-button size="small" type="primary" @click="openAdd">
-            <template #icon><AppIcon name="plus" :size="13" /></template>添加规则
+            <template #icon><AppIcon name="plus" :size="13" /></template>添加
           </n-button>
         </div>
       </div>
-      <n-empty v-if="!custom.length" description="还没有自定义规则，点右上角「添加规则」新建" style="padding: 26px 0" />
+      <n-empty v-if="!custom.length" description="还没有自定义规则，点右上角「添加」新建" style="padding: 26px 0" />
       <n-empty v-else-if="!customFiltered.length" description="没有匹配的自定义规则" style="padding: 26px 0" />
       <div v-else class="custom-list">
         <div v-for="x in customFiltered" :key="x.rule" class="rule-row custom">

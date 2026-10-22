@@ -805,12 +805,12 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
       </template>
       <template #header-extra>
         <n-button size="small" type="primary" secondary @click="openTplNew">
-          <template #icon><AppIcon name="plus" :size="13" /></template>新增模板
+          <template #icon><AppIcon name="plus" :size="13" /></template>新增
         </n-button>
       </template>
       <n-spin :show="tplLoading">
         <div v-if="!templates.length" class="tpl-empty">
-          <n-empty description="还没有模板，点右上角「新增模板」创建" style="padding: 24px 0" />
+          <n-empty description="还没有模板，点右上角「新增」创建" style="padding: 24px 0" />
         </div>
         <div v-else class="tpl-list">
           <div v-for="t in templates" :key="t.name" class="tpl-row">
@@ -1154,7 +1154,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
         <n-input v-model:value="backupName" placeholder="备份名称（可编辑）" @keyup.enter="createBackup" />
         <div class="backup-foot">
           <span class="page-sub">同名备份会被拒绝，换个名字即可</span>
-          <n-button type="primary" size="small" :loading="backupCreating" @click="createBackup">开始备份</n-button>
+          <n-button type="primary" size="small" :loading="backupCreating" @click="createBackup">备份</n-button>
         </div>
       </div>
     </n-modal>
