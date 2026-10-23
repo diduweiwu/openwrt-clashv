@@ -1414,12 +1414,13 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   .g-now { display: none; }
 }
 
-/* ---- 手机（≤760，与侧栏转顶栏同断点）：启动/停止 与 重启 竖排贴右，主操作在上 ---- */
+/* ---- 手机（≤760，与侧栏转顶栏同断点）：启动/停止 与 重启 换行到标题下方横排等宽铺满，
+     消除竖排贴右留下的整片空白；主操作在前排左 ---- */
 @media (max-width: 760px) {
-  .hero-actions { flex-direction: column !important; align-items: flex-end; }
-  /* n-flex 子项间距是行内 margin，竖排后要清掉改纵向间距；DOM 顺序已是启停在前，竖排自然主操作在上 */
-  .hero-actions :deep(.n-button) { margin-right: 0 !important; }
-  .hero-actions :deep(.n-button:not(:last-child)) { margin-bottom: 10px; }
+  .hero-actions { flex-direction: row !important; align-items: stretch; width: 100%; }
+  /* n-flex 子项间距是行内 margin，显式统一成横向 10px 并清掉竖排残留的纵向间距 */
+  .hero-actions :deep(.n-button) { margin-right: 10px !important; margin-bottom: 0 !important; flex: 1 1 0; }
+  .hero-actions :deep(.n-button:last-child) { margin-right: 0 !important; }
 }
 </style>
 
