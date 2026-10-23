@@ -116,33 +116,40 @@ html.glass-on body::after {
   filter: blur(72px);
   pointer-events: none;
 }
-/* 左上极光：紫蓝 + 青，罩住侧栏与首屏卡片 */
+/* 左上极光：紫蓝 + 青。多段关键帧让光斑绕屏幕游走（左上→右上→中下→左中），
+   不再固定一处；位移大、周期长，局部速度平缓但位置一直在变 */
 html.glass-on body::before {
   width: 62vmax; height: 52vmax;
   left: -14vmax; top: -20vmax;
   background:
     radial-gradient(closest-side, var(--au-1), transparent 80%),
     radial-gradient(closest-side at 72% 68%, var(--au-2), transparent 82%);
-  animation: aurora-a 8s ease-in-out infinite alternate;
+  animation: aurora-a 28s ease-in-out infinite;
 }
-/* 右下极光：绿 + 玫红，与左上错相呼应 */
+/* 右下极光：绿 + 玫红。与左上反相游走（右下→左下→中上→右中），两团光任意时刻错开区域 */
 html.glass-on body::after {
   width: 58vmax; height: 48vmax;
   right: -16vmax; bottom: -18vmax;
   background:
     radial-gradient(closest-side, var(--au-3), transparent 80%),
     radial-gradient(closest-side at 28% 30%, var(--au-4), transparent 82%);
-  animation: aurora-b 12s ease-in-out infinite alternate;
+  animation: aurora-b 36s ease-in-out infinite;
 }
+/* 游走路径：以初始停靠位为基准（0%/100% 闭合循环），经停另三个方位；
+   scale/rotate 同步微变避免形状单调 */
 @keyframes aurora-a {
   0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50%  { transform: translate(9vmax, 7vmax) scale(1.16) rotate(11deg); }
-  100% { transform: translate(-5vmax, 12vmax) scale(0.92) rotate(-9deg); }
+  25%  { transform: translate(55vmax, 18vmax) scale(1.15) rotate(12deg); }
+  50%  { transform: translate(30vmax, 72vmax) scale(0.94) rotate(-8deg); }
+  75%  { transform: translate(-10vmax, 32vmax) scale(1.06) rotate(6deg); }
+  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
 }
 @keyframes aurora-b {
   0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50%  { transform: translate(-10vmax, -8vmax) scale(1.12) rotate(-10deg); }
-  100% { transform: translate(7vmax, -13vmax) scale(0.9) rotate(8deg); }
+  25%  { transform: translate(-62vmax, -6vmax) scale(1.12) rotate(-10deg); }
+  50%  { transform: translate(-32vmax, -56vmax) scale(0.92) rotate(9deg); }
+  75%  { transform: translate(8vmax, -26vmax) scale(1.08) rotate(-6deg); }
+  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
 }
 /* 系统开启「减弱动态效果」时停住光晕，只保留静态淡彩 */
 @media (prefers-reduced-motion: reduce) {
@@ -162,4 +169,18 @@ html.glass-on .n-tabs--segment-type .n-tabs-rail {
   background-color: rgba(var(--glass-tint), calc(var(--glass-alpha) * 0.65));
   -webkit-backdrop-filter: blur(14px) saturate(1.35);
   backdrop-filter: blur(14px) saturate(1.35);
+}
+
+/* ---- 大卡片悬浮光晕：与首页瓦片同款的 hover 反馈（accent 淡彩光 + 描边提亮）----
+   过渡沿用瓦片的 0.35s easeOutCubic，光晕渐现渐隐；color/background-color 保留
+   naive 卡片原生的 0.3s（主题切换等场景不丢渐变）。限定 #app 下是关键：
+   弹窗/抽屉/气泡的卡片 teleport 到 body 直下，天然排除，不会跟着发光 */
+#app .n-card {
+  transition: color 0.3s var(--n-bezier, ease), background-color 0.3s var(--n-bezier, ease),
+    box-shadow 0.35s cubic-bezier(0.33, 1, 0.68, 1),
+    border-color 0.35s cubic-bezier(0.33, 1, 0.68, 1);
+}
+#app .n-card:hover {
+  border-color: rgba(91, 107, 240, 0.4);
+  box-shadow: 0 6px 22px rgba(91, 107, 240, 0.22), 0 0 46px rgba(91, 107, 240, 0.15);
 }

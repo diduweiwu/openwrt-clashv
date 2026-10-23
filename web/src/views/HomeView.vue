@@ -1117,8 +1117,13 @@ function currentOf(g) {
 .meta-item.tint-c { background: var(--tile-c); }
 .meta-item.tint-d { background: var(--tile-d); }
 /* 悬浮光晕：瓦片按自己的 tint 色发光 + 轻微上浮，指示当前悬停位置；触屏无 hover 不受影响。
-   双层阴影：近处定形 + 大半径弥散光（深色背景上彩光衰减快，弥散层补「发光」感） */
-.meta-item { transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease; }
+   双层阴影：近处定形 + 大半径弥散光（深色背景上彩光衰减快，弥散层补「发光」感）。
+   过渡 0.35s easeOutCubic：出现渐亮、移开渐隐，避免光晕瞬现瞬失的生硬感 */
+.meta-item {
+  transition: box-shadow 0.35s cubic-bezier(0.33, 1, 0.68, 1),
+    transform 0.35s cubic-bezier(0.33, 1, 0.68, 1),
+    border-color 0.35s cubic-bezier(0.33, 1, 0.68, 1);
+}
 .meta-item:hover { transform: translateY(-1px); }
 .meta-item.tint-a:hover { border-color: rgba(91, 107, 240, 0.5); box-shadow: 0 4px 14px rgba(91, 107, 240, 0.35), 0 0 26px rgba(91, 107, 240, 0.25); }
 .meta-item.tint-b:hover { border-color: rgba(63, 185, 111, 0.5); box-shadow: 0 4px 14px rgba(63, 185, 111, 0.32), 0 0 26px rgba(63, 185, 111, 0.22); }
@@ -1347,11 +1352,14 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
 
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
-  /* 7 块瓦片窄屏固定每行两块（等分而非按内容取宽，避免不齐排布；末行单块占半行与桌面留空同规则） */
+  /* 窄屏 7 块瓦片固定每行两块（等分而非按内容取宽，避免不齐排布；末行单块占半行与桌面留空同规则） */
   .hero-tiles { grid-template-columns: repeat(2, 1fr); }
   .hero-tiles .meta-item { padding: 8px 10px 9px; }
   .hero-tiles .meta-item .k { gap: 4px; }
   .hero-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
+  /* 值放不下时折行显示完整内容（amd64-compatible 这类长值截断会丢关键后缀），
+     瓦片纵向布局多占一行不破坏结构；桌面端仍保持不折行 */
+  .hero-tiles .meta-item .v { white-space: normal; overflow-wrap: anywhere; }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: 62px; }
