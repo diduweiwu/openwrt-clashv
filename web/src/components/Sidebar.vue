@@ -308,10 +308,15 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
     flex-wrap: wrap; /* 兜底：放不下时换行而不是裁切 */
     margin: 8px 10px 0;
   }
-  .logo { font-size: 15px; gap: 6px; }
+  /* logo 整体缩为 26px 小徽标并去掉内边距：320px 级窄屏（可用宽 272px）也能与图标导航同行，
+     不再换行独占一行；运行状态指示仍由徽标承担 */
+  .logo { font-size: 15px; gap: 6px; padding: 0; }
+  .logo-badge { width: 26px; height: 26px; }
+  .logo-badge svg { width: 18px; height: 18px; }
   nav { flex-direction: row; flex: 1; gap: 2px; }
-  /* 一行要容下 logo + 7 个页面 + 「更多」共 8 项（320px 极窄屏也不换行），图标项收紧到 27px 宽 */
-  .nav-item { padding: 7px 5px; }
+  /* 一行要容下 logo + 7 个页面 + 「更多」共 8 项（320px 极窄屏也不换行），
+     图标项收紧到 25px 宽：26(logo) + 6(gap) + 8×25+7×2(nav) = 246px ≤ 272px */
+  .nav-item { padding: 7px 4px; }
   .nav-item span { display: none; }
   /* 底部区（迷你卡/主题钮/折叠钮）隐藏：主题进「更多」下拉，运行状态由 logo 徽标承担 */
   .bottom { display: none; }
