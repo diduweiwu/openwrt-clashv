@@ -271,7 +271,7 @@ async function launchCore() {
     preset="card"
     title="初始化引导"
     :show="open"
-    :style="{ width: '620px', maxWidth: '94vw' }"
+    :style="{ width: '620px', maxWidth: '96vw' }"
     @update:show="close"
   >
     <div class="wiz">
@@ -506,9 +506,16 @@ async function launchCore() {
   border-radius: 9px;
 }
 
-/* 手机端：说明文字与按钮组换行后按钮组占满一行靠右 */
+/* 手机端：说明文字与按钮组换行后按钮组占满一行靠右；步骤条压缩保证 320px
+   窄屏三步同行不截断——三步 nowrap 标题 + 圆点 + 连接线边距的最小总宽约 309px，
+   超出弹窗内容宽会裁掉第三步，故收拢各段留白并缩标题字号（预算：弹窗 96vw≈307px，
+   去卡片左右 padding 40px≈267px，压缩后三步最小总宽≈252px） */
 @media (max-width: 760px) {
   .wiz-foot { flex-wrap: wrap; }
   .wiz-foot .n-button { margin-left: auto; }
+  .wiz-steps { padding: 2px 0 0; }
+  .wiz-steps :deep(.n-step-content-header) { margin-left: 6px; }
+  .wiz-steps :deep(.n-step-content-header__title) { font-size: 12.5px; }
+  .wiz-steps :deep(.n-step-splitor) { margin: 0 3px; }
 }
 </style>

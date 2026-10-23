@@ -267,6 +267,11 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .f-range { width: 310px; flex: none; }
 .lg-count { flex: none; color: var(--text-dim); font-size: 11px; }
 .bar-btns { display: flex; gap: 8px; margin-left: auto; }
+/* 日期范围选择器桌面固定 310px，320px 窄屏容器仅约 276px 会横向溢出（溢出被卡片裁掉
+   看不全控件），改为独占一行自适应；置于桌面规则之后保证同特异性下覆盖生效 */
+@media (max-width: 760px) {
+  .f-range { width: 100%; flex: 1 1 100%; }
+}
 
 .log-view {
   flex: 1; min-height: 0; box-sizing: border-box;
