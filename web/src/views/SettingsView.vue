@@ -409,6 +409,9 @@ async function save() {
   try {
     // 合并回完整设置（保留后端管理的字段）；数字输入清空时兜底默认值
     const cur = await api.get('/api/settings')
+    // 保存前记录断网守护的现值：开关与地址都没动就不必在保存后拨测验证
+    const prevWatchEnabled = !!cur.auto_reboot_enabled
+    const prevWatchUrl = cur.auto_reboot_url || ''
     const payload = {
       ...cur,
       ...form,
@@ -453,8 +456,12 @@ async function save() {
     // 渠道切换会换内核文件与重启，同步刷新内核状态展示
     try { coreInfo.value = await api.get('/api/core/status') } catch { /* 状态刷新失败不影响保存结果 */ }
     store.status = await api.get('/api/status')
-    // 断网检测开着时顺带验证一下检测地址（经内核代理），结果只提示不拦保存
-    await verifyWatchUrlAfterSave()
+    // 断网守护的开关或地址有变化时才顺带验证检测地址（经内核代理），
+    // 没改就不必每次保存都拨测；结果只提示不拦保存
+    if (prevWatchEnabled !== !!r.settings.auto_reboot_enabled
+      || prevWatchUrl !== (r.settings.auto_reboot_url || '')) {
+      await verifyWatchUrlAfterSave()
+    }
   } catch (e) {
     toast(e.message, 'error')
   } finally {
