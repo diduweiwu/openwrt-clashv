@@ -106,6 +106,7 @@ const pluginBusy = ref(false) // 插件升级全流程进行中（下载 + 安�
 // 检查插件更新：已是最新给个 toast；有新版本弹窗确认后升级。
 // 升级进行中（pluginBusy，含其他页面发起的）图标为纯进度展示：不可再点、悬浮见百分比。
 const pluginStageText = ref('') // 升级中的进度文案（tag 悬浮提示，如「下载中 45%」）
+const pluginPercent = ref(0) // 升级中的下载百分比；0=未知（图标保持转圈），安装阶段恒为 100（满弧）
 
 // 查询是否有别处发起、本页未跟进的升级任务；有则提示进度并返回 true（调用方终止检查）
 async function upgradeTaskBusy(kind) {
@@ -143,10 +144,13 @@ async function checkPluginUpdate() {
 }
 
 // 升级插件：下载接口返回即安装包已到路由器，安装与服务重启在后台进行；
-// 轮询升级进度读安装结果，等服务失联再恢复 = 新版本上线，整页刷新加载新界面
+// 轮询升级进度读安装结果。安装末尾 postinst 重启服务会带走旧进程（进度随之
+// 归零），服务恢复 = 新版本上线，整页刷新加载新界面；stop→start 窗口可能
+// 小于轮询间隔、看不到失联，所以「任务消失 + 服务可达」同样判定完成。
 async function upgradePlugin() {
   pluginBusy.value = true
   pluginStageText.value = ''
+  pluginPercent.value = 0
   try {
     const r = await api.post('/api/plugin/upgrade')
     if (r.need_restart) {
@@ -156,21 +160,24 @@ async function upgradePlugin() {
     }
     toast('安装包已下载，正在安装，服务将自动重启…', 'success', 6000)
     const deadline = Date.now() + 180000
-    let downSeen = false
+    let downSeen = false // 见过服务失联（postinst stop 的窗口）
+    let sawActive = true // 接口已受理，任务必然进行过（窗口极短时轮询可能错过）
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 2000))
-      try {
-        const p = await api.get('/api/upgrade/progress')
-        // 记录进度文案供 tag 悬浮提示（下载中 xx%）
-        if (p?.active && p.kind === 'plugin') {
-          pluginStageText.value = p.percent > 0 ? `下载中 ${Math.round(p.percent)}%` : p.message || '安装中…'
-        }
-        if (p?.stage === 'error') { toast(p.message || '安装失败', 'error', 8000); return }
-        if (p?.stage === 'done') { toast('安装完成，但服务未自动重启（可能未开机自启），请手动重启生效', 'success', 8000); return }
-      } catch { /* 进度查询失败不致命，下轮再试 */ }
+      let p = null
+      try { p = await api.get('/api/upgrade/progress') } catch { /* 失联期间下轮再试 */ }
+      if (p?.active && p.kind === 'plugin') {
+        sawActive = true
+        // 进度条：安装阶段没有百分比，用满弧表示安装中
+        pluginPercent.value = p.stage === 'install' ? 100 : Math.round(p.percent)
+        pluginStageText.value = p.percent > 0 ? `下载中 ${Math.round(p.percent)}%` : p.message || '安装中…'
+      }
+      if (p?.stage === 'error') { toast(p.message || '安装失败', 'error', 8000); return }
+      if (p?.stage === 'done') { toast('安装完成，但服务未自动重启（可能未开机自启），请手动重启生效', 'success', 8000); return }
+      const ended = p && !p.active && sawActive // 任务结束且非终态 = 进程已随安装被替换
       try {
         await api.get('/api/status')
-        if (downSeen) {
+        if (ended || downSeen) {
           toast('服务已重启，正在加载新版本…', 'success')
           setTimeout(() => location.reload(), 1200)
           return
@@ -183,12 +190,14 @@ async function upgradePlugin() {
   } finally {
     pluginBusy.value = false
     pluginStageText.value = ''
+    pluginPercent.value = 0
   }
 }
 
 const coreChecking = ref(false)
 const coreUpgrading = ref(false)
 const coreStageText = ref('') // 内核升级中的瓦片值替代文案（下载中 xx% / 安装中…）
+const corePercent = ref(0) // 升级中的下载百分比；0=未知（图标保持转圈），安装阶段恒为 100（满弧）
 let coreProgTimer = null
 
 // 检查内核更新：已是最新给个 toast；有新版本弹窗确认后下载安装。
@@ -232,6 +241,7 @@ async function upgradeCore() {
   } finally {
     stopCoreProg()
     coreStageText.value = ''
+    corePercent.value = 0
     coreUpgrading.value = false
   }
 }
@@ -243,6 +253,7 @@ function startCoreProg() {
     try {
       const p = await api.get('/api/upgrade/progress')
       if (p?.active && p.kind === 'core') {
+        corePercent.value = p.stage === 'install' ? 100 : Math.round(p.percent)
         coreStageText.value = p.percent > 0
           ? `下载中 ${Math.round(p.percent)}%`
           : (p.message || '处理中…')
@@ -621,11 +632,23 @@ function currentOf(g) {
             {{ status.plugin_version === 'dev' ? '开发版' : 'v' + status.plugin_version }}
             <button
               class="tag-refresh"
+              :class="{ busy: pluginBusy && pluginPercent > 0 }"
               :title="pluginBusy ? (pluginStageText || '插件升级中…') : '检查插件更新'"
+              :aria-label="pluginBusy ? (pluginStageText || '插件升级中') : '检查插件更新'"
               :disabled="pluginBusy"
               @click.stop="checkPluginUpdate"
             >
-              <AppIcon name="refresh" :size="11" :class="{ spin: pluginChecking || pluginBusy }" />
+              <!-- 升级中把转圈图标换成迷你圆形进度条（下载百分比；未知总量保持转圈） -->
+              <n-progress
+                v-if="pluginBusy && pluginPercent > 0"
+                class="tag-prog"
+                type="circle"
+                color="currentColor"
+                :percentage="pluginPercent"
+                :show-indicator="false"
+                :stroke-width="24"
+              />
+              <AppIcon v-else name="refresh" :size="11" :class="{ spin: pluginChecking || pluginBusy }" />
             </button>
           </n-tag>
           <n-flex class="hero-actions" :size="10">
@@ -659,11 +682,23 @@ function currentOf(g) {
               <AppIcon name="cpu" :size="13" />内核版本
               <button
                 class="tile-gear"
+                :class="{ busy: coreUpgrading && corePercent > 0 }"
                 :title="coreUpgrading ? (coreStageText || '内核升级中…') : '检查内核更新'"
+                :aria-label="coreUpgrading ? (coreStageText || '内核升级中') : '检查内核更新'"
                 :disabled="coreUpgrading"
                 @click="checkCoreUpdate"
               >
-                <AppIcon name="refresh" :size="12" :class="{ spin: coreChecking || coreUpgrading }" />
+                <!-- 升级中同样换成迷你圆形进度条，与版本 tag 一致 -->
+                <n-progress
+                  v-if="coreUpgrading && corePercent > 0"
+                  class="tag-prog"
+                  type="circle"
+                  color="currentColor"
+                  :percentage="corePercent"
+                  :show-indicator="false"
+                  :stroke-width="24"
+                />
+                <AppIcon v-else name="refresh" :size="12" :class="{ spin: coreChecking || coreUpgrading }" />
               </button>
             </span>
             <span class="v mono" :class="{ dim: !!coreStageText }">
@@ -1230,6 +1265,16 @@ function currentOf(g) {
 /* 检查/升级进行中的转圈（插件 tag 与内核瓦片的循环图标共用） */
 .spin { animation: tile-spin 0.9s linear infinite; }
 @keyframes tile-spin { to { transform: rotate(360deg); } }
+/* 升级中的迷你圆形进度条：顶替原图标位。naive-ui circle 默认 120px，
+   选择器带 .n-progress 拉高优先级盖掉默认宽度（scoped 与 cssr 注入顺序不保证）。
+   进度中按钮恢复不透明度：disabled 的 0.6 透明度会把弧线压得太淡 */
+.tag-refresh .tag-prog.n-progress.n-progress--circle,
+.tile-gear .tag-prog.n-progress.n-progress--circle {
+  width: 13px; height: 13px; display: block;
+}
+.tag-refresh.busy:disabled,
+.tile-gear.busy:disabled,
+.tile-gear.busy:disabled:hover { opacity: 1; }
 /* 瓦片行网格：7 块（状态 3 + 快捷 4）挤同一排 7 列等宽；与流量瓦片行同列规格，上下分隔线逐列对齐 */
 .hero-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
 /* 标签/值不折行：瓦片变窄后换行会破坏等高观感，放不下宁可横向收紧 */

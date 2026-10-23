@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -865,8 +866,40 @@ func (m *Manager) PreparePluginUpgrade(ctx context.Context) (ver string, pkg Plu
 	return rel.TagName, *plan, file, nil
 }
 
+// installLogPath 插件包安装（opkg/apk）的输出日志，落在 tmpfs，重启即清。
+var installLogPath = filepath.Join(os.TempDir(), "clashv-upgrade-install.log")
+
+// runPkgInstall 执行包管理器安装命令。两处关键处理都是为了让 postinst 里的
+// 服务重启能走完（此前升级后服务不自动启动的根因）：
+//   - Setpgid 让安装器独立成进程组：postinst 执行 /etc/init.d/clashv stop 时
+//     procd 按进程组整组击杀服务，安装器若继承 clashv 的进程组会被一并杀掉，
+//     后面的 start 永远执行不到，服务就停在那里；
+//   - 输出写到文件而不是管道：服务被杀后管道读端关闭，安装器/postinst 任何
+//     一次写输出都会因 SIGPIPE 自杀；写文件无此问题，还留了排查现场。
+//
+// 返回 (是否成功, 摘要输出)。
+func runPkgInstall(cmd *exec.Cmd) (bool, string) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	f, err := os.OpenFile(installLogPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		f = nil
+	}
+	if f != nil {
+		defer f.Close()
+		cmd.Stdout, cmd.Stderr = f, f
+	} else {
+		cmd.Stdout, cmd.Stderr = io.Discard, io.Discard // 宁可丢输出也不能留管道
+	}
+	err = cmd.Run()
+	out, _ := os.ReadFile(installLogPath)
+	return err == nil, strings.TrimSpace(string(out))
+}
+
 // InstallDownloadedPlugin 用系统包管理器安装下载好的包，装完的 postinst 会
 // 自动重启服务。服务被杀前 HTTP 响应必须已经发出，所以只能在后台 goroutine 跑。
+// 注意：安装成功时本进程会随 postinst 的 stop 一起死亡（opkg 已脱离进程组、
+// 不受影响，由 init 收养跑完），下面的成功收尾代码实际只在「服务未被重启」
+// 的场景（未开机自启、非 procd 环境）执行。
 func (m *Manager) InstallDownloadedPlugin(pkg PluginPkg, file string) error {
 	var cmd *exec.Cmd
 	if pkg.Format == "apk" {
@@ -878,12 +911,12 @@ func (m *Manager) InstallDownloadedPlugin(pkg PluginPkg, file string) error {
 	} else {
 		cmd = exec.Command("opkg", "install", file)
 	}
-	out, err := cmd.CombinedOutput()
+	ok, out := runPkgInstall(cmd)
 	os.Remove(file)
-	if err != nil {
-		msg := strings.TrimSpace(string(out))
+	if !ok {
+		msg := out
 		if msg == "" {
-			msg = err.Error()
+			msg = "安装命令执行失败"
 		}
 		if len(msg) > 300 {
 			msg = msg[:300] + "…"
@@ -972,14 +1005,19 @@ func (m *Manager) UpgradePlugin(ctx context.Context) (string, bool, error) {
 }
 
 // RestartService 通过 init 脚本重启自身服务（仅 OpenWrt 有效）。
-// 延迟执行以保证 HTTP 响应先返回。
+// 延迟执行以保证 HTTP 响应先返回。子进程必须独立成进程组：restart 的 stop
+// 步骤会让 procd 按进程组整组击杀服务（含本 goroutine fork 的一切子进程），
+// 不脱离的话 sh 自己被杀，start 步骤执行不到，服务就停在那里（与插件升级
+// postinst 重启是同一类坑，见 runPkgInstall）。
 func (m *Manager) RestartService() error {
 	if !m.cfg.IsOpenWrt() {
 		return fmt.Errorf("非 OpenWrt 环境，请手动重启进程")
 	}
 	go func() {
 		time.Sleep(500 * time.Millisecond)
-		_ = exec.Command("sh", "-c", "/etc/init.d/clashv restart >/dev/null 2>&1 &").Run()
+		cmd := exec.Command("sh", "-c", "/etc/init.d/clashv restart >/dev/null 2>&1")
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		_ = cmd.Run()
 	}()
 	return nil
 }
