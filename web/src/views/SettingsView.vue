@@ -23,7 +23,7 @@ const HELP = {
     title: '磨砂透明度',
     rows: [
       { k: '作用', v: '调节磨砂开启时卡片与侧栏背景的透明程度：数值越大越透，越小越接近实心。' },
-      { k: '范围', v: '10%（近乎实心）～ 75%（很透）；默认 45%。字体颜色不随透明度变化，范围内调节都能保持文字清晰。' },
+      { k: '范围', v: '10%（近乎实心）～ 90%（极透）；默认 45%。字体颜色不随透明度变化，拉满后靠磨砂模糊与背景光晕衬托，仍能保持文字可读。' },
     ],
   },
   mixedPort: {
@@ -860,7 +860,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             <div class="glass-ctl">
               <n-slider
                 v-model:value="glassOpacity"
-                :min="10" :max="75" :step="5" :format-tooltip="v => v + '%'"
+                :min="10" :max="90" :step="5" :format-tooltip="v => v + '%'"
               />
               <span class="glass-val mono">{{ glassOpacity }}%</span>
             </div>
