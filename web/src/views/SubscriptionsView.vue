@@ -173,8 +173,9 @@ const columns = computed(() => [
     ]),
   },
   {
-    // 图标按钮 + title 提示；已启用行在启用钮位置展示状态 tag（比图标钮宽，列宽自动取较宽态）
-    title: '操作', key: 'ops',
+    // 图标按钮 + title 提示；已启用行在启用钮位置展示状态 tag（比图标钮宽，列宽自动取较宽态）。
+    // fixed right：窄容器（LuCI 内嵌/手机）横向滚动时操作列钉在右侧始终可见
+    title: '操作', key: 'ops', fixed: 'right',
     render: p => h('div', { class: 'ops-cell' }, [
       h(NButton, {
         size: 'small', title: '更新',
@@ -324,6 +325,7 @@ onMounted(() => {
         :data="filtered"
         :row-key="p => p.id"
         :row-class-name="p => (p.id === active ? 'row-active' : '')"
+        :scroll-x="1000"
       >
         <template #empty>
           <n-empty description="没有匹配的订阅" style="padding: 30px 0" />
@@ -385,6 +387,8 @@ onMounted(() => {
 .bar-btns { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 
 /* 表格单元格内容（render 函数生成，无 scoped 属性，需 :deep 穿透） */
+/* 表头不折行：窄容器下「流量」等短表头曾被压成竖排，scroll-x 保证总宽下限 */
+:deep(.n-data-table-th) { white-space: nowrap; }
 :deep(.col-name) { max-width: 220px; }
 :deep(.col-url) { max-width: 300px; }
 :deep(.col-traffic) { max-width: 190px; }
@@ -411,9 +415,22 @@ onMounted(() => {
 .s-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .btn-pair { display: flex; gap: 8px; }
 
-/* ---- 手机/平板：筛选条换行、搜索独占一行；表格内容超宽时在表格内部横向滚动（auto 布局自带） ---- */
+/* ---- 手机/平板：筛选条换行、搜索独占一行；表格窄于 scroll-x（1000px）时在表格内部横向滚动 ---- */
 @media (max-width: 760px) {
   .filter-bar .f-kw { flex: 1 1 100%; max-width: 100%; }
   .bar-btns { margin-left: 0; }
 }
+</style>
+
+<style>
+/* 固定操作列（窄容器横向滚动时钉右侧）必须不透明：行底色是半透明淡彩，
+   滚过的内容会从固定列底下透出来叠在按钮上。普通行/表头用卡片实色，
+   激活行用 accent 淡彩的实色近似（浅 #e8eafd / 深 #272c47，分别是
+   rgba(91,107,240,.14) 叠白卡/深卡底的合成值）。磨砂开启时固定列比卡片
+   略实——可读性优先的取舍。!important + html 前缀压过 scoped 的
+   .row-active > td 半透明底（它同样命中固定列的 td） */
+.n-data-table .n-data-table-th--fixed-right,
+.n-data-table .n-data-table-td--fixed-right { background: var(--bg-card) !important; }
+html .n-data-table tr.row-active .n-data-table-td--fixed-right { background: #e8eafd !important; }
+html[data-theme='dark'] .n-data-table tr.row-active .n-data-table-td--fixed-right { background: #272c47 !important; }
 </style>
