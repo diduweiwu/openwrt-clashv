@@ -6,13 +6,13 @@ import { ref, watch } from 'vue'
 const KEY = 'clashv_glass'
 const KEY_OPACITY = 'clashv_glass_opacity'
 
-// glassOpacity 是用户语义的「透明度」（百分比）：数值越大越透，10（近乎实心）~90（极透）。
+// glassOpacity 是用户语义的「透明度」（百分比）：数值越大越透，10（近乎实心）~100（全透纯磨砂）。
 // 默认 45：背景约 55% 不透明 + 模糊，磨砂感明显且文字清晰。
 export const glassEnabled = ref(localStorage.getItem(KEY) === '1')
 export const glassOpacity = ref(clampOpacity(Number(localStorage.getItem(KEY_OPACITY)) || 45))
 
 function clampOpacity(v) {
-  if (!(v >= 10 && v <= 90)) return 45
+  if (!(v >= 10 && v <= 100)) return 45
   return v
 }
 
