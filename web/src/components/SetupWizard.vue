@@ -516,6 +516,8 @@ async function launchCore() {
   .wiz-steps { padding: 2px 0 0; }
   .wiz-steps :deep(.n-step-content-header) { margin-left: 6px; }
   .wiz-steps :deep(.n-step-content-header__title) { font-size: 12.5px; }
-  .wiz-steps :deep(.n-step-splitor) { margin: 0 3px; }
+  /* 连接线只收水平边距——垂直居中靠原生 margin-top: calc(字号/2) + 顶部对齐，
+     用 margin 简写会把它清零导致连线偏到上方（本轮修复的问题） */
+  .wiz-steps :deep(.n-step-splitor) { margin-left: 3px; margin-right: 3px; }
 }
 </style>
