@@ -23,6 +23,7 @@ const ICONS = {
   download: ['M12 4v11m0 0 4-4m-4 4-4-4', 'M5 20h14'],
   save: ['M5 4h11l3 3v13H5Z', 'M8 4v5h7V4', 'M8 20v-6h8v6'],
   upload: ['M12 20V8m0 0-4 4m4-4 4 4', 'M5 4h14'],
+  copy: ['M8 8h12v12H8Z', 'm16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3'],
   zap: ['m13 2-9 12h6l-1 8 9-12h-6z'],
   'file-text': [
     'M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7Z',

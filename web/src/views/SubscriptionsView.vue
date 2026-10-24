@@ -126,6 +126,61 @@ function trafficOf(p) {
   const used = (p.upload || 0) + (p.download || 0)
   return { used, total: p.total, percent: Math.min(100, (used / p.total) * 100) }
 }
+
+/**
+ * 降级复制：隐藏 textarea 选中后 execCommand('copy')。
+ * 供非 secure 上下文（LuCI http 内嵌）或 navigator.clipboard 写入失败时兜底。
+ *
+ * @param {string} text 要复制的文本
+ * @returns {void}
+ * @throws {Error} execCommand 返回 false（浏览器拒绝复制）时抛出
+ *
+ * @example
+ * legacyCopy('http://sub.example.com/link')
+ */
+function legacyCopy(text) {
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(ta)
+  if (!ok) throw new Error('浏览器拒绝了复制操作')
+}
+
+/**
+ * 复制订阅地址到剪贴板，成功后 toast 提示。
+ * 优先 navigator.clipboard（https/localhost），写入失败或非 secure 上下文
+ * （LuCI http 内嵌）自动降级 execCommand。
+ * 手动节点订阅没有 URL，按钮本身不渲染，不会走到这里。
+ *
+ * @param {object} p 订阅对象（须有 url 字段）
+ * @returns {Promise<void>}
+ *
+ * @example
+ * <n-button @click="copyUrl(p)">…</n-button>
+ */
+async function copyUrl(p) {
+  const text = p.url || ''
+  if (!text) return
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text)
+      } catch {
+        // 文档失焦等场景 writeText 会拒绝，退回 execCommand 再试
+        legacyCopy(text)
+      }
+    } else {
+      legacyCopy(text)
+    }
+    toast('订阅地址已复制', 'success')
+  } catch (e) {
+    toast('复制失败：' + e.message, 'error')
+  }
+}
 function fmtExpire(ts) {
   const d = new Date(ts * 1000)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -268,11 +323,20 @@ onMounted(() => {
               <span class="li-name" :title="p.name">{{ p.name }}</span>
               <n-tag v-if="p.id === active" size="small" round :bordered="false" type="success">已启用</n-tag>
             </div>
-            <div
-              class="li-url mono"
-              :title="p.source === 'nodes' ? `手动节点 · 模板 ${p.template || '白名单'}` : p.url"
-            >
-              {{ p.source === 'nodes' ? `手动节点 · 模板 ${p.template || '白名单'}` : p.url }}
+            <div class="li-url-row">
+              <n-button
+                v-if="p.source !== 'nodes'"
+                size="tiny" quaternary class="copy-btn" title="复制地址"
+                @click="copyUrl(p)"
+              >
+                <template #icon><AppIcon name="copy" :size="12" /></template>
+              </n-button>
+              <span
+                class="li-url mono"
+                :title="p.source === 'nodes' ? `手动节点 · 模板 ${p.template || '白名单'}` : p.url"
+              >
+                {{ p.source === 'nodes' ? `手动节点 · 模板 ${p.template || '白名单'}` : p.url }}
+              </span>
             </div>
             <div v-if="hasMeta(p)" class="li-meta">
               <n-progress
@@ -375,7 +439,10 @@ onMounted(() => {
 .sub-item { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .li-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .li-name { font-weight: 600; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.li-url { color: var(--text-dim); font-size: 12px; word-break: break-all; }
+.li-url-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+/* 复制按钮：tiny 图标钮压成方形贴地址行首，hover 才出淡底 */
+.li-url-row .copy-btn { flex: none; width: 22px; height: 22px; padding: 0; color: var(--text-dim); }
+.li-url { color: var(--text-dim); font-size: 12px; word-break: break-all; min-width: 0; }
 .li-meta { display: flex; flex-direction: column; gap: 5px; }
 .li-bar { width: 100%; }
 .li-meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
