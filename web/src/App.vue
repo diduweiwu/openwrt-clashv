@@ -4,6 +4,7 @@ import { NButton, NConfigProvider, NModal, NProgress, NSpin, dateZhCN, zhCN } fr
 import Sidebar from './components/Sidebar.vue'
 import SetupWizard from './components/SetupWizard.vue'
 import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes, pushTraffic, setupDismissed } from './store.js'
+import { menuMode } from './menuMode.js'
 import { api } from './api.js'
 
 let statusTimer = null
@@ -190,7 +191,8 @@ async function startCoreDownload() {
 <template>
   <!-- locale：naive 内置文案（下拉「请选择」、日期选择器起止占位、分页等）走中文 -->
   <n-config-provider class="provider" :theme="naiveTheme" :theme-overrides="naiveOverrides" :locale="zhCN" :date-locale="dateZhCN">
-    <div class="layout">
+    <!-- 菜单模式：top 时桌面端也走上下布局（菜单横条在上、内容在下）；移动端本来就 column，不受影响 -->
+    <div class="layout" :class="{ 'layout-top': menuMode === 'top' }">
       <Sidebar />
       <main class="content">
         <router-view v-slot="{ Component }">
@@ -237,6 +239,7 @@ async function startCoreDownload() {
 /* NConfigProvider 自带一层 div，需接上 #app 的 height:100% 链，侧栏才能占满全高 */
 .provider { height: 100%; }
 .layout { display: flex; height: 100%; }
+.layout-top { flex-direction: column; }
 .content {
   flex: 1;
   overflow-y: auto;

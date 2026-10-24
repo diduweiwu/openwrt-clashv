@@ -5,12 +5,20 @@ import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NPro
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
 import { glassEnabled, glassOpacity } from '../glass.js'
+import { menuMode } from '../menuMode.js'
 import AppIcon from '../components/AppIcon.vue'
 import HelpModal from '../components/HelpModal.vue'
 
 // 设置项问号说明弹窗内容：k=小节标题（作用/开关影响/默认与建议/注意），v=正文。
 // 行内不再放可见描述，全部收进弹窗，设置页只留名称+控件。
 const HELP = {
+  menuMode: {
+    title: '菜单模式',
+    rows: [
+      { k: '作用', v: '选择桌面端的菜单布局：左侧竖向为经典侧栏（默认），顶部横向把导航收成页面顶部一条横栏，内容区更宽、更利落。' },
+      { k: '注意', v: '仅桌面端生效；手机窄屏固定为顶部横向菜单，不受此设置影响。改动即时生效并保存在本浏览器（不占用后端设置）。' },
+    ],
+  },
   glass: {
     title: '磨砂模糊',
     rows: [
@@ -854,6 +862,16 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
       <!-- 界面显示：磨砂模糊（纯浏览器本地偏好，glass.js 持久化，不走后端设置/保存按钮） -->
       <n-card v-if="tab === 'general'" title="界面显示">
         <div class="rows">
+          <div class="row">
+            <div class="row-text">
+              <span class="rt">菜单模式<HelpModal v-bind="HELP.menuMode" /></span>
+            </div>
+            <n-select
+              v-model:value="menuMode"
+              class="ctl"
+              :options="[{ value: 'side', label: '左侧竖向菜单' }, { value: 'top', label: '顶部横向菜单' }]"
+            />
+          </div>
           <div class="row">
             <div class="row-text">
               <span class="rt">磨砂模糊<HelpModal v-bind="HELP.glass" /></span>

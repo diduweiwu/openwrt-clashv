@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { NButton, NDropdown, NTooltip } from 'naive-ui'
 import { themeMode, resolvedTheme, applyTheme } from '../theme.js'
+import { menuMode } from '../menuMode.js'
 import { store } from '../store.js'
 import AppIcon from './AppIcon.vue'
 
@@ -72,7 +73,8 @@ function onMoreSelect(key) {
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ collapsed }">
+  <!-- 顶部横向模式（桌面端）：不应用折叠态（横条无折叠语义，避免侧栏模式残留的 localStorage 折叠状态串扰） -->
+  <aside class="sidebar" :class="{ collapsed: collapsed && menuMode !== 'top', 'top-bar': menuMode === 'top' }">
     <div class="logo">
       <!-- logo 徽标：运行状态的唯一标识——运行中绿底白猫呼吸闪动、启动中橙底快闪（与原状态点同节奏），停止时透明底恢复常规线条；状态文字收进悬浮提示 -->
       <div
@@ -298,6 +300,38 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .sidebar.collapsed .side-stats { display: none; }
   .sidebar.collapsed .theme-btn,
   .sidebar.collapsed .collapse-btn { justify-content: center; padding: 0; }
+}
+
+/* ---- 顶部横向菜单（仅桌面端，>760px）：设置「菜单模式=顶部横向」时生效 ----
+   横条卡片与移动端横条同构（上下布局 + 圆角描边卡片），移动端始终横向、不走这里 */
+@media (min-width: 761px) {
+  .sidebar.top-bar {
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 18px;
+    padding: 10px 16px;
+    margin: 8px 10px 0; /* 底部不留 margin，内容区 .content 自带上边距 */
+  }
+  .sidebar.top-bar nav {
+    flex-direction: row;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+  /* 抵消 letter-spacing 在横排下末字符后的尾随空隙，让 hover/选中底色视觉居中 */
+  .sidebar.top-bar .nav-item span { margin-right: -0.5em; }
+  /* 「更多」钮仅移动端显示；桌面端横条的主题入口在右侧 bottom 区 */
+  .sidebar.top-bar .more-btn { display: none; }
+  /* 迷你卡为竖排三行、折叠钮无横条语义，均不放横条 */
+  .sidebar.top-bar .side-stats,
+  .sidebar.top-bar .collapse-btn { display: none; }
+  .sidebar.top-bar .bottom {
+    flex-direction: row;
+    align-items: center;
+    flex: none;
+  }
+  .sidebar.top-bar .theme-btn { width: auto; justify-content: center; }
 }
 @media (max-width: 760px) {
   .sidebar {
