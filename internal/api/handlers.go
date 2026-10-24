@@ -778,7 +778,7 @@ func (d *deps) handleCoreLatest(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 	cur := d.mgr.CoreStatus(ctx)
-	latest, err := d.mgr.LatestCore(ctx)
+	latest, notes, err := d.mgr.LatestCoreInfo(ctx)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err)
 		return
@@ -786,6 +786,7 @@ func (d *deps) handleCoreLatest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{
 		"current":    cur.Version,
 		"latest":     latest,
+		"notes":      notes, // Release 更新日志（已截断），供升级弹窗展示
 		"has_update": normalizeVer(latest) != normalizeVer(cur.Version) || !cur.Installed,
 	})
 }
@@ -928,6 +929,7 @@ func (d *deps) handlePluginLatest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{
 		"current":    d.ver,
 		"latest":     rel.TagName,
+		"notes":      core.TruncateNotes(rel.Body), // Release 更新日志（已截断），供升级弹窗展示
 		"current_id": curID,
 		"latest_id":  rel.ID,
 		"compare_by": by, // id / tag / dev：has_update 的判定依据，设备上排查用

@@ -8,6 +8,7 @@ import { glassEnabled, glassOpacity } from '../glass.js'
 import { menuMode } from '../menuMode.js'
 import AppIcon from '../components/AppIcon.vue'
 import HelpModal from '../components/HelpModal.vue'
+import UpdateModal from '../components/UpdateModal.vue'
 
 // 设置项问号说明弹窗内容：k=小节标题（作用/开关影响/默认与建议/注意），v=正文。
 // 行内不再放可见描述，全部收进弹窗，设置页只留名称+控件。
@@ -265,7 +266,22 @@ const loaded = ref(false)
 const saving = ref(false)
 
 const coreInfo = ref({ installed: false, version: '', path: '', platform: '', channel: '' })
-const coreLatest = ref(null) // {current, latest, has_update}
+const coreLatest = ref(null) // {current, latest, notes, has_update}
+// 升级确认弹窗（UpdateModal）状态：{kind, title, latest, current, notes, pkgText}，null=关闭
+const updateAsk = ref(null)
+// v-model:show 需要可写的 getter/setter：null 即关闭
+const updateAskShow = computed({
+  get: () => !!updateAsk.value,
+  set: (v) => { if (!v) updateAsk.value = null },
+})
+
+// 弹窗确认回调：按弹窗记录的类别发起对应升级流程
+function confirmUpdate() {
+  const kind = updateAsk.value?.kind
+  updateAsk.value = null
+  if (kind === 'plugin') doUpgradePlugin()
+  else if (kind === 'core') downloadCore()
+}
 const coreUpgrading = ref(false)
 const pluginLatest = ref(null)
 const pluginUpgrading = ref(false)
@@ -504,9 +520,16 @@ async function downloadCore() {
   }
 }
 
-async function upgradeCore() {
-  if (!(await ask('升级内核', `确认下载并安装 mihomo ${coreLatest.value.latest}？视网络情况可能需要几分钟`))) return
-  await downloadCore()
+// 内核升级入口：弹升级确认弹窗（新版本徽标 + mihomo Release 更新日志），确认后下载
+function upgradeCore() {
+  updateAsk.value = {
+    kind: 'core',
+    title: '升级内核',
+    latest: coreLatest.value?.latest,
+    current: coreLatest.value?.current || coreInfo.value?.version || '',
+    notes: coreLatest.value?.notes || '',
+    pkgText: '确认后下载并安装，视网络情况可能需要几分钟',
+  }
 }
 
 // ---- 手动上传内核：选文件 → 确认 → 上传（后端校验通过才替换当前渠道内核）----
@@ -555,10 +578,25 @@ async function checkPlugin() {
   }
 }
 
-async function upgradePlugin() {
+// 插件升级入口：弹升级确认弹窗（新版本徽标 + Release 更新日志），确认后下载安装
+function upgradePlugin() {
   const p = pluginLatest.value?.pkg
-  const pkgText = p ? `匹配包 ${p.name}（${p.format}），` : ''
-  if (!(await ask('更新插件', `确认下载并安装插件最新版本？${pkgText}安装完成后服务会自动重启，期间界面会短暂失联`))) return
+  updateAsk.value = {
+    kind: 'plugin',
+    title: '更新插件',
+    latest: pluginLatest.value?.latest,
+    current: pluginLatest.value?.current
+      ? (pluginLatest.value.current === 'dev' ? '开发版' : 'v' + pluginLatest.value.current)
+      : '',
+    notes: pluginLatest.value?.notes || '',
+    pkgText: p
+      ? `将下载匹配包 ${p.name}（${p.format}）；安装完成后服务会自动重启，期间界面会短暂失联`
+      : '安装完成后服务会自动重启，期间界面会短暂失联',
+  }
+}
+
+// 弹窗确认后的实际安装流程（原 upgradePlugin 的下载安装部分）
+async function doUpgradePlugin() {
   pluginUpgrading.value = true
   upgradeCancelled.value = false
   startProgPoll()
@@ -1334,6 +1372,17 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
         <template #icon><AppIcon name="save" :size="14" /></template>保存
       </n-button>
     </div>
+
+    <!-- 升级确认弹窗：新版本徽标 + Release 更新日志（插件/内核升级共用） -->
+    <UpdateModal
+      v-model:show="updateAskShow"
+      :title="updateAsk?.title"
+      :latest="updateAsk?.latest"
+      :current="updateAsk?.current"
+      :notes="updateAsk?.notes"
+      :pkg-text="updateAsk?.pkgText"
+      @confirm="confirmUpdate"
+    />
   </div>
 </template>
 

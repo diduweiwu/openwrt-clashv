@@ -7,6 +7,7 @@ import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, fmtTime, tripTotals, r
 import { useGroupTest, GROUP_TYPES } from '../useGroupTest.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
+import UpdateModal from '../components/UpdateModal.vue'
 import AppIcon from '../components/AppIcon.vue'
 
 const busy = ref('')
@@ -103,6 +104,13 @@ async function refreshStatus() {
 const pluginChecking = ref(false)
 const pluginBusy = ref(false) // 插件升级全流程进行中（下载 + 安装 + 等服务重启）
 let pluginProgTimer = null // 下载阶段的进度轮询定时器（见 startPluginProg）
+// 升级确认弹窗（UpdateModal）状态：{kind, title, latest, current, notes, pkgText}，null=关闭
+const updateAsk = ref(null)
+// v-model:show 需要可写的 getter/setter：null 即关闭
+const updateAskShow = computed({
+  get: () => !!updateAsk.value,
+  set: (v) => { if (!v) updateAsk.value = null },
+})
 
 // 检查插件更新：已是最新给个 toast；有新版本弹窗确认后升级。
 // 升级进行中（pluginBusy，含其他页面发起的）图标为纯进度展示：不可再点、悬浮见百分比。
@@ -139,10 +147,16 @@ async function checkPluginUpdate() {
       toast(r.latest ? `插件已是最新（${r.latest}）` : '插件已是最新', 'success')
       return
     }
-    const cur = status.value?.plugin_version ? 'v' + status.value.plugin_version : '当前版本'
-    const pkg = r.pkg ? `匹配包 ${r.pkg.name}（${r.pkg.format}），` : ''
-    if (await ask('插件更新', `发现新版本 ${r.latest}（当前 ${cur}），${pkg}安装完成后服务会自动重启、界面短暂失联。确定升级？`)) {
-      await upgradePlugin()
+    const cur = status.value?.plugin_version
+      ? (status.value.plugin_version === 'dev' ? '开发版' : 'v' + status.value.plugin_version)
+      : ''
+    updateAsk.value = {
+      kind: 'plugin',
+      title: '插件更新',
+      latest: r.latest,
+      current: cur,
+      notes: r.notes || '',
+      pkgText: r.pkg ? `将下载匹配包 ${r.pkg.name}（${r.pkg.format}）；安装完成后服务会自动重启、界面短暂失联` : '安装完成后服务会自动重启、界面短暂失联',
     }
   } catch (e) {
     toast(e.message, 'error', 6000)
@@ -247,12 +261,11 @@ const coreStageText = ref('') // 内核升级中的瓦片值替代文案（下�
 const corePercent = ref(0) // 升级中的下载百分比；0=未知（图标保持转圈），安装阶段恒为 100（满弧）
 let coreProgTimer = null
 
-// 检查内核更新：已是最新给个 toast；有新版本弹窗确认后下载安装。
+// 检查内核更新：已是最新给个 toast；有新版本弹升级确认弹窗（含更新日志）后下载安装。
 // 升级进行中（coreUpgrading，含其他页面发起的）图标为纯进度展示：点击不动作、
 // 悬浮见百分比；中止统一去「设置 → 内核」的升级进度行（或初始化引导内）。
 async function checkCoreUpdate() {
   if (coreUpgrading.value || coreChecking.value) return
-  let go = false
   coreChecking.value = true
   try {
     if (await upgradeTaskBusy('core')) return
@@ -261,14 +274,28 @@ async function checkCoreUpdate() {
       toast(r.latest ? `内核已是最新（${r.latest}）` : '内核已是最新', 'success')
       return
     }
-    const cur = status.value?.core?.version || '未安装'
-    go = await ask('升级内核', `当前 ${cur}，最新 ${r.latest}，确认下载并安装？视网络情况可能需要几分钟`)
+    const cur = status.value?.core?.version || ''
+    updateAsk.value = {
+      kind: 'core',
+      title: '升级内核',
+      latest: r.latest,
+      current: cur || '未安装',
+      notes: r.notes || '',
+      pkgText: '确认后下载并安装，视网络情况可能需要几分钟',
+    }
   } catch (e) {
     toast(e.message, 'error', 6000)
   } finally {
     coreChecking.value = false
   }
-  if (go) await upgradeCore()
+}
+
+// 升级确认弹窗的确认回调：按弹窗记录的类别发起对应升级流程
+async function confirmUpdate() {
+  const kind = updateAsk.value?.kind
+  updateAsk.value = null
+  if (kind === 'plugin') await upgradePlugin()
+  else if (kind === 'core') await upgradeCore()
 }
 
 // 升级内核：升级接口是长任务（完成才返回），期间轮询升级进度把阶段/百分比
@@ -1181,6 +1208,17 @@ function currentOf(g) {
         </div>
       </template>
     </n-modal>
+
+    <!-- 升级确认弹窗：新版本徽标 + Release 更新日志（插件/内核检查更新共用） -->
+    <UpdateModal
+      v-model:show="updateAskShow"
+      :title="updateAsk?.title"
+      :latest="updateAsk?.latest"
+      :current="updateAsk?.current"
+      :notes="updateAsk?.notes"
+      :pkg-text="updateAsk?.pkgText"
+      @confirm="confirmUpdate"
+    />
   </div>
 </template>
 

@@ -17,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -43,7 +44,27 @@ type ghAsset struct {
 type ghRelease struct {
 	ID      int64     `json:"id"` // GitHub 按创建顺序单调递增，可用于比较新旧
 	TagName string    `json:"tag_name"`
+	Body    string    `json:"body"` // Release 说明（Markdown 更新日志），供升级弹窗展示
 	Assets  []ghAsset `json:"assets"`
+}
+
+// maxReleaseNotes 单份更新日志返回给前端的长度上限。Release body 没有长度保证
+// （mihomo Alpha 是滚动 Release，说明可能很长），截断保底防止响应与弹窗被撑爆。
+const maxReleaseNotes = 16 << 10
+
+// TruncateNotes 清洗并截断 Release 更新日志：去掉首尾空白，超出上限时按上限裁断
+// 并追加省略提示；裁断点回退到完整的 UTF-8 字符边界，避免截出半个字符。
+// 供本包与 api 层在返回 latest 信息时统一清洗。
+func TruncateNotes(body string) string {
+	body = strings.TrimSpace(body)
+	if len(body) <= maxReleaseNotes {
+		return body
+	}
+	cut := body[:maxReleaseNotes]
+	for len(cut) > 0 && !utf8.ValidString(cut) {
+		cut = cut[:len(cut)-1]
+	}
+	return cut + "\n\n……（日志过长已截断）"
 }
 
 // httpStatusError 带 HTTP 状态码的 API 错误，供调用方按状态码定制提示。
@@ -600,6 +621,18 @@ func (m *Manager) LatestCore(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return coreVersionOf(rel, channel), nil
+}
+
+// LatestCoreInfo 查询 mihomo 当前渠道的最新版本号与更新日志（Release body，
+// 已清洗截断）。版本号与 LatestCore 同源，供升级确认弹窗一并展示。
+// 返回值：版本号、更新日志、错误。
+func (m *Manager) LatestCoreInfo(ctx context.Context) (string, string, error) {
+	channel := m.CoreChannel()
+	rel, err := m.fetchCoreRelease(ctx, channel)
+	if err != nil {
+		return "", "", err
+	}
+	return coreVersionOf(rel, channel), TruncateNotes(rel.Body), nil
 }
 
 // UpgradeCore 下载当前渠道最新 mihomo 并替换本地渠道内核；下载成功后才停内核
