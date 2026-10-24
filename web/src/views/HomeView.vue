@@ -102,11 +102,19 @@ async function refreshStatus() {
 
 const pluginChecking = ref(false)
 const pluginBusy = ref(false) // 插件升级全流程进行中（下载 + 安装 + 等服务重启）
+let pluginProgTimer = null // 下载阶段的进度轮询定时器（见 startPluginProg）
 
 // 检查插件更新：已是最新给个 toast；有新版本弹窗确认后升级。
 // 升级进行中（pluginBusy，含其他页面发起的）图标为纯进度展示：不可再点、悬浮见百分比。
-const pluginStageText = ref('') // 升级中的进度文案（tag 悬浮提示，如「下载中 45%」）
+const pluginStageText = ref('') // 升级中的进度文案（直接替换 tag 上的版本号，如「下载中 45%」）
 const pluginPercent = ref(0) // 升级中的下载百分比；0=未知（图标保持转圈），安装阶段恒为 100（满弧）
+
+// tag 文本：升级中临时换成进度文案（下载中 xx% / 安装中…），不悬浮也能看到进度；
+// 其余时候显示插件版本号
+const pluginTagText = computed(() => {
+  if (pluginBusy.value && pluginStageText.value) return pluginStageText.value
+  return status.value?.plugin_version === 'dev' ? '开发版' : 'v' + status.value.plugin_version
+})
 
 // 查询是否有别处发起、本页未跟进的升级任务；有则提示进度并返回 true（调用方终止检查）
 async function upgradeTaskBusy(kind) {
@@ -143,21 +151,61 @@ async function checkPluginUpdate() {
   }
 }
 
+// 把进度快照映射到 tag 展示：下载中显示百分比（迷你进度环 + 「下载中 xx%」）；
+// 安装阶段没有新增字节，固定满弧 + 「安装中…」；百分比未知时只更新文案（图标保持转圈）
+function applyPluginProg(p) {
+  if (p.stage === 'install') {
+    pluginPercent.value = 100
+    pluginStageText.value = '安装中…'
+  } else if (p.percent > 0) {
+    pluginPercent.value = Math.round(p.percent)
+    pluginStageText.value = `下载中 ${Math.round(p.percent)}%`
+  } else {
+    pluginStageText.value = p.message || '处理中…'
+  }
+}
+
+// 下载阶段的进度轮询：/api/plugin/upgrade 要等下载完才返回，期间靠它把百分比
+// 实时刷到版本 tag 上；接口返回（下载已结束）即停，安装阶段由下方循环跟进
+function startPluginProg() {
+  stopPluginProg()
+  const tick = async () => {
+    try {
+      const p = await api.get('/api/upgrade/progress')
+      if (p?.active && p.kind === 'plugin') applyPluginProg(p)
+    } catch { /* 下轮再试 */ }
+  }
+  tick()
+  pluginProgTimer = setInterval(tick, 600)
+}
+
+function stopPluginProg() {
+  if (pluginProgTimer) { clearInterval(pluginProgTimer); pluginProgTimer = null }
+}
+
+onBeforeUnmount(stopPluginProg)
+
 // 升级插件：下载接口返回即安装包已到路由器，安装与服务重启在后台进行；
-// 轮询升级进度读安装结果。安装末尾 postinst 重启服务会带走旧进程（进度随之
-// 归零），服务恢复 = 新版本上线，整页刷新加载新界面；stop→start 窗口可能
-// 小于轮询间隔、看不到失联，所以「任务消失 + 服务可达」同样判定完成。
+// 下载期间轮询升级进度把百分比显示在版本 tag 上，返回后继续轮询读安装结果。
+// 安装末尾 postinst 重启服务会带走旧进程（进度随之归零），服务恢复 = 新版本
+// 上线，整页刷新加载新界面；stop→start 窗口可能小于轮询间隔、看不到失联，
+// 所以「任务消失 + 服务可达」同样判定完成。
 async function upgradePlugin() {
   pluginBusy.value = true
   pluginStageText.value = ''
   pluginPercent.value = 0
+  startPluginProg()
   try {
     const r = await api.post('/api/plugin/upgrade')
+    stopPluginProg()
     if (r.need_restart) {
       // 非 OpenWrt 裸二进制流程：已替换自身，需手动重启
       toast('插件已更新，请手动重启服务生效', 'success', 6000)
       return
     }
+    // 接口此刻必然处于安装阶段：立即切换文案，不等下一轮轮询（间隔 2s 的空窗）
+    pluginPercent.value = 100
+    pluginStageText.value = '安装中…'
     toast('安装包已下载，正在安装，服务将自动重启…', 'success', 6000)
     const deadline = Date.now() + 180000
     let downSeen = false // 见过服务失联（postinst stop 的窗口）
@@ -168,9 +216,7 @@ async function upgradePlugin() {
       try { p = await api.get('/api/upgrade/progress') } catch { /* 失联期间下轮再试 */ }
       if (p?.active && p.kind === 'plugin') {
         sawActive = true
-        // 进度条：安装阶段没有百分比，用满弧表示安装中
-        pluginPercent.value = p.stage === 'install' ? 100 : Math.round(p.percent)
-        pluginStageText.value = p.percent > 0 ? `下载中 ${Math.round(p.percent)}%` : p.message || '安装中…'
+        applyPluginProg(p)
       }
       if (p?.stage === 'error') { toast(p.message || '安装失败', 'error', 8000); return }
       if (p?.stage === 'done') { toast('安装完成，但服务未自动重启（可能未开机自启），请手动重启生效', 'success', 8000); return }
@@ -188,6 +234,7 @@ async function upgradePlugin() {
   } catch (e) {
     toast(e.message, 'error', 6000)
   } finally {
+    stopPluginProg()
     pluginBusy.value = false
     pluginStageText.value = ''
     pluginPercent.value = 0
@@ -627,9 +674,10 @@ function currentOf(g) {
             </n-button>
           </div>
           <!-- 当前服务的插件版本（/api/status 的 plugin_version；内核版本在下方瓦片里），
-               info 蓝区别于默认灰 tag；tag 内循环图标点击检查更新，有新版弹窗确认后直接升级 -->
+               info 蓝区别于默认灰 tag；tag 内循环图标点击检查更新，有新版弹窗确认后直接升级。
+               升级中 tag 文本临时换成进度文案（下载中 xx% / 安装中…） -->
           <n-tag v-if="status?.plugin_version" size="small" round :bordered="false" type="info" class="plugin-tag" title="插件版本">
-            {{ status.plugin_version === 'dev' ? '开发版' : 'v' + status.plugin_version }}
+            {{ pluginTagText }}
             <button
               class="tag-refresh"
               :class="{ busy: pluginBusy && pluginPercent > 0 }"
