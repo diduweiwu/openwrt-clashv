@@ -396,9 +396,17 @@ onMounted(() => {
 .s-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .btn-pair { display: flex; gap: 8px; }
 
-/* ---- 手机/平板：筛选条换行、搜索独占一行 ---- */
+/* ---- 手机/平板：筛选条换行、搜索独占一行；操作按钮等分铺满 item 宽度 ---- */
 @media (max-width: 760px) {
   .filter-bar .f-kw { flex: 1 1 100%; max-width: 100%; }
   .bar-btns { margin-left: 0; }
+  /* 订阅 item 操作按钮：压小高度与字号，等分铺满一行（≤4 个按钮不换行），内容居中 */
+  .sub-list :deep(.n-list-item) { padding: 12px; }
+  .li-ops { flex-wrap: nowrap; gap: 6px; }
+  .li-ops :deep(.n-button) {
+    flex: 1 1 0; min-width: 0;
+    height: 26px; font-size: 12px;
+    padding-left: 4px; padding-right: 4px;
+  }
 }
 </style>
