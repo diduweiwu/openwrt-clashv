@@ -1,9 +1,9 @@
 <script setup>
-// 订阅页：表格展示 + 过滤 + 单个/全部更新 + 激活 + 删除 + 定时更新配置（星期 + 时间点）
-import { computed, h, onMounted, reactive, ref } from 'vue'
+// 订阅页：列表展示 + 过滤 + 单个/全部更新 + 激活 + 删除 + 定时更新配置（星期 + 时间点）
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  NButton, NCard, NDataTable, NEmpty, NInput, NModal, NProgress, NTag,
+  NButton, NCard, NEmpty, NInput, NList, NListItem, NModal, NProgress, NTag,
   NSelect, NSwitch, NTimePicker,
 } from 'naive-ui'
 import { api } from '../api.js'
@@ -131,75 +131,15 @@ function fmtExpire(ts) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// ---- 表格列 ----
-// 宽度策略：auto 布局按内容自适应，只给名称/地址/流量设列级 max-width 上限（ellipsis 属性会把
-// 整表强制成 fixed 布局、宽度退回均分，所以截断用内容 span 自己做，title 提示完整内容）
-const columns = computed(() => [
-  {
-    title: '名称', key: 'name', className: 'col-name',
-    render: p => h('span', { class: 'name-txt', title: p.name }, p.name),
-  },
-  {
-    title: '订阅地址', key: 'url', className: 'col-url',
-    render: p => p.source === 'nodes'
-      ? h('span', { class: 'mono url-txt', title: `手动节点 · 模板 ${p.template || '白名单'}` }, `手动节点 · 模板 ${p.template || '白名单'}`)
-      : h('span', { class: 'mono url-txt', title: p.url }, p.url),
-  },
-  {
-    title: '流量', key: 'traffic', className: 'col-traffic',
-    render: p => {
-      const t = trafficOf(p)
-      if (!t) return h('span', { class: 'dim' }, '—')
-      const txt = `${fmtBytes(t.used)} / ${fmtBytes(t.total)}（${Math.round(t.percent)}%）`
-      return h('div', { class: 'traf' }, [
-        h(NProgress, {
-          class: 'bar', type: 'line', percentage: t.percent,
-          showIndicator: false, height: 5, borderRadius: '3px',
-        }),
-        h('span', { class: 'mono dim t2 t-usage', title: txt }, txt),
-        p.expire ? h('span', { class: 'dim t2' }, `到期 ${fmtExpire(p.expire)}`) : null,
-      ])
-    },
-  },
-  {
-    title: '更新时间', key: 'updated_at',
-    render: p => h('div', { class: 'upd-cell' }, [
-      // 更新时间蓝 tag、文件尺寸灰 tag，颜色区分
-      h(NTag, { size: 'small', bordered: false, type: 'info', class: 'upd-tag' }, { default: () => fmtTime(p.updated_at) }),
-      h('div', { class: 'upd-sub' }, [
-        h(NTag, { size: 'small', bordered: false, class: 'upd-tag' }, { default: () => fmtBytes(p.size) }),
-        p.ua ? h('span', { class: 'dim t2 ua' }, p.ua) : null,
-      ]),
-    ]),
-  },
-  {
-    // 图标按钮 + title 提示；已启用行在启用钮位置展示状态 tag（比图标钮宽，列宽自动取较宽态）。
-    // fixed right：窄容器（LuCI 内嵌/手机）横向滚动时操作列钉在右侧始终可见
-    title: '操作', key: 'ops', fixed: 'right',
-    render: p => h('div', { class: 'ops-cell' }, [
-      h(NButton, {
-        size: 'small', title: '更新',
-        loading: busyId.value === p.id,
-        disabled: updatingAll.value, onClick: () => update(p),
-      }, { icon: () => h(AppIcon, { name: 'refresh', size: 13 }) }),
-      h(NButton, {
-        size: 'small', type: 'error', ghost: true, title: '删除',
-        disabled: busyId.value === p.id || updatingAll.value, onClick: () => remove(p),
-      }, { icon: () => h(AppIcon, { name: 'trash', size: 13 }) }),
-      h(NButton, {
-        size: 'small', title: '编辑',
-        disabled: busyId.value === p.id || updatingAll.value, onClick: () => openEdit(p),
-      }, { icon: () => h(AppIcon, { name: 'edit', size: 13 }) }),
-      p.id !== active.value
-        ? h(NButton, {
-            type: 'primary', size: 'small', title: '启用',
-            disabled: busyId.value === p.id || updatingAll.value,
-            onClick: () => activate(p),
-          }, { icon: () => h(AppIcon, { name: 'upload', size: 13 }) })
-        : h(NTag, { size: 'small', round: true, bordered: false, type: 'success' }, { default: () => '已启用' }),
-    ]),
-  },
-])
+// ---- 列表项元信息：流量/到期/更新时间/尺寸/UA 任一存在则显示元信息区 ----
+function hasMeta(p) {
+  return !!(trafficOf(p) || p.updated_at || p.size || p.ua)
+}
+function usageOf(p) {
+  const t = trafficOf(p)
+  if (!t) return ''
+  return `${fmtBytes(t.used)} / ${fmtBytes(t.total)}（${Math.round(t.percent)}%）`
+}
 
 // ---- 定时更新配置：星期多选 + 时间点 ----
 const DAY_OPTIONS = [
@@ -319,18 +259,59 @@ onMounted(() => {
         </div>
       </div>
 
-      <n-data-table
-        size="small"
-        :columns="columns"
-        :data="filtered"
-        :row-key="p => p.id"
-        :row-class-name="p => (p.id === active ? 'row-active' : '')"
-        :scroll-x="1000"
-      >
-        <template #empty>
-          <n-empty description="没有匹配的订阅" style="padding: 30px 0" />
-        </template>
-      </n-data-table>
+      <!-- 订阅列表：不用表格（窄屏横向滚动挤压难看），一个 item 三段式——
+           名称行（+已启用标识）、地址行、元信息区（流量/到期/更新时间，有则显示）、操作按钮行居中 -->
+      <n-list v-if="filtered.length" hoverable class="sub-list">
+        <n-list-item v-for="p in filtered" :key="p.id" :class="{ 'item-on': p.id === active }">
+          <div class="sub-item">
+            <div class="li-head">
+              <span class="li-name" :title="p.name">{{ p.name }}</span>
+              <n-tag v-if="p.id === active" size="small" round :bordered="false" type="success">已启用</n-tag>
+            </div>
+            <div
+              class="li-url mono"
+              :title="p.source === 'nodes' ? `手动节点 · 模板 ${p.template || '白名单'}` : p.url"
+            >
+              {{ p.source === 'nodes' ? `手动节点 · 模板 ${p.template || '白名单'}` : p.url }}
+            </div>
+            <div v-if="hasMeta(p)" class="li-meta">
+              <n-progress
+                v-if="trafficOf(p)"
+                type="line" :percentage="trafficOf(p).percent"
+                :show-indicator="false" :height="5" border-radius="3px" class="li-bar"
+              />
+              <div class="li-meta-row">
+                <span v-if="trafficOf(p)" class="mono dim t2">
+                  {{ usageOf(p) }}<template v-if="p.expire"> · 到期 {{ fmtExpire(p.expire) }}</template>
+                </span>
+                <n-tag v-if="p.updated_at" size="small" :bordered="false" type="info" class="upd-tag">
+                  {{ fmtTime(p.updated_at) }}
+                </n-tag>
+                <n-tag v-if="p.size" size="small" :bordered="false" class="upd-tag">{{ fmtBytes(p.size) }}</n-tag>
+                <span v-if="p.ua" class="dim t2 li-ua" :title="p.ua">{{ p.ua }}</span>
+              </div>
+            </div>
+            <div class="li-ops">
+              <n-button size="small" title="更新" :loading="busyId === p.id" :disabled="updatingAll" @click="update(p)">
+                <template #icon><AppIcon name="refresh" :size="13" /></template>更新
+              </n-button>
+              <n-button size="small" type="error" ghost title="删除" :disabled="busyId === p.id || updatingAll" @click="remove(p)">
+                <template #icon><AppIcon name="trash" :size="13" /></template>删除
+              </n-button>
+              <n-button size="small" title="编辑" :disabled="busyId === p.id || updatingAll" @click="openEdit(p)">
+                <template #icon><AppIcon name="edit" :size="13" /></template>编辑
+              </n-button>
+              <n-button
+                v-if="p.id !== active" type="primary" size="small" title="启用"
+                :disabled="busyId === p.id || updatingAll" @click="activate(p)"
+              >
+                <template #icon><AppIcon name="upload" :size="13" /></template>启用
+              </n-button>
+            </div>
+          </div>
+        </n-list-item>
+      </n-list>
+      <n-empty v-else description="没有匹配的订阅" style="padding: 30px 0" />
     </n-card>
 
     <!-- 添加/编辑订阅弹窗（共用组件，editing 决定模式） -->
@@ -386,23 +367,23 @@ onMounted(() => {
 .hit-count { flex: none; color: var(--text-dim); font-size: 11px; }
 .bar-btns { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 
-/* 表格单元格内容（render 函数生成，无 scoped 属性，需 :deep 穿透） */
-/* 表头不折行：窄容器下「流量」等短表头曾被压成竖排，scroll-x 保证总宽下限 */
-:deep(.n-data-table-th) { white-space: nowrap; }
-:deep(.col-name) { max-width: 220px; }
-:deep(.col-url) { max-width: 300px; }
-:deep(.col-traffic) { max-width: 190px; }
-:deep(.name-txt) { font-weight: 500; display: inline-block; vertical-align: bottom; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:deep(.url-txt) { color: var(--text-dim); font-size: 12px; display: inline-block; vertical-align: bottom; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:deep(.row-active > td) { background: var(--accent-soft) !important; }
-:deep(.traf) { display: flex; flex-direction: column; gap: 3px; }
-:deep(.t-usage) { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:deep(.upd-cell) { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-:deep(.upd-sub) { display: flex; align-items: center; gap: 6px; min-width: 0; }
-:deep(.upd-tag) { font-family: var(--mono, ui-monospace, monospace); font-size: 11px; }
-:deep(.t2) { font-size: 11.5px; }
-:deep(.t2.ua) { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:deep(.ops-cell) { display: flex; gap: 8px; align-items: center; }
+/* 订阅列表（n-list）：item 内三段式——名称/地址/元信息/操作按钮行 */
+.sub-list { background: transparent; }
+.sub-list :deep(.n-list-item) { padding: 13px 16px; }
+/* 当前使用中的订阅：accent 淡底标识（与表格时代的 row-active 同语义） */
+.sub-list :deep(.n-list-item.item-on) { background: var(--accent-soft); }
+.sub-item { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.li-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.li-name { font-weight: 600; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.li-url { color: var(--text-dim); font-size: 12px; word-break: break-all; }
+.li-meta { display: flex; flex-direction: column; gap: 5px; }
+.li-bar { width: 100%; }
+.li-meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.t2 { font-size: 11.5px; }
+.upd-tag { font-family: var(--mono, ui-monospace, monospace); font-size: 11px; }
+.li-ua { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 操作按钮行：整行居中（用户要求的视觉重心），宽度不够时自动换行仍保持居中 */
+.li-ops { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 3px; }
 
 /* 定时更新弹窗 */
 .sched-form { display: flex; flex-direction: column; gap: 14px; }
@@ -415,22 +396,9 @@ onMounted(() => {
 .s-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .btn-pair { display: flex; gap: 8px; }
 
-/* ---- 手机/平板：筛选条换行、搜索独占一行；表格窄于 scroll-x（1000px）时在表格内部横向滚动 ---- */
+/* ---- 手机/平板：筛选条换行、搜索独占一行 ---- */
 @media (max-width: 760px) {
   .filter-bar .f-kw { flex: 1 1 100%; max-width: 100%; }
   .bar-btns { margin-left: 0; }
 }
-</style>
-
-<style>
-/* 固定操作列（窄容器横向滚动时钉右侧）必须不透明：行底色是半透明淡彩，
-   滚过的内容会从固定列底下透出来叠在按钮上。普通行/表头用卡片实色，
-   激活行用 accent 淡彩的实色近似（浅 #e8eafd / 深 #272c47，分别是
-   rgba(91,107,240,.14) 叠白卡/深卡底的合成值）。磨砂开启时固定列比卡片
-   略实——可读性优先的取舍。!important + html 前缀压过 scoped 的
-   .row-active > td 半透明底（它同样命中固定列的 td） */
-.n-data-table .n-data-table-th--fixed-right,
-.n-data-table .n-data-table-td--fixed-right { background: var(--bg-card) !important; }
-html .n-data-table tr.row-active .n-data-table-td--fixed-right { background: #e8eafd !important; }
-html[data-theme='dark'] .n-data-table tr.row-active .n-data-table-td--fixed-right { background: #272c47 !important; }
 </style>

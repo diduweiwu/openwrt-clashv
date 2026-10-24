@@ -1355,9 +1355,8 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 /* 手动上传内核的隐藏文件选择器 */
 .core-file { display: none; }
 /* 常规流式布局：跟在卡片后面，不再悬浮遮挡内容 */
-/* 保存栏在卡片外：右侧内边距补上卡片的 1px 描边 + 20px 水平内边距，
-   保存按钮右缘才能与卡片内各行右侧控件（输入框/按钮）对齐成一条线 */
-.save-bar { display: flex; justify-content: flex-end; padding: 2px 21px 10px 0; }
+/* 保存栏常规右对齐（与卡片内容区自然对齐，不做额外缩进） */
+.save-bar { display: flex; justify-content: flex-end; padding: 2px 0 10px; }
 /* 备份弹窗：内容列 + 弹窗底部说明/按钮行；列表行左右分布 */
 .backup-body { display: flex; flex-direction: column; gap: 12px; }
 .backup-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -1380,5 +1379,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
   .prog { width: auto; flex: 1; }
   .tpl-row { flex-wrap: wrap; }
   .tpl-row .btn-pair { margin-left: auto; }
+  /* 底部保存按钮填满横向宽度：窄屏下单按钮贴角显得小气 */
+  .save-bar .n-button { width: 100%; }
 }
 </style>
