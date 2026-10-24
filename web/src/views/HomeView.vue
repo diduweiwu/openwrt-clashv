@@ -1329,9 +1329,11 @@ function currentOf(g) {
 .tile-gear.busy:disabled:hover { opacity: 1; }
 /* 瓦片行网格：7 块（状态 3 + 快捷 4）挤同一排 7 列等宽；与流量瓦片行同列规格，上下分隔线逐列对齐 */
 .hero-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
-/* 标签/值不折行：瓦片变窄后换行会破坏等高观感，放不下宁可横向收紧 */
-.hero-tiles .meta-item .k,
-.hero-tiles .meta-item .v { white-space: nowrap; }
+/* 标签行不折行：标签都很短，折行反而破坏标签+齿轮的对齐 */
+.hero-tiles .meta-item .k { white-space: nowrap; }
+/* 值允许折行：7 等分列宽有限，amd64-compatible 这类长值 nowrap 会溢出瓦片边界，
+   截断省略又丢关键后缀；折行后 grid 行等高拉伸，整排观感仍整齐 */
+.hero-tiles .meta-item .v { white-space: normal; overflow-wrap: anywhere; }
 
 /* 快捷瓦片（TUN/DNS/混合端口/出站模式）标题行的齿轮贴右 */
 .meta-item .k .tile-gear { margin-left: auto; }
@@ -1454,9 +1456,6 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   .hero-tiles .meta-item { padding: 8px 10px 9px; }
   .hero-tiles .meta-item .k { gap: 4px; }
   .hero-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
-  /* 值放不下时折行显示完整内容（amd64-compatible 这类长值截断会丢关键后缀），
-     瓦片纵向布局多占一行不破坏结构；桌面端仍保持不折行 */
-  .hero-tiles .meta-item .v { white-space: normal; overflow-wrap: anywhere; }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: 62px; }
