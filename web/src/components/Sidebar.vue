@@ -316,7 +316,7 @@ nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .sidebar.top-bar nav {
     flex-direction: row;
     flex: 1;
-    justify-content: center;
+    justify-content: flex-start; /* 菜单与 logo 同侧左对齐，flex:1 仍把主题钮推到最右 */
     min-width: 0;
   }
   /* 抵消 letter-spacing 在横排下末字符后的尾随空隙，让 hover/选中底色视觉居中 */
