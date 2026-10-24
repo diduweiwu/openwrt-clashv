@@ -1355,7 +1355,9 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 /* 手动上传内核的隐藏文件选择器 */
 .core-file { display: none; }
 /* 常规流式布局：跟在卡片后面，不再悬浮遮挡内容 */
-.save-bar { display: flex; justify-content: flex-end; padding: 2px 0 10px; }
+/* 保存栏在卡片外：右侧内边距补上卡片的 1px 描边 + 20px 水平内边距，
+   保存按钮右缘才能与卡片内各行右侧控件（输入框/按钮）对齐成一条线 */
+.save-bar { display: flex; justify-content: flex-end; padding: 2px 21px 10px 0; }
 /* 备份弹窗：内容列 + 弹窗底部说明/按钮行；列表行左右分布 */
 .backup-body { display: flex; flex-direction: column; gap: 12px; }
 .backup-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
