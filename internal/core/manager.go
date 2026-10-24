@@ -26,6 +26,7 @@ import (
 
 // Traffic 是一次流量采样快照。
 type Traffic struct {
+	T           int64   `json:"t,omitempty"` // 采样时刻（毫秒时间戳；前端据此定位曲线 X 轴并去重）
 	Up          int64   `json:"up"`          // 当前上传速率 B/s
 	Down        int64   `json:"down"`        // 当前下载速率 B/s
 	UpTotal     int64   `json:"up_total"`    // 累计上传
@@ -74,6 +75,12 @@ type Manager struct {
 	pollErr  string // 最近一次连接轮询失败的错误（空 = 正常）
 	pollLog  string // 上次已告警的错误，用于去重
 	polling  atomic.Bool
+
+	// 流量历史（最近 1 小时，1 秒一采样，定期落盘；见 traffic_history.go）
+	histMu       sync.Mutex
+	hist         []TrafficSample
+	histLoaded   bool       // 磁盘历史是否已恢复（懒加载一次）
+	lastHistSave time.Time  // 上次落盘时刻（零值时首次采样即落盘）
 }
 
 // NewManager 创建内核管理器。
@@ -408,6 +415,7 @@ func (m *Manager) startPolling(ctx context.Context) {
 				m.lastTot = [2]int64{snap.UploadTotal, snap.DownloadTotal}
 				m.lastTime = now
 				m.traffic = Traffic{
+					T:           now.UnixMilli(),
 					Up:          int64(emaUp),
 					Down:        int64(emaDown),
 					UpTotal:     snap.UploadTotal,
@@ -421,6 +429,9 @@ func (m *Manager) startPolling(ctx context.Context) {
 					m.conns = m.conns[:1000]
 				}
 				m.tmu.Unlock()
+				// 采样入 1 小时历史缓冲（按需落盘）：由后端持续积累，与页面是否打开无关，
+				// 重启/升级后从磁盘恢复，曲线不再清零
+				m.appendTrafficSample(now, int64(emaUp), int64(emaDown))
 			}
 		}
 	}()

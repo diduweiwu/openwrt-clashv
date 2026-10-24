@@ -74,6 +74,7 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	// 状态与流量
 	mux.HandleFunc("GET /api/status", d.handleStatus)
 	mux.HandleFunc("GET /api/traffic", d.handleTraffic)
+	mux.HandleFunc("GET /api/traffic/history", d.handleTrafficHistory)
 	mux.HandleFunc("GET /api/connections", d.handleConnections)
 	mux.HandleFunc("DELETE /api/connections", d.handleConnectionsClose)
 	mux.HandleFunc("GET /api/rules", d.handleRules)

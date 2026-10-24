@@ -1,8 +1,9 @@
 <script setup>
 // 手绘 canvas 流量曲线（无第三方图表库，保持小体积低内存）
-// 固定显示最近 10 分钟窗口：X 轴按真实时间定位（整分钟对齐刻度），曲线从右侧
-// 随采样逐渐填满窗口；悬浮出十字线 + 读数卡显示所指时刻的上传/下载速率，
-// 贴右侧自动向左翻转，交互对齐 Clash Verge 的流量图
+// 固定显示最近 1 小时窗口：历史由后端每秒采样并落盘持久化（/api/traffic/history
+// 首屏灌入），刷新页面/重启插件曲线不清零；X 轴按真实时间定位（整分钟对齐刻度），
+// 内核停止/页面关闭期没有采样，曲线按时间断档分段绘制、不跨档连线；悬浮出十字线
+// + 读数卡显示所指时刻的上传/下载速率，贴右侧自动向左翻转，交互对齐 Clash Verge 的流量图
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fmtRate } from '../store.js'
 import { resolvedTheme } from '../theme.js'
@@ -19,9 +20,10 @@ const hoverX = ref(null) // 悬浮点横坐标（CSS 像素，相对 canvas 左�
 const PAD_T = 8   // 绘图区上边距
 const PAD_R = 10  // 绘图区右边距
 const PAD_B = 20  // 绘图区下边距（留给时间刻度）
-const WIN_MS = 10 * 60 * 1000 // 显示窗口：固定最近 10 分钟
-const SAMPLE_MS = 1000        // 采样间隔：与 store.pushTraffic 的 1 秒轮询一致，旧点无 t 时倒推用
-const MAX_POINTS = 600        // 10 分钟 × 1 秒，与 store.history 上限一致
+const WIN_MS = 60 * 60 * 1000 // 显示窗口：固定最近 1 小时（与后端历史保留窗口一致）
+const SAMPLE_MS = 1000        // 采样间隔：后端 1 秒一采样，旧点无 t 时倒推用
+const MAX_POINTS = 3600       // 1 小时 × 1 秒，与 store.history 上限一致
+const GAP_MS = 5000           // 相邻采样间隔超过此值视为断档（内核停止/页面关闭期），曲线分段绘制
 let ro = null                 // ResizeObserver：容器宽度变化（侧栏收起/转屏）时重绘
 
 /**
@@ -89,21 +91,21 @@ function readTheme() {
 }
 
 /**
- * 选 X 轴刻度步长（分钟）：窗口恒 10 分钟，刻度候选 1/2/5/10 分钟，
- * 取能满足「每格宽度不小于 56px」的最小步长——宽屏 1 分钟一格，
- * 窄屏自动放宽到 2/5/10 分钟，保证标签不叠印。
+ * 选 X 轴刻度步长（分钟）：窗口恒 1 小时，刻度候选 10/15/30 分钟，
+ * 取能满足「每格宽度不小于 56px」的最小步长——宽屏 10 分钟一格，
+ * 窄屏自动放宽到 15/30 分钟，保证标签不叠印。
  *
  * @param {number} plotW 绘图区像素宽
- * @returns {number} 步长（分钟），1/2/5/10 之一
+ * @returns {number} 步长（分钟），10/15/30 之一
  *
  * @example
- * pickXStep(984) // → 1（每格约 98px）
+ * pickXStep(984) // → 10（每格约 164px）
  */
 function pickXStep(plotW) {
-  for (const step of [1, 2, 5, 10]) {
-    if ((plotW * step) / 10 >= 56) return step
+  for (const step of [10, 15, 30]) {
+    if ((plotW * step) / 60 >= 56) return step
   }
-  return 10
+  return 30
 }
 
 /**
@@ -111,7 +113,7 @@ function pickXStep(plotW) {
  * 数据不足两点时清掉悬浮卡并返回 null，调用方据此跳过后续绘制。
  *
  * X 轴是时间轴：X(t) 按真实时刻在 [left, right] 窗口内线性定位，
- * 数据点不足 10 分钟时曲线只占窗口右侧，左侧留白等待采样填满。
+ * 历史不足 1 小时时曲线只占窗口右侧，左侧留白等待采样填满。
  *
  * @returns {object|null} 场景对象 {ctx,w,h,data,n,max,theme,px0,px1,py0,py1,X,Y,timeAt,left,right}
  *
@@ -196,8 +198,33 @@ function drawAxes(s) {
 }
 
 /**
+ * 把采样序列按时间断档切分成绘制段：相邻两点间隔超过 GAP_MS（内核停止、
+ * 页面关闭期没有采样）即断开，曲线与面积填充都不跨档连线，避免把「没流量」
+ * 画成「流量为零的直线」造成误读。
+ *
+ * @param {object} s buildScene 返回的场景对象
+ * @returns {Array<[number, number]>} 段列表，每段为 [起始下标, 结束下标]（闭区间）
+ *
+ * @example
+ * const segs = splitSegments(scene) // → [[0, 120], [360, 3599]]
+ */
+function splitSegments(s) {
+  const { data, n, timeAt } = s
+  const segs = []
+  let start = 0
+  for (let i = 1; i < n; i++) {
+    if (timeAt(i) - timeAt(i - 1) > GAP_MS) {
+      segs.push([start, i - 1])
+      start = i
+    }
+  }
+  segs.push([start, n - 1])
+  return segs
+}
+
+/**
  * 绘制上传/下载两条曲线及其渐变面积填充（颜色与上方速率瓦片一一对应）。
- * 点按采样时刻在窗口内定位：数据不足 10 分钟时曲线只占窗口右侧。
+ * 点按采样时刻在窗口内定位；断档处（splitSegments）分段绘制不跨档连线。
  *
  * @param {object} s 场景对象
  * @returns {void}
@@ -207,22 +234,25 @@ function drawAxes(s) {
  */
 function drawSeries(s) {
   const { ctx, data, n, h, py0, py1, X, Y, timeAt } = s
+  const segs = splitSegments(s)
   const line = (key, stroke, fill) => {
-    ctx.beginPath()
-    ctx.moveTo(X(timeAt(0)), Y(data[0][key]))
-    for (let i = 1; i < n; i++) ctx.lineTo(X(timeAt(i)), Y(data[i][key]))
-    ctx.strokeStyle = stroke
-    ctx.lineWidth = 1.8
-    ctx.lineJoin = 'round'
-    ctx.stroke()
-    ctx.lineTo(X(timeAt(n - 1)), py1)
-    ctx.lineTo(X(timeAt(0)), py1)
-    ctx.closePath()
-    const g = ctx.createLinearGradient(0, py0, 0, h)
-    g.addColorStop(0, fill)
-    g.addColorStop(1, 'transparent')
-    ctx.fillStyle = g
-    ctx.fill()
+    for (const [a, b] of segs) {
+      ctx.beginPath()
+      ctx.moveTo(X(timeAt(a)), Y(data[a][key]))
+      for (let i = a + 1; i <= b; i++) ctx.lineTo(X(timeAt(i)), Y(data[i][key]))
+      ctx.strokeStyle = stroke
+      ctx.lineWidth = 1.8
+      ctx.lineJoin = 'round'
+      ctx.stroke()
+      ctx.lineTo(X(timeAt(b)), py1)
+      ctx.lineTo(X(timeAt(a)), py1)
+      ctx.closePath()
+      const g = ctx.createLinearGradient(0, py0, 0, h)
+      g.addColorStop(0, fill)
+      g.addColorStop(1, 'transparent')
+      ctx.fillStyle = g
+      ctx.fill()
+    }
   }
   line('down', '#5b6bf0', 'rgba(91, 107, 240, 0.22)')
   line('up', '#3fb96f', 'rgba(63, 185, 111, 0.18)')

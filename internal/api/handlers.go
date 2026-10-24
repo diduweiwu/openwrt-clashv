@@ -137,6 +137,13 @@ func (d *deps) handleTraffic(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, d.mgr.Traffic())
 }
 
+// handleTrafficHistory 返回最近 1 小时的流量历史采样（后端每秒采样并落盘持久化，
+// 重启/升级不丢）。入参：无。返回 {t:[毫秒时间戳],u:[上传B/s],d:[下载B/s]} 三个
+// 平行数组，按下标对齐；内核停止期间无采样，历史中天然留有时间断档。
+func (d *deps) handleTrafficHistory(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, d.mgr.TrafficHistory())
+}
+
 // handleCoreModeGet 返回出站模式（持久化值，与运行中内核保持一致）。
 func (d *deps) handleCoreModeGet(w http.ResponseWriter, r *http.Request) {
 	s, err := d.cfg.Get()

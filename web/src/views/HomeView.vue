@@ -700,10 +700,9 @@ function currentOf(g) {
             </button>
           </n-tag>
           <n-flex class="hero-actions" :size="10">
-            <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态红色幽灵「停止」；主操作排在重启前面 -->
+            <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态实心红「停止」；主操作排在重启前面 -->
             <n-button
               :type="status?.running ? 'error' : 'primary'"
-              :ghost="!!status?.running"
               :title="status?.running ? '停止内核' : '启动内核'"
               :loading="busy === 'start' || busy === 'stop'"
               :disabled="busy === 'restart'"

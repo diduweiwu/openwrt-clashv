@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { NButton, NConfigProvider, NModal, NProgress, NSpin, dateZhCN, zhCN } from 'naive-ui'
 import Sidebar from './components/Sidebar.vue'
 import SetupWizard from './components/SetupWizard.vue'
-import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes, pushTraffic, setupDismissed } from './store.js'
+import { store, naiveTheme, naiveOverrides, toast, ask, fmtBytes, pushTraffic, seedHistory, setupDismissed } from './store.js'
 import { menuMode } from './menuMode.js'
 import { api } from './api.js'
 
@@ -42,6 +42,10 @@ onMounted(() => {
   refreshStatus()
   armPolling()
   trafficTimer = setInterval(refreshTraffic, 1000)
+  // 首屏一次性拉取后端 1 小时流量历史填充曲线：后端采样与页面是否打开无关，
+  // 刷新页面/重启插件后曲线立即恢复历史，而不是从当前时刻重新积累。
+  // 失败静默（旧后端无此接口时曲线仍按活采样从零积累）
+  api.get('/api/traffic/history').then(seedHistory).catch(() => {})
 })
 onUnmounted(() => {
   clearInterval(statusTimer)

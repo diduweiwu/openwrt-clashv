@@ -6,7 +6,7 @@ import { resolvedTheme } from './theme.js'
 export const store = reactive({
   status: null,        // /api/status 结果
   traffic: { up: 0, down: 0, up_total: 0, down_total: 0, connections: 0, memory_mb: 0 },
-  history: [],         // 最近 10 分钟 {up, down, t}，1 秒一采样（上限 600 点）
+  history: [],         // 最近 1 小时 {up, down, t}，1 秒一采样（上限 3700 点）；首屏由后端历史灌入
   wizardOpen: false,   // 初始化引导弹窗打开中：App.vue 的「未检测到内核」自动询问避让，避免两处同时引导下载
   wizardAuto: false,   // 本次引导是否自动弹出：自动模式显示「不再自动弹出」勾选，手动入口打开时不显示
 })
@@ -107,11 +107,28 @@ export function pushTraffic(t) {
   if ((t.up_total || 0) < tripBase.up) tripBase.up = t.up_total || 0
   if ((t.down_total || 0) < tripBase.down) tripBase.down = t.down_total || 0
   store.traffic = t
-  // t: 采样时刻毫秒时间戳，流量图 X 轴刻度与悬浮提示按它定位时间；
-  // 旧数据（升级前已入列的点）无此字段，图表侧按 1 秒采样间隔倒推兜底。
-  // 1 秒一采样 × 600 点 = 曲线固定显示最近 10 分钟
-  store.history.push({ up: t.up, down: t.down, t: Date.now() })
-  if (store.history.length > 600) store.history.shift()
+  // t：后端采样时刻毫秒时间戳（/api/traffic 自带），曲线 X 轴定位与去重都按它；
+  // 旧后端无 t 时退回本地时钟兜底。历史恢复（seedHistory）与活采样同源同刻，
+  // 按时刻去重避免同一秒的点重复入列。
+  const ts = Number(t.t) > 0 ? Number(t.t) : Date.now()
+  const last = store.history[store.history.length - 1]
+  if (last && ts <= last.t) return
+  // 1 秒一采样，缓冲上限略大于 1 小时（3700 点），与后端历史保留窗口一致
+  store.history.push({ up: t.up, down: t.down, t: ts })
+  if (store.history.length > 3700) store.history.splice(0, store.history.length - 3700)
+}
+
+// 用后端流量历史（GET /api/traffic/history，最近 1 小时）一次性填充曲线缓冲。
+// 后端采样持续进行、与页面是否打开无关，历史按采样时刻升序返回；直接替换本地
+// 缓冲即可，随后的活采样由 pushTraffic 按时刻去重无缝衔接（重复秒自动跳过）。
+// f: {t:[毫秒时间戳], u:[上传B/s], d:[下载B/s]} 三个平行数组，按下标对齐
+export function seedHistory(f) {
+  if (!f || !Array.isArray(f.t) || !f.t.length) return
+  const pts = []
+  for (let i = 0; i < f.t.length; i++) {
+    pts.push({ up: f.u[i] || 0, down: f.d[i] || 0, t: f.t[i] })
+  }
+  store.history = pts
 }
 
 // ---- 流量里程表：显示值 = 内核累计 - 基线，清零即把基线挪到当前累计 ----
