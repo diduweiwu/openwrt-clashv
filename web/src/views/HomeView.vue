@@ -3,7 +3,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag, NSwitch } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, fmtTime, tripTotals, resetTrip, clearTrafficHistory, delayColor } from '../store.js'
+import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, fmtTime, tripTotals, resetTrip, delayColor } from '../store.js'
 import { useGroupTest, GROUP_TYPES } from '../useGroupTest.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
@@ -492,12 +492,6 @@ function onTripReset() {
   toast('累计流量已重置，重新开始统计', 'success')
 }
 
-// ---- 清空流量曲线历史：只清图表缓存，从当前时刻重新累积，不影响下方累计里程 ----
-function onHistoryClear() {
-  clearTrafficHistory()
-  toast('流量曲线历史已清空', 'success')
-}
-
 // ---- 出站模式 / DNS 快捷切换（瓦片齿轮 → 弹窗） ----
 const MODE_LABEL = { rule: '规则', global: '全局', direct: '直连' }
 const MODES = [
@@ -818,12 +812,6 @@ function currentOf(g) {
     <n-card>
       <div class="traffic-head">
         <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时流量</h3>
-        <n-button
-          class="hist-clear" quaternary size="small"
-          title="清空曲线历史：图表从当前时刻重新累积，不影响累计流量" @click="onHistoryClear"
-        >
-          <template #icon><AppIcon name="trash" :size="15" /></template>清空
-        </n-button>
         <n-button
           class="trip-reset" quaternary size="small"
           title="重置里程：丢弃当前累计，从零重新统计" @click="onTripReset"
@@ -1258,8 +1246,6 @@ function currentOf(g) {
 .traffic-nums .meta-item { height: 69px; }
 .traffic-nums .meta-item .v { font-size: 16px; white-space: nowrap; }
 .trip-reset { flex: none; margin-left: auto; }
-/* 清空按钮排在重置左侧：贴着重置即可，靠右推给重置的 margin-left:auto */
-.hist-clear { flex: none; }
 /* 流量曲线与上方指标瓦片的分隔：上下留白拉开距离 + 一条虚线（与订阅卡片分隔风格一致） */
 .chart-gap { margin: 16px 0 12px; border-top: 1px dashed var(--border); }
 

@@ -114,17 +114,6 @@ export function pushTraffic(t) {
   if (store.history.length > 600) store.history.shift()
 }
 
-/**
- * 清空实时流量图的历史曲线缓存。
- * 只影响图表展示（清空后从当前时刻重新累积），不触碰累计流量里程表。
- *
- * @example
- * clearTrafficHistory() // 首页「清空」按钮点击时调用
- */
-export function clearTrafficHistory() {
-  store.history.splice(0, store.history.length)
-}
-
 // ---- 流量里程表：显示值 = 内核累计 - 基线，清零即把基线挪到当前累计 ----
 const tripBase = reactive({ up: 0, down: 0 })
 
