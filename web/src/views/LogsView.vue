@@ -178,24 +178,26 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
 <template>
   <div class="page logs-page">
-    <div class="head-row">
-      <div>
-        <h2 class="page-title">日志</h2>
-        <p class="page-sub">
-          {{ TABS.find(k => k.key === tab)?.hint }} ·
-          {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template>
-        </p>
+    <n-card>
+      <div class="head-row">
+        <div>
+          <h2 class="page-title">日志</h2>
+          <p class="page-sub">
+            {{ TABS.find(k => k.key === tab)?.hint }} ·
+            {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template>
+          </p>
+        </div>
+        <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
+          <!-- NTab 纯展示标签：NTabPane 会渲染空内容区，在标签下多出一大块高度 -->
+          <n-tab v-for="k in TABS" :key="k.key" :name="k.key">{{ k.label }}</n-tab>
+        </n-tabs>
+        <div class="opts">
+          <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
+          <n-checkbox v-model:checked="follow">跟随滚动</n-checkbox>
+          <n-button size="small" :loading="loading" @click="load(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
+        </div>
       </div>
-      <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
-        <!-- NTab 纯展示标签：NTabPane 会渲染空内容区，在标签下多出一大块高度 -->
-        <n-tab v-for="k in TABS" :key="k.key" :name="k.key">{{ k.label }}</n-tab>
-      </n-tabs>
-      <div class="opts">
-        <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
-        <n-checkbox v-model:checked="follow">跟随滚动</n-checkbox>
-        <n-button size="small" :loading="loading" @click="load(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
-      </div>
-    </div>
+    </n-card>
 
     <n-card class="log-card">
       <!-- 筛选与快捷操作条 -->
@@ -242,14 +244,14 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </template>
 
 <style scoped>
-.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .tabs { width: 260px; flex: none; margin-left: auto; }
 .opts { display: flex; align-items: center; gap: 14px; }
 /* 日志页整体精确占满内容区（.content 有 overflow:auto，若页面超高会同时出现
-   内外两根滚动条）：page 高度锁死为可视区，卡片吃掉剩余高度，滚动只发生在
-   日志组件内部；双类名覆盖全局 .page 的 16px gap——块间呼吸靠 head-row 的
-   margin-bottom 提供，0 间隙贴紧 */
-.page.logs-page { height: 100%; gap: 0; }
+   内外两根滚动条）：page 高度锁死为可视区，日志卡片吃掉剩余高度，滚动只发生在
+   日志组件内部；头部已包进 n-card，块间呼吸恢复走全局 16px gap（头部卡片与
+   日志卡片之间的间距），不再依赖 head-row 自身的 margin-bottom */
+.page.logs-page { height: 100%; gap: 16px; }
 /* 手机端与设置页对齐：tabs 换行后靠左（桌面的 margin-left:auto 只是把它推到标题行右侧） */
 @media (max-width: 760px) {
   .tabs { margin-left: 0; }

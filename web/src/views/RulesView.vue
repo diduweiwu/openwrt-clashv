@@ -228,17 +228,19 @@ watch(
 
 <template>
   <div class="page">
-    <div class="head-row">
-      <div>
-        <h2 class="page-title">规则</h2>
-        <p class="page-sub">
-          自定义规则置顶于订阅规则之前<template v-if="store.status?.running"> · 内核当前加载共 {{ rules.length }} 条</template><template v-if="keyword">，命中：自定义 {{ customFiltered.length }} / 运行时 {{ filtered.length }} 条</template>
-        </p>
+    <n-card>
+      <div class="head-row">
+        <div>
+          <h2 class="page-title">规则</h2>
+          <p class="page-sub">
+            自定义规则置顶于订阅规则之前<template v-if="store.status?.running"> · 内核当前加载共 {{ rules.length }} 条</template><template v-if="keyword">，命中：自定义 {{ customFiltered.length }} / 运行时 {{ filtered.length }} 条</template>
+          </p>
+        </div>
+        <n-button size="small" :loading="loading" :disabled="!store.status?.running" @click="load(false); loadTargets()">
+          <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
+        </n-button>
       </div>
-      <n-button size="small" :loading="loading" :disabled="!store.status?.running" @click="load(false); loadTargets()">
-        <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
-      </n-button>
-    </div>
+    </n-card>
 
     <!-- 搜索框：同时过滤自定义规则与内核运行时规则 -->
     <n-input v-model:value="keyword" placeholder="搜索规则内容、类型或目标（自定义 + 运行时）…" clearable>

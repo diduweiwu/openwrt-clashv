@@ -801,19 +801,21 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 
 <template>
   <div class="page">
-    <div class="head-row">
-      <div>
-        <h2 class="page-title">设置</h2>
-        <p class="page-sub">插件全部配置 · 修改后点底部「保存」生效，涉及连接的改动会自动重启内核</p>
+    <n-card>
+      <div class="head-row">
+        <div>
+          <h2 class="page-title">设置</h2>
+          <p class="page-sub">插件全部配置 · 修改后点底部「保存」生效，涉及连接的改动会自动重启内核</p>
+        </div>
+        <n-tabs v-model:value="tab" type="segment" size="small" class="tabs">
+          <n-tab-pane name="general"><template #tab>通用</template></n-tab-pane>
+          <n-tab-pane name="subs"><template #tab>订阅</template></n-tab-pane>
+          <n-tab-pane name="network"><template #tab>网络</template></n-tab-pane>
+          <n-tab-pane name="core"><template #tab>内核</template></n-tab-pane>
+          <n-tab-pane name="plugin"><template #tab>插件</template></n-tab-pane>
+        </n-tabs>
       </div>
-      <n-tabs v-model:value="tab" type="segment" size="small" class="tabs">
-        <n-tab-pane name="general"><template #tab>通用</template></n-tab-pane>
-        <n-tab-pane name="subs"><template #tab>订阅</template></n-tab-pane>
-        <n-tab-pane name="network"><template #tab>网络</template></n-tab-pane>
-        <n-tab-pane name="core"><template #tab>内核</template></n-tab-pane>
-        <n-tab-pane name="plugin"><template #tab>插件</template></n-tab-pane>
-      </n-tabs>
-    </div>
+    </n-card>
 
     <!-- 通用 -->
     <template v-if="tab === 'general'">

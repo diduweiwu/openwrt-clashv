@@ -72,16 +72,18 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <div class="head-row">
-      <div>
-        <h2 class="page-title">代理</h2>
-        <span class="page-sub">点击节点切换 · {{ groups.length }} 个代理组</span>
+    <n-card>
+      <div class="head-row">
+        <div>
+          <h2 class="page-title">代理</h2>
+          <span class="page-sub">点击节点切换 · {{ groups.length }} 个代理组</span>
+        </div>
+        <n-button :loading="loading" @click="load">
+          <template #icon><AppIcon name="refresh" :size="15" /></template>
+          刷新
+        </n-button>
       </div>
-      <n-button :loading="loading" @click="load">
-        <template #icon><AppIcon name="refresh" :size="15" /></template>
-        刷新
-      </n-button>
-    </div>
+    </n-card>
 
     <n-card v-if="!store.status?.running" class="pad">
       <n-empty description="内核未运行，启动后此处显示代理列表" />

@@ -184,22 +184,24 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
 <template>
   <div class="page conn-page">
-    <div class="head-row">
-      <div>
-        <h2 class="page-title">连接</h2>
-        <p class="page-sub">
-          ↑ {{ fmtBytes(totals.up) }} · ↓ {{ fmtBytes(totals.down) }} · 活跃 {{ activeCount }} 条
-          <template v-if="sub === 'closed'"> · 已关闭 {{ closedCount }} 条（仅记录本页打开期间的关闭）</template>
-        </p>
+    <n-card>
+      <div class="head-row">
+        <div>
+          <h2 class="page-title">连接</h2>
+          <p class="page-sub">
+            ↑ {{ fmtBytes(totals.up) }} · ↓ {{ fmtBytes(totals.down) }} · 活跃 {{ activeCount }} 条
+            <template v-if="sub === 'closed'"> · 已关闭 {{ closedCount }} 条（仅记录本页打开期间的关闭）</template>
+          </p>
+        </div>
+        <div class="actions">
+          <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
+          <n-button size="small" :loading="loading" @click="poll(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
+          <n-button size="small" type="error" ghost :disabled="!store.status?.running || !activeCount" @click="closeAll">
+            <template #icon><AppIcon name="x-square" :size="13" /></template>关闭
+          </n-button>
+        </div>
       </div>
-      <div class="actions">
-        <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
-        <n-button size="small" :loading="loading" @click="poll(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
-        <n-button size="small" type="error" ghost :disabled="!store.status?.running || !activeCount" @click="closeAll">
-          <template #icon><AppIcon name="x-square" :size="13" /></template>关闭
-        </n-button>
-      </div>
-    </div>
+    </n-card>
 
     <n-card class="toolbar">
       <div class="toolbar-row">

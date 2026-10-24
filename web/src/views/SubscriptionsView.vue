@@ -291,15 +291,17 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <div class="head-row">
-      <div>
-        <h2 class="page-title">订阅</h2>
-        <p class="page-sub">
-          {{ profiles.length }} 个订阅<template v-if="activeName"> · 当前使用：{{ activeName }}</template>
-        </p>
+    <n-card>
+      <div class="head-row">
+        <div>
+          <h2 class="page-title">订阅</h2>
+          <p class="page-sub">
+            {{ profiles.length }} 个订阅<template v-if="activeName"> · 当前使用：{{ activeName }}</template>
+          </p>
+        </div>
+        <n-button type="primary" @click="openAdd"><template #icon><AppIcon name="plus" :size="14" /></template>添加</n-button>
       </div>
-      <n-button type="primary" @click="openAdd"><template #icon><AppIcon name="plus" :size="14" /></template>添加</n-button>
-    </div>
+    </n-card>
 
     <n-card v-if="profiles.length === 0" class="pad">
       <n-empty description="还没有订阅，点击右上角「添加」粘贴机场订阅链接" />
