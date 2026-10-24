@@ -144,7 +144,11 @@ function buildScene() {
   let px0 = 30
   for (const v of [0, max / 2, max]) px0 = Math.max(px0, ctx.measureText(fmtRate(v)).width + 14)
   const px1 = w - PAD_R, py0 = PAD_T, py1 = h - PAD_B
-  const right = data[n - 1].t ?? Date.now()
+  // 窗口右端对齐到「包含最新采样点的整分钟」：刻度位置与数字每分钟才跳变一次
+  // （连续滚动会每秒微移）；代价是曲线末端与右缘之间有 0~59 秒的对齐空隙，
+  // 由 drawSeries 在曲线末端画实时位置点来解释
+  const lastMs = data[n - 1].t ?? Date.now()
+  const right = Math.ceil(lastMs / 60000) * 60000
   const left = right - WIN_MS
   const X = (t) => px0 + ((t - left) / WIN_MS) * (px1 - px0)
   const Y = (v) => py1 - (v / max) * (py1 - py0)
@@ -222,6 +226,11 @@ function drawSeries(s) {
   }
   line('down', '#5b6bf0', 'rgba(91, 107, 240, 0.22)')
   line('up', '#3fb96f', 'rgba(63, 185, 111, 0.18)')
+  // 曲线末端实时位置点：窗口右缘是整分钟对齐的，末端与右缘之间有 0~59 秒空隙，
+  // 两枚小点标出「此刻」的真实读数位置（重叠时绿点覆盖蓝点，与悬浮圆点同规则）
+  const xt = X(timeAt(n - 1))
+  ctx.beginPath(); ctx.arc(xt, Y(data[n - 1].down), 2.5, 0, Math.PI * 2); ctx.fillStyle = '#5b6bf0'; ctx.fill()
+  ctx.beginPath(); ctx.arc(xt, Y(data[n - 1].up), 2.5, 0, Math.PI * 2); ctx.fillStyle = '#3fb96f'; ctx.fill()
 }
 
 /**
