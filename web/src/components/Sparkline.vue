@@ -1,7 +1,8 @@
 <script setup>
 // 手绘 canvas 流量曲线（无第三方图表库，保持小体积低内存）
-// 带坐标轴刻度（Y 速率 / X 时间）与悬浮读数：悬浮出十字线 + 读数卡显示对应时刻的
-// 上传/下载速率，贴右侧自动向左翻转，交互对齐 Clash Verge 的流量图
+// 固定显示最近 10 分钟窗口：X 轴按真实时间定位（整分钟对齐刻度），曲线从右侧
+// 随采样逐渐填满窗口；悬浮出十字线 + 读数卡显示所指时刻的上传/下载速率，
+// 贴右侧自动向左翻转，交互对齐 Clash Verge 的流量图
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fmtRate } from '../store.js'
 import { resolvedTheme } from '../theme.js'
@@ -18,7 +19,10 @@ const hoverX = ref(null) // 悬浮点横坐标（CSS 像素，相对 canvas 左�
 const PAD_T = 8   // 绘图区上边距
 const PAD_R = 10  // 绘图区右边距
 const PAD_B = 20  // 绘图区下边距（留给时间刻度）
-let ro = null     // ResizeObserver：容器宽度变化（侧栏收起/转屏）时重绘
+const WIN_MS = 10 * 60 * 1000 // 显示窗口：固定最近 10 分钟
+const SAMPLE_MS = 1000        // 采样间隔：与 store.pushTraffic 的 1 秒轮询一致，旧点无 t 时倒推用
+const MAX_POINTS = 600        // 10 分钟 × 1 秒，与 store.history 上限一致
+let ro = null                 // ResizeObserver：容器宽度变化（侧栏收起/转屏）时重绘
 
 /**
  * 把 Y 轴满程值向上取整到 2 的幂（8KB 起步），刻度标签是好看的整数速率。
@@ -38,7 +42,7 @@ function niceCeil(v) {
 }
 
 /**
- * 毫秒时间戳 → HH:MM:SS 文案，用于 X 轴刻度与悬浮读数卡。
+ * 毫秒时间戳 → HH:MM:SS 文案，用于悬浮读数卡。
  *
  * @param {number} ms 毫秒时间戳
  * @returns {string} 如 "08:19:41"
@@ -50,6 +54,21 @@ function fmtClock(ms) {
   const d = new Date(ms)
   const p = (x) => String(x).padStart(2, '0')
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+/**
+ * 毫秒时间戳 → HH:MM 文案，用于 X 轴分钟刻度（秒位恒为 0，不显示）。
+ *
+ * @param {number} ms 毫秒时间戳
+ * @returns {string} 如 "08:19"
+ *
+ * @example
+ * fmtHM(Date.now()) // → "14:03"
+ */
+function fmtHM(ms) {
+  const d = new Date(ms)
+  const p = (x) => String(x).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 /**
@@ -70,10 +89,31 @@ function readTheme() {
 }
 
 /**
+ * 选 X 轴刻度步长（分钟）：窗口恒 10 分钟，刻度候选 1/2/5/10 分钟，
+ * 取能满足「每格宽度不小于 56px」的最小步长——宽屏 1 分钟一格，
+ * 窄屏自动放宽到 2/5/10 分钟，保证标签不叠印。
+ *
+ * @param {number} plotW 绘图区像素宽
+ * @returns {number} 步长（分钟），1/2/5/10 之一
+ *
+ * @example
+ * pickXStep(984) // → 1（每格约 98px）
+ */
+function pickXStep(plotW) {
+  for (const step of [1, 2, 5, 10]) {
+    if ((plotW * step) / 10 >= 56) return step
+  }
+  return 10
+}
+
+/**
  * 准备一帧绘制所需的全部上下文：画布尺寸/DPR、数据、坐标映射与时间取值。
  * 数据不足两点时清掉悬浮卡并返回 null，调用方据此跳过后续绘制。
  *
- * @returns {object|null} 场景对象 {ctx,w,h,data,n,max,theme,px0,px1,py0,py1,X,Y,timeAt}
+ * X 轴是时间轴：X(t) 按真实时刻在 [left, right] 窗口内线性定位，
+ * 数据点不足 10 分钟时曲线只占窗口右侧，左侧留白等待采样填满。
+ *
+ * @returns {object|null} 场景对象 {ctx,w,h,data,n,max,theme,px0,px1,py0,py1,X,Y,timeAt,left,right}
  *
  * @example
  * const s = buildScene(); if (!s) return; drawAxes(s)
@@ -91,7 +131,7 @@ function buildScene() {
   ctx.clearRect(0, 0, w, h)
   ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif'
 
-  const data = props.series.slice(-120)
+  const data = props.series.slice(-MAX_POINTS)
   const n = data.length
   if (n < 2) { tip.value = null; return null }
 
@@ -104,15 +144,17 @@ function buildScene() {
   let px0 = 30
   for (const v of [0, max / 2, max]) px0 = Math.max(px0, ctx.measureText(fmtRate(v)).width + 14)
   const px1 = w - PAD_R, py0 = PAD_T, py1 = h - PAD_B
-  const X = (i) => px0 + (i / (n - 1)) * (px1 - px0)
+  const right = data[n - 1].t ?? Date.now()
+  const left = right - WIN_MS
+  const X = (t) => px0 + ((t - left) / WIN_MS) * (px1 - px0)
   const Y = (v) => py1 - (v / max) * (py1 - py0)
-  const lastT = data[n - 1].t ?? Date.now()
-  const timeAt = (i) => data[i].t ?? (lastT - (n - 1 - i) * 1000)
-  return { ctx, w, h, data, n, max, theme, px0, px1, py0, py1, X, Y, timeAt }
+  const timeAt = (i) => data[i].t ?? (right - (n - 1 - i) * SAMPLE_MS)
+  return { ctx, w, h, data, n, max, theme, px0, px1, py0, py1, X, Y, timeAt, left, right }
 }
 
 /**
- * 绘制坐标轴：Y 轴三档速率刻度（0/半程/满程）+ 横向网格线 + 底部刻度小竖线。
+ * 绘制坐标轴：Y 轴三档速率刻度（0/半程/满程）+ 横向网格线；
+ * X 轴按整分钟对齐画刻度（步长见 pickXStep）+ 底部小竖线。
  *
  * @param {object} s buildScene 返回的场景对象
  * @returns {void}
@@ -121,7 +163,7 @@ function buildScene() {
  * drawAxes(scene)
  */
 function drawAxes(s) {
-  const { ctx, n, max, theme, px0, px1, py0, py1, X, Y, timeAt } = s
+  const { ctx, max, theme, px0, px1, py0, py1, X, Y, left, right } = s
   // Y 轴：右对齐画在留白里，网格线横贯绘图区
   ctx.textAlign = 'right'
   ctx.textBaseline = 'middle'
@@ -131,24 +173,27 @@ function drawAxes(s) {
     ctx.strokeStyle = theme.border
     ctx.beginPath(); ctx.moveTo(px0, Y(v)); ctx.lineTo(px1, Y(v)); ctx.stroke()
   }
-  // X 轴：按绘图区宽度自适应刻度数（5/3/2 个），再以数据点数封顶（点少时多刻度会
-  // 经四舍五入落到同一索引叠印标签）；首刻度左对齐、尾刻度右对齐防出界
-  const plotW = px1 - px0
-  const slots = Math.min(plotW / 4 >= 76 ? 4 : plotW / 2 >= 76 ? 2 : 1, n - 1)
-  ctx.textBaseline = 'top'
-  for (let k = 0; k <= slots; k++) {
-    const i = Math.round((k * (n - 1)) / slots)
-    const x = X(i)
-    ctx.fillStyle = theme.dim
-    ctx.textAlign = k === 0 ? 'left' : k === slots ? 'right' : 'center'
-    ctx.fillText(fmtClock(timeAt(i)), x, py1 + 5)
+  // X 轴：从窗口左端向上取整到整分钟开始，每 step 分钟一个刻度（真实时钟整分对齐）
+  const step = pickXStep(px1 - px0)
+  const stepMs = step * 60000
+  let t = Math.ceil(left / 60000) * 60000
+  // 让 t 落在步长对齐的整分上，保证刻度分钟值规律（如每 5 分钟：09:05、09:10…）
+  t = Math.ceil(t / stepMs) * stepMs
+  for (; t <= right; t += stepMs) {
+    const x = X(t)
     ctx.strokeStyle = theme.border
     ctx.beginPath(); ctx.moveTo(x, py1); ctx.lineTo(x, py1 + 3); ctx.stroke()
+    ctx.fillStyle = theme.dim
+    ctx.textBaseline = 'top'
+    // 首尾刻度向内对齐防出界，其余居中
+    ctx.textAlign = x < px0 + 30 ? 'left' : x > px1 - 30 ? 'right' : 'center'
+    ctx.fillText(fmtHM(t), x, py1 + 5)
   }
 }
 
 /**
  * 绘制上传/下载两条曲线及其渐变面积填充（颜色与上方速率瓦片一一对应）。
+ * 点按采样时刻在窗口内定位：数据不足 10 分钟时曲线只占窗口右侧。
  *
  * @param {object} s 场景对象
  * @returns {void}
@@ -157,17 +202,17 @@ function drawAxes(s) {
  * drawSeries(scene)
  */
 function drawSeries(s) {
-  const { ctx, data, n, h, py0, py1, X, Y } = s
+  const { ctx, data, n, h, py0, py1, X, Y, timeAt } = s
   const line = (key, stroke, fill) => {
     ctx.beginPath()
-    ctx.moveTo(X(0), Y(data[0][key]))
-    for (let i = 1; i < n; i++) ctx.lineTo(X(i), Y(data[i][key]))
+    ctx.moveTo(X(timeAt(0)), Y(data[0][key]))
+    for (let i = 1; i < n; i++) ctx.lineTo(X(timeAt(i)), Y(data[i][key]))
     ctx.strokeStyle = stroke
     ctx.lineWidth = 1.8
     ctx.lineJoin = 'round'
     ctx.stroke()
-    ctx.lineTo(X(n - 1), py1)
-    ctx.lineTo(X(0), py1)
+    ctx.lineTo(X(timeAt(n - 1)), py1)
+    ctx.lineTo(X(timeAt(0)), py1)
     ctx.closePath()
     const g = ctx.createLinearGradient(0, py0, 0, h)
     g.addColorStop(0, fill)
@@ -180,8 +225,30 @@ function drawSeries(s) {
 }
 
 /**
+ * 找悬浮横坐标命中的数据点：按时刻换算后在窗口内取时间最近的一点。
+ *
+ * @param {object} s 场景对象
+ * @returns {number} 命中的点下标；落在无数据留白区（距离超过 2.5 个采样间隔）返回 -1
+ *
+ * @example
+ * const i = hitIndex(scene); if (i < 0) tip.value = null
+ */
+function hitIndex(s) {
+  const { data, n, px0, px1, timeAt, left, right } = s
+  const tx = left + ((hoverX.value - px0) / (px1 - px0)) * (right - left)
+  const clamped = Math.min(right, Math.max(left, tx))
+  let best = -1
+  let bestDist = Infinity
+  for (let i = 0; i < n; i++) {
+    const d = Math.abs(timeAt(i) - clamped)
+    if (d < bestDist) { bestDist = d; best = i }
+  }
+  return bestDist <= SAMPLE_MS * 2.5 ? best : -1
+}
+
+/**
  * 绘制悬浮辅助元素并同步读数卡：竖虚线 + 两系列交点圆点 + tip 内容。
- * 索引由悬浮横坐标实时换算，数据每秒滚动后仍指向鼠标所指的「N 秒前」。
+ * 十字线吸附到最近数据点；悬浮在窗口左侧无数据留白区时不显示任何辅助元素。
  *
  * @param {object} s 场景对象
  * @returns {void}
@@ -190,10 +257,12 @@ function drawSeries(s) {
  * drawHover(scene)
  */
 function drawHover(s) {
-  const { ctx, data, n, theme, px0, px1, py0, py1, X, Y, timeAt } = s
+  const { ctx, data, theme, py0, py1, X, Y, timeAt } = s
   if (hoverX.value == null) { tip.value = null; return }
-  const i = Math.min(n - 1, Math.max(0, Math.round(((hoverX.value - px0) / (px1 - px0)) * (n - 1))))
-  const x = X(i)
+  const i = hitIndex(s)
+  if (i < 0) { tip.value = null; return }
+  const { px0, px1 } = s
+  const x = X(timeAt(i))
   ctx.setLineDash([4, 3])
   ctx.strokeStyle = theme.dim
   ctx.lineWidth = 1

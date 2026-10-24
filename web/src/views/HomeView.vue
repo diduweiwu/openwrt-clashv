@@ -855,7 +855,9 @@ function currentOf(g) {
           <span class="v" :style="{ color: watchView.color }">{{ watchView.text }}</span>
         </div>
       </div>
-      <Sparkline v-if="status?.running" :series="store.history" :height="130" />
+      <!-- 曲线与上方指标瓦片之间：留白 + 虚线分隔（沿用订阅卡片的 dashed 分隔风格），让图表区视觉独立 -->
+      <div class="chart-gap"></div>
+      <Sparkline v-if="status?.running" :series="store.history" :height="170" />
       <n-empty v-else description="内核未运行" style="padding: 40px 0" />
     </n-card>
 
@@ -1258,6 +1260,8 @@ function currentOf(g) {
 .trip-reset { flex: none; margin-left: auto; }
 /* 清空按钮排在重置左侧：贴着重置即可，靠右推给重置的 margin-left:auto */
 .hist-clear { flex: none; }
+/* 流量曲线与上方指标瓦片的分隔：上下留白拉开距离 + 一条虚线（与订阅卡片分隔风格一致） */
+.chart-gap { margin: 16px 0 12px; border-top: 1px dashed var(--border); }
 
 /* 运行状态行：状态居左、控制按钮贴右；极窄/字体放大时不许文字断行，
    真放不下让按钮组整体换行并继续贴右 */
