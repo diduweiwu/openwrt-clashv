@@ -1307,8 +1307,9 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
       </div>
     </n-modal>
 
-    <!-- 插件 tab 现在含在线仓库地址等可保存项，保存栏全 tab 显示 -->
-    <div class="save-bar">
+    <!-- 插件 tab 现在含在线仓库地址等可保存项，保存栏全 tab 显示；例外是订阅 tab——
+         它只有即时操作的配置模板管理，没有可保存的表单项，显示保存按钮反而让人困惑 -->
+    <div class="save-bar" v-if="tab !== 'subs'">
       <n-button type="primary" :loading="saving" :disabled="!loaded" @click="save">
         <template #icon><AppIcon name="save" :size="14" /></template>保存
       </n-button>
