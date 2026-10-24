@@ -748,19 +748,20 @@ function currentOf(g) {
                 <AppIcon v-else name="refresh" :size="12" :class="{ spin: coreChecking || coreUpgrading }" />
               </button>
             </span>
-            <span class="v mono" :class="{ dim: !!coreStageText }">
+            <span class="v mono" :class="{ dim: !!coreStageText }" :title="coreStageText || status?.core?.version || '未安装'">
               {{ coreStageText || status?.core?.version || '未安装' }}
             </span>
           </div>
           <div class="meta-item tint-b">
             <span class="k"><AppIcon name="server" :size="13" />平台架构</span>
-            <span class="v mono" :class="{ dim: !status?.core?.platform }">
+            <!-- title 给完整平台名（含 linux- 前缀）：瓦片值展示时去掉了前缀，悬浮可看全 -->
+            <span class="v mono" :class="{ dim: !status?.core?.platform }" :title="status?.core?.platform || '不支持'">
               {{ status?.core?.platform ? status.core.platform.replace(/^linux-/, '') : '不支持' }}
             </span>
           </div>
           <div class="meta-item tint-c">
             <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
-            <span class="v mono">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
+            <span class="v mono" :title="status?.running ? fmtUptime(status.uptime) : ''">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
           </div>
           <div class="meta-item tint-d">
             <span class="k">
@@ -769,7 +770,7 @@ function currentOf(g) {
                 <AppIcon name="gear" :size="12" />
               </button>
             </span>
-            <span class="v mono" :class="{ dim: !status?.tun }">
+            <span class="v mono" :class="{ dim: !status?.tun }" :title="status?.tun ? `开启 · ${status.tun_stack || 'mixed'}` : '未开启'">
               {{ status?.tun ? `开启 · ${status.tun_stack || 'mixed'}` : '未开启' }}
             </span>
           </div>
@@ -780,7 +781,7 @@ function currentOf(g) {
                 <AppIcon name="gear" :size="12" />
               </button>
             </span>
-            <span class="v mono" :class="{ dim: !status?.dns }">
+            <span class="v mono" :class="{ dim: !status?.dns }" :title="status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管'">
               {{ status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管' }}
             </span>
           </div>
@@ -791,7 +792,7 @@ function currentOf(g) {
                 <AppIcon name="gear" :size="12" />
               </button>
             </span>
-            <span class="v mono">{{ status?.mixed_port || '—' }}</span>
+            <span class="v mono" :title="status?.mixed_port ? String(status.mixed_port) : ''">{{ status?.mixed_port || '—' }}</span>
           </div>
           <div class="meta-item tint-c">
             <span class="k">
@@ -800,7 +801,7 @@ function currentOf(g) {
                 <AppIcon name="gear" :size="12" />
               </button>
             </span>
-            <span class="v">
+            <span class="v" :title="MODE_LABEL[status?.mode] || '规则'">
               <n-tag size="small" round :bordered="false" type="primary">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
             </span>
           </div>
@@ -1330,9 +1331,14 @@ function currentOf(g) {
 .hero-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
 /* 标签行不折行：标签都很短，折行反而破坏标签+齿轮的对齐 */
 .hero-tiles .meta-item .k { white-space: nowrap; }
-/* 值允许折行：7 等分列宽有限，amd64-compatible 这类长值 nowrap 会溢出瓦片边界，
-   截断省略又丢关键后缀；折行后 grid 行等高拉伸，整排观感仍整齐 */
-.hero-tiles .meta-item .v { white-space: normal; overflow-wrap: anywhere; }
+/* 值单行不折行，放不下截断省略号：保持瓦片高度恒定（完整内容悬浮 title 查看）。
+   注意 overflow 链路：.meta-item 已 min-width:0，span 在 flex 列里按列宽收缩，
+   nowrap+hidden+ellipsis 三件套缺一不可，否则长值（amd64-compatible）顶出瓦片 */
+.hero-tiles .meta-item .v {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* 快捷瓦片（TUN/DNS/混合端口/出站模式）标题行的齿轮贴右 */
 .meta-item .k .tile-gear { margin-left: auto; }
