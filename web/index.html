@@ -6,12 +6,26 @@
   <meta name="color-scheme" content="dark light">
   <title>ClashV</title>
   <script>
-    // 在应用挂载前解析主题，避免首屏闪烁（与 src/theme.js 保持同一存储键与解析逻辑）
+    // 在应用挂载前解析主题，避免首屏闪烁（与 src/theme.js 保持同一存储键与解析逻辑）。
+    // LuCI iframe 内嵌（self !== top）时：立刻挂 embedded 类（theme.js 与样式依赖）；
+    // 底色优先级：URL 传入的 LuCI 主题色（luci_bg=r,g,b，界面用同色融入主题）>
+    // 内嵌透明让位 > 本应用主题底色
     (function () {
+      var embedded = false
+      try { embedded = window.self !== window.top } catch (e) { embedded = true }
+      if (embedded) document.documentElement.classList.add('embedded')
       var m = localStorage.getItem('clashv_theme') || 'system'
       var dark = m === 'dark' || (m !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      var q = location.search.match(/[?&]luci_bg=(\d{1,3}),(\d{1,3}),(\d{1,3})/)
+      var bg
+      if (q) {
+        bg = 'rgb(' + q[1] + ',' + q[2] + ',' + q[3] + ')'
+        dark = (0.299 * q[1] + 0.587 * q[2] + 0.114 * q[3]) / 255 < 0.6
+      } else {
+        bg = embedded ? 'transparent' : (dark ? '#14161c' : '#f3f4f8')
+      }
       document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-      document.documentElement.style.background = dark ? '#14161c' : '#f3f4f8'
+      document.documentElement.style.background = bg
     })()
   </script>
 </head>

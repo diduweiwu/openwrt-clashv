@@ -64,6 +64,16 @@ html[data-theme='light'] {
 
 html, body, #app { height: 100%; margin: 0; }
 
+/* ---- LuCI iframe 内嵌（html.embedded，类由 main.js 挂载）----
+   页面底色让位：html/body 全透明，LuCI 主题的背景色/背景图（含 Argon 等
+   第三方主题）直接透过来，界面与主题融为一体。只动页面底色：卡片/侧栏仍是
+   自己的 --bg-card 不受影响；磨砂开启时背景改由极光光斑承担（伪元素画在透明
+   底之上，见下方 glass-on 段），极光与磨砂照常工作。embedded.glass-on 单列
+   一条提高特异性，保证盖过下方 glass-on 段的 html 底色（顺序无关）。 */
+html.embedded,
+html.embedded body { background: transparent; }
+html.embedded.glass-on { background: transparent; }
+
 /* 禁止移动端浏览器的字体自动放大（Android font boosting / iOS 旋转膨胀）：
    LuCI iframe 内该机制误判会把你文字放大 15~25%，按钮行/瓦片随之超宽挤出横向滚动条 */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }

@@ -21,9 +21,29 @@ return L.view.extend({
 		var sid = (L.env && L.env.sessionid) || '';
 		if (sid && sid !== '00000000000000000000000000000000')
 			src += '?luci_sid=' + encodeURIComponent(sid);
+		/*
+		 * 把 LuCI 主题的背景色传给 clashv（luci_bg=r,g,b）：界面用同色铺页面底，
+		 * 视觉上融入当前主题（深浅由底色亮度自动判断，「跟随系统」时优先跟随 LuCI）。
+		 * 主题背景是图片/渐变（如 Argon）时拿不到有意义的纯色就省略参数，
+		 * 界面回退到透明让位方案（html.embedded）。body 上取不到再看 html。
+		 */
+		var luciBg = (function () {
+			var els = [document.body, document.documentElement];
+			for (var i = 0; i < els.length; i++) {
+				var c = window.getComputedStyle(els[i]).backgroundColor || '';
+				var m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+				if (m && m[4] !== '0')  // alpha 0（全透明）取不到色，跳过
+					return m[1] + ',' + m[2] + ',' + m[3];
+			}
+			return '';
+		})();
+		if (luciBg)
+			src += (src.indexOf('?') >= 0 ? '&' : '?') + 'luci_bg=' + luciBg;
 		var frame = E('iframe', {
 			src: src,
-			style: 'width:100%;border:0;border-radius:8px;background:#14161c;display:block'
+			/* 底色与插件页同色（拿不到主题色时透明）：避免加载间隙闪出突兀色块 */
+			style: 'width:100%;border:0;border-radius:8px;display:block;background:' +
+				(luciBg ? 'rgb(' + luciBg + ')' : 'transparent')
 		});
 
 		/*
