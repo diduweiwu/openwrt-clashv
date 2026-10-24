@@ -1,9 +1,9 @@
 <script setup>
-// 订阅页：列表展示 + 过滤 + 单个/全部更新 + 激活 + 删除 + 定时更新配置（星期 + 时间点）
-import { computed, onMounted, reactive, ref } from 'vue'
+// 订阅页：列表分页展示 + 过滤 + 单个/全部更新 + 激活 + 删除 + 定时更新配置（星期 + 时间点）
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  NButton, NCard, NEmpty, NInput, NList, NListItem, NModal, NProgress, NTag,
+  NButton, NCard, NEmpty, NInput, NList, NListItem, NModal, NPagination, NProgress, NTag,
   NSelect, NSwitch, NTimePicker,
 } from 'naive-ui'
 import { api } from '../api.js'
@@ -55,6 +55,19 @@ const filtered = computed(() => {
     (p.name || '').toLowerCase().includes(k) ||
     (p.url || '').toLowerCase().includes(k) ||
     (p.ua || '').toLowerCase().includes(k))
+})
+
+// ---- 列表分页：避免订阅多时一页铺开拉得过长；过滤关键字变化回到第一页 ----
+const PAGE_SIZE = 8
+const page = ref(1)
+const paged = computed(() =>
+  filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE)
+)
+watch(keyword, () => { page.value = 1 })
+// 删除订阅等操作令总数变少时，把页码拉回有效范围
+watch(() => filtered.value.length, (len) => {
+  const maxPage = Math.max(1, Math.ceil(len / PAGE_SIZE))
+  if (page.value > maxPage) page.value = maxPage
 })
 
 async function update(p) {
@@ -315,9 +328,10 @@ onMounted(() => {
       </div>
 
       <!-- 订阅列表：不用表格（窄屏横向滚动挤压难看），一个 item 三段式——
-           名称行（+已启用标识）、地址行、元信息区（流量/到期/更新时间，有则显示）、操作按钮行居中 -->
+           名称行（+已启用标识）、地址行、元信息区（流量/到期/更新时间，有则显示）、操作按钮行居中；
+           分页展示（每页 8 个），订阅少于一页时分页器自动隐藏 -->
       <n-list v-if="filtered.length" hoverable class="sub-list">
-        <n-list-item v-for="p in filtered" :key="p.id" :class="{ 'item-on': p.id === active }">
+        <n-list-item v-for="p in paged" :key="p.id" :class="{ 'item-on': p.id === active }">
           <div class="sub-item">
             <div class="li-head">
               <span class="li-name" :title="p.name">{{ p.name }}</span>
@@ -375,7 +389,14 @@ onMounted(() => {
           </div>
         </n-list-item>
       </n-list>
-      <n-empty v-else description="没有匹配的订阅" style="padding: 30px 0" />
+      <div v-if="filtered.length > PAGE_SIZE" class="list-pager">
+        <n-pagination
+          v-model:page="page"
+          :page-size="PAGE_SIZE"
+          :item-count="filtered.length"
+        />
+      </div>
+      <n-empty v-else-if="!filtered.length" description="没有匹配的订阅" style="padding: 30px 0" />
     </n-card>
 
     <!-- 添加/编辑订阅弹窗（共用组件，editing 决定模式） -->
@@ -451,6 +472,8 @@ onMounted(() => {
 .li-ua { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 操作按钮行：整行居中（用户要求的视觉重心），宽度不够时自动换行仍保持居中 */
 .li-ops { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 3px; }
+/* 分页器：列表底部居中，仅订阅多于一页时出现 */
+.list-pager { display: flex; justify-content: center; padding: 14px 0 2px; }
 
 /* 定时更新弹窗 */
 .sched-form { display: flex; flex-direction: column; gap: 14px; }
