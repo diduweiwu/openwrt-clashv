@@ -107,8 +107,21 @@ export function pushTraffic(t) {
   if ((t.up_total || 0) < tripBase.up) tripBase.up = t.up_total || 0
   if ((t.down_total || 0) < tripBase.down) tripBase.down = t.down_total || 0
   store.traffic = t
-  store.history.push({ up: t.up, down: t.down })
+  // t: 采样时刻毫秒时间戳，流量图 X 轴刻度与悬浮提示按它定位时间；
+  // 旧数据（升级前已入列的点）无此字段，图表侧按 1 秒间隔倒推兜底
+  store.history.push({ up: t.up, down: t.down, t: Date.now() })
   if (store.history.length > 120) store.history.shift()
+}
+
+/**
+ * 清空实时流量图的历史曲线缓存。
+ * 只影响图表展示（清空后从当前时刻重新累积），不触碰累计流量里程表。
+ *
+ * @example
+ * clearTrafficHistory() // 首页「清空」按钮点击时调用
+ */
+export function clearTrafficHistory() {
+  store.history.splice(0, store.history.length)
 }
 
 // ---- 流量里程表：显示值 = 内核累计 - 基线，清零即把基线挪到当前累计 ----
