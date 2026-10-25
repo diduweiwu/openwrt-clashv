@@ -117,7 +117,8 @@ function onMoreSelect(key) {
             <path d="M14 3.5v4h4" /><path d="M9 12.5h6" /><path d="M9 16h6" />
           </template>
           <template v-else-if="n.icon === 'logs'">
-            <path d="M5 4h14v16H5z" /><path d="M8.5 9h7M8.5 13h7M8.5 17h4" />
+            <!-- 日志：多行长短不一的横线（文本行样式），与订阅的文件图标区分开 -->
+            <path d="M4 5.5h16" /><path d="M4 10h16" /><path d="M4 14.5h11" /><path d="M4 19h6" />
           </template>
           <template v-else-if="n.icon === 'settings'">
             <!-- 齿轮：lucide settings 外形（齿轮轮廓 + 中孔），避免误认成太阳 -->
