@@ -944,14 +944,14 @@ function currentOf(g) {
     <n-card v-if="sectionVisible('traffic')" :style="secStyle('traffic')">
       <div class="traffic-head">
         <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时信息</h3>
-        <!-- 出口 IP 显隐开关（仅运行中显示），详情入口在出口 IP 瓦片右上角 -->
-        <template v-if="status?.running">
+        <!-- 出口 IP 显隐的恢复入口：瓦片上的眼睛负责隐藏，这里只在隐藏态显示供恢复 -->
+        <template v-if="status?.running && !showIps">
           <n-button
             quaternary size="small" class="head-tool-first"
-            :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
-            @click="showIps = !showIps"
+            title="显示出口 IP"
+            @click="showIps = true"
           >
-            <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="14" />
+            <AppIcon name="eye-off" :size="14" />
           </n-button>
         </template>
         <n-button
@@ -984,8 +984,8 @@ function currentOf(g) {
           <span class="k"><AppIcon name="zap" :size="13" />断网守护</span>
           <span class="v" :style="{ color: watchView.color }">{{ watchView.text }}</span>
         </div>
-        <!-- 出口 IP 组合瓦片（仅运行中显示）：直连/代理各一行，右上工具区放「更多」详情入口 -->
-        <div v-if="status?.running" class="meta-item tint-c ip-combo">
+        <!-- 出口 IP 组合瓦片（运行中且显示开关开启）：直连/代理各一行，右上工具区「更多/检测位置/显隐」 -->
+        <div v-if="status?.running && showIps" class="meta-item tint-c ip-combo">
           <span class="k">
             <AppIcon name="globe" :size="13" />出口 IP
             <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
@@ -998,6 +998,14 @@ function currentOf(g) {
               @click="onToggleProbe"
             >
               <AppIcon name="server" :size="11" />
+            </button>
+            <!-- 显隐开关：点击隐藏整个瓦片（恢复入口在卡头） -->
+            <button
+              class="ip-more"
+              :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
+              @click="showIps = !showIps"
+            >
+              <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="11" />
             </button>
           </span>
           <span class="ip-row">
