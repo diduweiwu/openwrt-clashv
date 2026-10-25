@@ -842,8 +842,8 @@ function currentOf(g) {
       <div class="sec-head">
         <h3><AppIcon class="sec-ico" name="file-text" :size="15" />当前订阅</h3>
         <div class="sub-actions">
-          <n-button size="small" title="刷新当前订阅" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
-            <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
+          <n-button size="small" title="拉取当前订阅最新内容" :loading="subBusy" :disabled="!activeProfile" @click="refreshProfile">
+            <template #icon><AppIcon name="refresh" :size="13" /></template>更新
           </n-button>
           <n-button v-if="status?.running" size="small" title="查看运行时配置（config.yaml）" @click="viewConfig">
             <template #icon><AppIcon name="file-code" :size="13" /></template>查看
