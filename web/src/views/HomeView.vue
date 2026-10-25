@@ -13,7 +13,7 @@ import UnlockPanel from '../components/UnlockPanel.vue'
 import HomeInfoCards from '../components/HomeInfoCards.vue'
 import AppIcon from '../components/AppIcon.vue'
 import { showIps } from '../ipDisplay.js'
-import { ipData, loadIpInfo, ipText, ipPlace as ipTitle, copyIp } from '../ipinfo.js'
+import { ipData, loadIpInfo, ipText, ipPlace as ipTitle, copyIp, probeMode, toggleProbeMode } from '../ipinfo.js'
 import {
   HOME_SECTIONS, cardOrder, orderOf, sectionVisible, cardVisible, moveSection, toggleCard, resetLayout,
 } from '../homeLayout.js'
@@ -703,9 +703,15 @@ watch(
   () => status.value?.running,
   (running) => {
     if (running) loadIpInfo(running)
-    else ipData.value = null
+    else if (probeMode.value === 'openwrt') ipData.value = null
   },
 )
+
+// 切换出口 IP 检测模式（浏览器端 ↔ OpenWrt 后端）后立即按新模式重查
+const onToggleProbe = () => {
+  toggleProbeMode()
+  loadIpInfo(status?.value?.running, true)
+}
 
 // ---- 首页卡片布局：区块顺序 + 显隐（homeLayout.js，localStorage 持久化）。
 // ---- 排序靠 .page（flex column）上的 CSS order，无需改模板结构；入口在运行行右侧 ----
@@ -984,6 +990,14 @@ function currentOf(g) {
             <AppIcon name="globe" :size="13" />出口 IP
             <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
               <AppIcon name="expand" :size="11" />
+            </button>
+            <!-- 检测位置开关：亮起=OpenWrt 后端检测，熄灭=浏览器端检测（默认） -->
+            <button
+              class="ip-more" :class="{ on: probeMode === 'openwrt' }"
+              :title="probeMode === 'openwrt' ? '当前在 OpenWrt 后端检测，点击切换为浏览器端检测' : '当前在浏览器端检测，点击切换为 OpenWrt 后端检测'"
+              @click="onToggleProbe"
+            >
+              <AppIcon name="server" :size="11" />
             </button>
           </span>
           <span class="ip-row">
@@ -1565,16 +1579,18 @@ function currentOf(g) {
   color: currentColor; opacity: 0.55;
 }
 .ip-more:hover { opacity: 1; color: var(--accent); background: var(--hover); }
+/* 选中态：OpenWrt 后端检测模式，主题蓝常亮 */
+.ip-more.on { opacity: 1; color: var(--accent); }
 .ip-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .ip-row em {
   font-style: normal; flex: none;
-  color: var(--text-dim); font-size: 11px; font-weight: 500;
+  color: var(--text-dim); font-size: 9px; font-weight: 500;
 }
 .ip-row-v {
   flex: 1; min-width: 0; text-align: left;
   background: transparent; border: none; cursor: pointer;
   padding: 0; color: var(--text);
-  font-size: 12px; font-weight: 600;
+  font-size: 9px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ip-row-v:hover { color: var(--accent); }
