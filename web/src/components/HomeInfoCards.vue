@@ -178,7 +178,7 @@ const pluginText = computed(() =>
 
 <style scoped>
 /* 标题行：彩色图标块 + 标题贴左、动作贴右（参考 Clash Verge 信息卡头） */
-.ic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.ic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; border-bottom: 1px dashed var(--border); padding-bottom: 10px; }
 .ic-head h3 { font-size: 15px; }
 .ic-chip {
   display: inline-flex; align-items: center; justify-content: center;

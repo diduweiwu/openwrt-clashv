@@ -179,7 +179,7 @@ const hint = computed(() => '经当前代理出口测试 · 2xx/3xx 视为支持
 
 <style scoped>
 /* 卡片标题行与图标：与首页各卡片的 sec-head 同款（scoped 隔离，需在本组件重复声明） */
-.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; border-bottom: 1px dashed var(--border); padding-bottom: 12px; }
 .sec-head h3 { font-size: 15px; }
 .sec-ico { color: var(--accent); margin-right: 7px; vertical-align: -2px; }
 .unlock-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

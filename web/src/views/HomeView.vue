@@ -395,6 +395,26 @@ const subTraffic = computed(() => {
   return { used, total: p.total, percent: Math.min(100, (used / p.total) * 100) }
 })
 
+// ---- 订阅链接显隐：纯浏览器本地偏好，默认显示 ----
+const showSubUrl = ref(localStorage.getItem('clashv_show_sub_url') !== '0')
+watch(showSubUrl, (v) => localStorage.setItem('clashv_show_sub_url', v ? '1' : '0'))
+
+// 复制订阅链接（非 secure 上下文退 execCommand，同 ipinfo.js）
+function copySubUrl() {
+  const url = activeProfile.value?.url
+  if (!url) return
+  const done = () => toast('已复制订阅链接', 'success')
+  navigator.clipboard?.writeText(url).then(done).catch(() => {
+    const ta = document.createElement('textarea')
+    ta.value = url
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    ta.remove()
+    done()
+  })
+}
+
 // ---- 切换订阅弹窗 ----
 const showSwitch = ref(false)
 const switchList = ref([])
@@ -844,9 +864,42 @@ function currentOf(g) {
         </template>
       </n-empty>
       <template v-else>
-        <div class="sub-row">
-          <span class="sub-name">{{ status.profile }}</span>
-          <span v-if="subExpire" class="page-sub">到期 {{ subExpire }}</span>
+        <!-- 订阅信息行：名称/链接（可隐藏）/更新时间/体积/到期，样式与信息卡行同款 -->
+        <div class="sub-rows">
+          <div class="srow">
+            <span class="sk">订阅名称</span>
+            <span class="sv">{{ status.profile }}</span>
+          </div>
+          <div class="srow">
+            <span class="sk">订阅链接</span>
+            <span class="sv sub-url-cell">
+              <button v-if="showSubUrl && activeProfile?.url" class="sub-url mono" title="点击复制订阅链接" @click="copySubUrl">
+                {{ activeProfile.url }}
+              </button>
+              <span v-else-if="!activeProfile?.url" class="sv dim">手动节点（无订阅链接）</span>
+              <span v-else class="sv dim">••••••••••••</span>
+              <button
+                v-if="activeProfile?.url"
+                class="sub-eye"
+                :title="showSubUrl ? '隐藏订阅链接' : '显示订阅链接'"
+                @click="showSubUrl = !showSubUrl"
+              >
+                <AppIcon :name="showSubUrl ? 'eye' : 'eye-off'" :size="12" />
+              </button>
+            </span>
+          </div>
+          <div class="srow">
+            <span class="sk">更新时间</span>
+            <span class="sv">{{ activeProfile?.updated_at ? fmtTime(activeProfile.updated_at) : '—' }}</span>
+          </div>
+          <div class="srow">
+            <span class="sk">配置体积</span>
+            <span class="sv mono">{{ activeProfile?.size ? fmtBytes(activeProfile.size) : '—' }}</span>
+          </div>
+          <div v-if="subExpire" class="srow">
+            <span class="sk">到期时间</span>
+            <span class="sv mono">{{ subExpire }}</span>
+          </div>
         </div>
         <div v-if="subTraffic" class="sub-traffic">
           <n-progress
@@ -1354,7 +1407,7 @@ function currentOf(g) {
 .meta-item .v.dim { color: var(--text-dim); font-weight: 500; }
 
 /* 标题行：标题居左、重置钮贴右；指标瓦片在标题下方独立成行 */
-.traffic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 0; }
+.traffic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 0; border-bottom: 1px dashed var(--border); padding-bottom: 12px; }
 /* 与上方 7 瓦片行同规格：同 7 列等宽网格 + 16px 间距，四块流量瓦片占前四列（右侧三格留空），
    竖向分隔线与上行逐列对齐 */
 .traffic-nums { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
@@ -1444,13 +1497,41 @@ function currentOf(g) {
 .ip-more:hover { color: var(--accent); background: var(--hover); }
 .ip-eye { flex: none; color: var(--text-dim); }
 
-.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; border-bottom: 1px dashed var(--border); padding-bottom: 12px; }
 .sec-head h3 { font-size: 15px; }
 /* 大卡片标题图标：主题色，行内基线微调对齐文字（sec-head / traffic-head 通用） */
 .sec-ico { color: var(--accent); margin-right: 7px; vertical-align: -2px; }
 .sub-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.sub-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.sub-name { font-size: 15px; font-weight: 600; }
+/* 订阅信息行：与信息卡 ic-row 同款（标签居左、值贴右、虚线分隔） */
+.sub-rows { display: flex; flex-direction: column; }
+.srow {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 9px 2px;
+  border-top: 1px dashed var(--border);
+  min-width: 0;
+}
+.srow:first-child { border-top: none; }
+.srow .sk { color: var(--text-dim); font-size: 13px; flex: none; }
+.srow .sv { font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .sv.dim, .sv.dim { color: var(--text-dim); font-weight: 500; }
+.sub-url-cell { display: inline-flex; align-items: center; gap: 6px; }
+/* 链接值可点击复制 */
+.sub-url {
+  font-size: 12.5px; font-weight: 500;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--accent); padding: 2px 6px; border-radius: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 420px;
+}
+.sub-url:hover { background: var(--hover); }
+/* 显隐小眼睛 */
+.sub-eye {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; flex: none;
+  border: none; border-radius: 6px; background: transparent; cursor: pointer;
+  color: var(--text-dim); opacity: 0.6;
+}
+.sub-eye:hover { opacity: 1; color: var(--accent); background: var(--hover); }
 .sub-traffic { display: flex; align-items: center; gap: 12px; margin-top: 9px; flex-wrap: wrap; }
 .sub-bar { width: 260px; max-width: 50%; }
 .group-acc {
