@@ -147,11 +147,22 @@ export async function loadIpInfo(running, refresh = false) {
     if (probeMode.value === 'openwrt') {
       ipData.value = await api.get('/api/ipinfo' + (refresh ? '?refresh=1' : ''))
     } else {
-      const [direct, proxy, ipv6] = await Promise.all([
+      const [e1, e2, ipv6] = await Promise.all([
         fetchBrowserEntry(BROWSER_DIRECT),
         fetchBrowserEntry(BROWSER_PROXY),
         fetchBrowserEntry(BROWSER_IPV6),
       ])
+      // 浏览器端两条查询走哪条链路由浏览器实际环境决定（系统代理/透明代理分流不可控），
+      // 「国内源=直连、海外源=代理」的初始分配可能对调。用结果归属地自校准：
+      // ip-api 结果自带国家代码，国内归属的一条归「直连」，另一条归「代理」。
+      let direct = e1
+      let proxy = e2
+      if (e1.ok && e2.ok && e1.countryCode && e2.countryCode && e1.countryCode !== e2.countryCode) {
+        if (e2.countryCode === 'CN') {
+          direct = e2
+          proxy = e1
+        }
+      }
       ipData.value = { direct, proxy, ipv6, ts: Math.floor(Date.now() / 1000) }
     }
   } catch { /* 查询失败静默，展示占位 */ }
