@@ -820,30 +820,6 @@ function currentOf(g) {
         <!-- 瓦片行已收进页面末尾的「IP 信息 / Clash 信息 / 系统信息」卡片 -->
       </n-flex>
 
-      <!-- 出口 IP 小卡：直连/代理徽标居左，更多/显隐工具贴右侧（仅运行中显示） -->
-      <div v-if="status?.running" class="ip-card">
-        <template v-if="showIps">
-          <button class="ip-chip mono" title="国内直连出口 IP，点击复制" @click="copyIp(ipData?.direct)">
-            <span class="ip-chip-k">直连</span>{{ ipText(ipData?.direct) }}
-          </button>
-          <button class="ip-chip mono" :title="ipTitle(ipData?.proxy) || '代理出口 IP，点击复制'" @click="copyIp(ipData?.proxy)">
-            <span class="ip-chip-k">代理</span>{{ ipText(ipData?.proxy) }}
-          </button>
-        </template>
-        <span v-else class="ip-hidden-hint">出口 IP 已隐藏</span>
-        <span class="ip-tools">
-          <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
-            <AppIcon name="expand" :size="12" />更多
-          </button>
-          <n-button
-            quaternary size="tiny" class="ip-eye"
-            :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
-            @click="showIps = !showIps"
-          >
-            <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="14" />
-          </n-button>
-        </span>
-      </div>
     </n-card>
 
     <!-- 当前订阅：快捷瓦片已并入运行卡瓦片行，订阅卡独占一行 -->
@@ -937,7 +913,20 @@ function currentOf(g) {
     <!-- 流量 -->
     <n-card v-if="sectionVisible('traffic')" :style="secStyle('traffic')">
       <div class="traffic-head">
-        <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时流量</h3>
+        <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时信息</h3>
+        <!-- 出口 IP 工具：更多详情 / 显隐（仅运行中显示），与重置按钮同行贴右 -->
+        <template v-if="status?.running">
+          <n-button quaternary size="small" class="head-tool-first" title="查看更多出口 IP 详情" @click="showIpModal = true">
+            <template #icon><AppIcon name="expand" :size="13" /></template>更多
+          </n-button>
+          <n-button
+            quaternary size="small"
+            :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
+            @click="showIps = !showIps"
+          >
+            <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="14" />
+          </n-button>
+        </template>
         <n-button
           class="trip-reset" quaternary size="small"
           title="重置里程：丢弃当前累计，从零重新统计" @click="onTripReset"
@@ -967,6 +956,21 @@ function currentOf(g) {
         <div class="meta-item tint-c" v-if="watchdog" :title="watchTitle">
           <span class="k"><AppIcon name="zap" :size="13" />断网守护</span>
           <span class="v" :style="{ color: watchView.color }">{{ watchView.text }}</span>
+        </div>
+        <!-- 出口 IP 瓦片（仅运行中显示）：与流量瓦片同款样式，点击复制，完整信息走「更多」 -->
+        <div v-if="status?.running" class="meta-item tint-c ip-tile">
+          <span class="k"><AppIcon name="globe" :size="13" />直连 IP</span>
+          <button
+            class="v mono ip-tile-v" title="国内直连出口 IP，点击复制"
+            @click="copyIp(ipData?.direct)"
+          >{{ ipText(ipData?.direct) }}</button>
+        </div>
+        <div v-if="status?.running" class="meta-item tint-d ip-tile">
+          <span class="k"><AppIcon name="network" :size="13" />代理 IP</span>
+          <button
+            class="v mono ip-tile-v" :title="ipTitle(ipData?.proxy) || '代理出口 IP，点击复制'"
+            @click="copyIp(ipData?.proxy)"
+          >{{ ipText(ipData?.proxy) }}</button>
         </div>
       </div>
       <!-- 曲线与上方指标瓦片之间：留白 + 虚线分隔（沿用订阅卡片的 dashed 分隔风格），让图表区视觉独立 -->
@@ -1492,37 +1496,16 @@ function currentOf(g) {
 .layout-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
-/* ---- 出口 IP 小卡：运行卡内的独立一行小卡，直连/代理徽标居左、工具（更多/显隐）贴右 ---- */
-.ip-card {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--bg-card-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 12px;
-  min-width: 0;
-}
-.ip-hidden-hint { color: var(--text-dim); font-size: 12.5px; }
-/* 工具组（更多/眼睛）永不拆行、贴卡右侧 */
-.ip-tools { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
-.ip-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 600;
-  color: var(--text); background: var(--bg-card);
-  border: 1px solid var(--border); border-radius: 999px;
-  padding: 3px 10px; cursor: pointer; font-family: inherit;
-  max-width: 260px;
-}
-.ip-chip:hover { border-color: var(--accent); color: var(--accent); }
-.ip-chip-k { color: var(--text-dim); font-weight: 500; flex: none; }
-/* 长值截断（IPv6），完整内容走悬浮 title 与复制 */
-.ip-chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ip-more {
-  display: inline-flex; align-items: center; gap: 3px;
-  font-size: 11.5px; color: var(--text-dim);
+/* ---- 出口 IP 瓦片（实时信息卡内）：与流量瓦片同款，值可点击复制 ---- */
+.ip-tile-v {
   background: transparent; border: none; cursor: pointer;
-  padding: 2px 4px; border-radius: 6px;
+  padding: 0; font: inherit; color: inherit; text-align: left;
+  font-family: inherit;
 }
-.ip-more:hover { color: var(--accent); background: var(--hover); }
+.ip-tile-v:hover { color: var(--accent); }
+/* 卡头右侧工具：更多/显隐按钮贴右，与重置同行 */
+.head-tool-first { margin-left: auto; }
+.traffic-head .trip-reset { margin-left: 0; }
 .ip-eye { flex: none; color: var(--text-dim); }
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; border-bottom: 1px dashed var(--border); padding-bottom: 12px; }
@@ -1685,9 +1668,6 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   /* n-flex 子项间距是行内 margin，显式统一成横向 10px 并清掉竖排残留的纵向间距 */
   .hero-actions :deep(.n-button) { margin-right: 10px !important; margin-bottom: 0 !important; flex: 1 1 0; }
   .hero-actions :deep(.n-button:last-child) { margin-right: 0 !important; }
-  /* 窄屏 IP 小卡：放不下时工具组换行贴右，徽标等分不截断 */
-  .ip-card { flex-wrap: wrap; }
-  .ip-chip { flex: 1 1 130px; max-width: none; justify-content: center; }
 }
 </style>
 
