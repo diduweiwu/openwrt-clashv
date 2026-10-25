@@ -169,7 +169,7 @@ const hint = computed(() => '经当前代理出口测试 · 2xx/3xx 视为支持
       <div class="add-foot">
         <n-button @click="showAdd = false">取消</n-button>
         <n-button type="primary" :loading="addBusy" @click="saveSite">
-          <template #icon><AppIcon name="check" :size="13" /></template>添加并测试
+          <template #icon><AppIcon name="check" :size="13" /></template>添加
         </n-button>
       </div>
     </div>
