@@ -162,6 +162,30 @@ export function fmtBytes(n) {
   return n.toFixed(n >= 100 ? 0 : 1) + ' ' + units[u]
 }
 
+/**
+ * 拆分字节数的数值与单位两段：瓦片里数值用大字、单位用小一号字渲染。
+ * 复用 fmtBytes 的规则（含 null/NaN 保护），只是把「数值 单位」按空格切开。
+ * @param {number|null} n 字节数
+ * @returns {{n: string, u: string}} n=数值段（如 "13.1"），u=单位段（如 "MB"）
+ * @example fmtBytesParts(13.1 * 1024 * 1024) // → { n: '13.1', u: 'MB' }
+ */
+export function fmtBytesParts(n) {
+  const s = fmtBytes(n)
+  const i = s.lastIndexOf(' ')
+  return i < 0 ? { n: s, u: '' } : { n: s.slice(0, i), u: s.slice(i + 1) }
+}
+
+/**
+ * 拆分速率的数值与单位两段：规则同 fmtRate（fmtBytes + '/s'），单位段带 /s 后缀。
+ * @param {number|null} bps 每秒字节数
+ * @returns {{n: string, u: string}} n=数值段（如 "1.8"），u=单位段（如 "KB/s"）
+ * @example fmtRateParts(1.8 * 1024) // → { n: '1.8', u: 'KB/s' }
+ */
+export function fmtRateParts(bps) {
+  const { n, u } = fmtBytesParts(bps)
+  return { n, u: u ? u + '/s' : 'B/s' }
+}
+
 export function fmtUptime(sec) {
   sec = Number(sec) || 0
   const d = Math.floor(sec / 86400)

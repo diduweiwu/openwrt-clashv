@@ -3,7 +3,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag, NSwitch } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, ask, fmtRate, fmtBytes, fmtTime, tripTotals, resetTrip, delayColor } from '../store.js'
+import { store, toast, ask, fmtRate, fmtBytes, fmtRateParts, fmtBytesParts, fmtTime, tripTotals, resetTrip, delayColor } from '../store.js'
 import { useGroupTest, GROUP_TYPES } from '../useGroupTest.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
@@ -959,19 +959,19 @@ function currentOf(g) {
       <div class="traffic-nums">
         <div class="meta-item tint-b">
           <span class="k"><AppIcon name="upload" :size="13" />上传</span>
-          <span class="v mono" style="color: var(--green)">{{ fmtRate(traffic.up) }}</span>
+          <span class="v mono" style="color: var(--green)">{{ fmtRateParts(traffic.up).n }}<em class="v-unit">{{ fmtRateParts(traffic.up).u }}</em></span>
         </div>
         <div class="meta-item tint-a">
           <span class="k"><AppIcon name="download" :size="13" />下载</span>
-          <span class="v mono" style="color: var(--accent)">{{ fmtRate(traffic.down) }}</span>
+          <span class="v mono" style="color: var(--accent)">{{ fmtRateParts(traffic.down).n }}<em class="v-unit">{{ fmtRateParts(traffic.down).u }}</em></span>
         </div>
         <div class="meta-item tint-b">
           <span class="k"><AppIcon name="history" :size="13" />累计上传</span>
-          <span class="v mono" style="color: var(--green)">{{ fmtBytes(trip.up) }}</span>
+          <span class="v mono" style="color: var(--green)">{{ fmtBytesParts(trip.up).n }}<em class="v-unit">{{ fmtBytesParts(trip.up).u }}</em></span>
         </div>
         <div class="meta-item tint-a">
           <span class="k"><AppIcon name="history" :size="13" />累计下载</span>
-          <span class="v mono" style="color: var(--accent)">{{ fmtBytes(trip.down) }}</span>
+          <span class="v mono" style="color: var(--accent)">{{ fmtBytesParts(trip.down).n }}<em class="v-unit">{{ fmtBytesParts(trip.down).u }}</em></span>
         </div>
         <!-- 断网守护状态瓦片：设置-网络里开启后出现在第五格，未启用不占位 -->
         <div class="meta-item tint-c" v-if="watchdog" :title="watchTitle">
@@ -1468,6 +1468,8 @@ function currentOf(g) {
 /* 瓦片高度跟随最高者（出口 IP 组合瓦片三行）等高：grid stretch 自动对齐 */
 .traffic-nums .meta-item { height: auto; min-height: 69px; }
 .traffic-nums .meta-item .v { font-size: 22px; white-space: nowrap; }
+/* 瓦片数值的单位小一号：数值保持醒目，B/s、MB 等单位没必要同大 */
+.traffic-nums .meta-item .v-unit { font-style: normal; font-size: 13px; font-weight: 600; margin-left: 2px; opacity: 0.85; }
 .trip-reset { flex: none; margin-left: auto; }
 /* 流量曲线与上方指标瓦片的分隔：上下留白拉开距离 + 一条虚线（与订阅卡片分隔风格一致） */
 .chart-gap { margin: 16px 0 12px; border-top: 1px dashed var(--border); }
@@ -1550,8 +1552,8 @@ function currentOf(g) {
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
 /* ---- 出口 IP 组合瓦片（实时信息卡内）：直连/代理各一行小字，右上工具区「更多」 ---- */
 /* 瓦片行定高 69px 装不下三行：组合瓦片放开高度，避免内容溢出；
- * 跨两列放宽（其余瓦片单列）：一行小字装不下完整 IPv4，放宽比一味缩字更可靠 */
-.traffic-nums .ip-combo { height: auto; min-height: 69px; grid-column: span 2; }
+ * 与其他瓦片保持同宽（不跨列），靠左右收窄 2px + 小字号装下完整 IPv4 */
+.traffic-nums .ip-combo { height: auto; min-height: 69px; padding-left: 8px; padding-right: 8px; }
 .ip-combo .k { white-space: nowrap; }
 /* 右上「更多」入口：纯图标小钮（tile-gear 同款交互，样式独立声明） */
 .ip-more {
@@ -1563,7 +1565,7 @@ function currentOf(g) {
   color: currentColor; opacity: 0.55;
 }
 .ip-more:hover { opacity: 1; color: var(--accent); background: var(--hover); }
-.ip-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ip-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .ip-row em {
   font-style: normal; flex: none;
   color: var(--text-dim); font-size: 10px; font-weight: 500;
@@ -1572,7 +1574,7 @@ function currentOf(g) {
   flex: 1; min-width: 0; text-align: left;
   background: transparent; border: none; cursor: pointer;
   padding: 0; color: var(--text);
-  font-size: 10.5px; font-weight: 600;
+  font-size: 10px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ip-row-v:hover { color: var(--accent); }
@@ -1729,6 +1731,7 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: auto; min-height: 62px; }
   .traffic-nums .meta-item .v { font-size: 16px; }
+  .traffic-nums .meta-item .v-unit { font-size: 11px; }
   .sub-bar { max-width: 100%; }
   /* 窄屏组头放不下四段信息：当前节点与展开的节点卡高亮重复，藏掉保组名完整 */
   .g-now { display: none; }
