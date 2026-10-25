@@ -958,8 +958,8 @@ function currentOf(g) {
         <div v-if="status?.running" class="meta-item tint-c ip-combo">
           <span class="k">
             <AppIcon name="globe" :size="13" />出口 IP
-            <button class="tile-gear ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
-              <AppIcon name="expand" :size="12" />
+            <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
+              <AppIcon name="expand" :size="11" />
             </button>
           </span>
           <span class="ip-row">
@@ -1496,19 +1496,29 @@ function currentOf(g) {
 
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
 /* ---- 出口 IP 组合瓦片（实时信息卡内）：直连/代理各一行小字，右上工具区「更多」 ---- */
+/* 瓦片行定高 69px 装不下三行：组合瓦片放开高度，避免内容溢出 */
+.traffic-nums .ip-combo { height: auto; min-height: 69px; }
 .ip-combo .k { white-space: nowrap; }
-.ip-combo .tile-gear.ip-more { margin-left: auto; opacity: 0.55; }
-.ip-combo .tile-gear.ip-more:hover { opacity: 1; }
-.ip-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* 右上「更多」入口：纯图标小钮（tile-gear 同款交互，样式独立声明） */
+.ip-more {
+  margin-left: auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0;
+  border: none; border-radius: 5px;
+  background: transparent; cursor: pointer;
+  color: currentColor; opacity: 0.55;
+}
+.ip-more:hover { opacity: 1; color: var(--accent); background: var(--hover); }
+.ip-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .ip-row em {
   font-style: normal; flex: none;
-  color: var(--text-dim); font-size: 11.5px; font-weight: 500;
+  color: var(--text-dim); font-size: 10.5px; font-weight: 500;
 }
 .ip-row-v {
   flex: 1; min-width: 0; text-align: left;
   background: transparent; border: none; cursor: pointer;
   padding: 0; color: var(--text);
-  font-size: 12.5px; font-weight: 600;
+  font-size: 11px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ip-row-v:hover { color: var(--accent); }
