@@ -944,16 +944,6 @@ function currentOf(g) {
     <n-card v-if="sectionVisible('traffic')" :style="secStyle('traffic')">
       <div class="traffic-head">
         <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时信息</h3>
-        <!-- 出口 IP 显隐的恢复入口：瓦片上的眼睛负责隐藏，这里只在隐藏态显示供恢复 -->
-        <template v-if="status?.running && !showIps">
-          <n-button
-            quaternary size="small" class="head-tool-first"
-            title="显示出口 IP"
-            @click="showIps = true"
-          >
-            <AppIcon name="eye-off" :size="14" />
-          </n-button>
-        </template>
         <n-button
           class="trip-reset" quaternary size="small"
           title="重置里程：丢弃当前累计，从零重新统计" @click="onTripReset"
@@ -984,8 +974,9 @@ function currentOf(g) {
           <span class="k"><AppIcon name="zap" :size="13" />断网守护</span>
           <span class="v" :style="{ color: watchView.color }">{{ watchView.text }}</span>
         </div>
-        <!-- 出口 IP 组合瓦片（运行中且显示开关开启）：直连/代理各一行，右上工具区「更多/检测位置/显隐」 -->
-        <div v-if="status?.running && showIps" class="meta-item tint-c ip-combo">
+        <!-- 出口 IP 组合瓦片（仅运行中显示）：直连/代理各一行，右上工具区「更多/检测位置/显隐」；
+             显隐开关是遮罩语义——隐藏时瓦片不消失，IP 值打码为星号 -->
+        <div v-if="status?.running" class="meta-item tint-c ip-combo">
           <span class="k">
             <AppIcon name="globe" :size="13" />出口 IP
             <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
@@ -999,10 +990,10 @@ function currentOf(g) {
             >
               <AppIcon name="server" :size="11" />
             </button>
-            <!-- 显隐开关：点击隐藏整个瓦片（恢复入口在卡头） -->
+            <!-- 显隐开关：隐藏=IP 值打码星号（卡片保留），显示=真实 IP -->
             <button
               class="ip-more"
-              :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
+              :title="showIps ? '隐藏出口 IP（打码为星号）' : '显示出口 IP'"
               @click="showIps = !showIps"
             >
               <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="11" />
@@ -1010,11 +1001,19 @@ function currentOf(g) {
           </span>
           <span class="ip-row">
             <em>直连</em>
-            <button class="ip-row-v mono" title="国内直连出口 IP，点击复制" @click="copyIp(ipData?.direct)">{{ ipText(ipData?.direct) }}</button>
+            <button
+              class="ip-row-v mono" :disabled="!showIps"
+              :title="showIps ? '国内直连出口 IP，点击复制' : '出口 IP 已隐藏'"
+              @click="showIps && copyIp(ipData?.direct)"
+            >{{ showIps ? ipText(ipData?.direct) : '***.***.***.***' }}</button>
           </span>
           <span class="ip-row">
             <em>代理</em>
-            <button class="ip-row-v mono" :title="ipTitle(ipData?.proxy) || '代理出口 IP，点击复制'" @click="copyIp(ipData?.proxy)">{{ ipText(ipData?.proxy) }}</button>
+            <button
+              class="ip-row-v mono" :disabled="!showIps"
+              :title="showIps ? (ipTitle(ipData?.proxy) || '代理出口 IP，点击复制') : '出口 IP 已隐藏'"
+              @click="showIps && copyIp(ipData?.proxy)"
+            >{{ showIps ? ipText(ipData?.proxy) : '***.***.***.***' }}</button>
           </span>
         </div>
       </div>
@@ -1609,6 +1608,8 @@ function currentOf(g) {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ip-row-v:hover { color: var(--accent); }
+/* 遮罩态（IP 已隐藏）：星号用 dim 色、不可点 */
+.ip-row-v:disabled { color: var(--text-dim); cursor: default; }
 /* 卡头右侧工具：更多/显隐按钮贴右，与重置同行 */
 .head-tool-first { margin-left: auto; }
 .traffic-head .trip-reset { margin-left: 0; }
