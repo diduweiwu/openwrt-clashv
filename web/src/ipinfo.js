@@ -36,29 +36,13 @@ export function toggleProbeMode() {
 
 // ---- 浏览器端查询源 ----
 
-// 直连源：国内直连可达、无需令牌；本插件页面为 http 内嵌，fetch http 接口无混合内容限制
+// 直连源：国内直连可达的纯文本 IP 回显（nipw.cn 背后端点，腾讯 EdgeOne，CORS 全开）。
+// 国外源（ip-api.com 等）在部分浏览器环境会被分流走代理、查到的反而是代理出口，
+// 因此直连行必须用国内源。拿到 IP 后再经 ip.sb geoip/{ip} 反查地理信息——
+// 该查询查的是参数 IP 的归属，与请求走哪条链路无关。
 const BROWSER_DIRECT = [
-  {
-    source: 'ip-api.com',
-    url: 'http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,countryCode,city,isp,org,as,timezone,lat,lon,continent',
-    parse: async (res) => {
-      const v = await res.json()
-      if (v.status !== 'success' || !v.query) throw new Error('查询失败')
-      const g = {
-        ip: v.query, country: v.country || '', countryCode: v.countryCode || '',
-        city: v.city || '', isp: v.isp || '', org: v.org || '',
-        asn: '', asnOrg: '', timezone: v.timezone || '', continent: v.continent || '',
-        lat: v.lat != null ? String(v.lat) : '', lon: v.lon != null ? String(v.lon) : '',
-      }
-      // as 形如「AS9808 中国移动…」：首个空格前是自治域号，其余并入自治域组织
-      const asParts = String(v.as || '').trim().split(' ')
-      if (asParts[0]) {
-        g.asn = asParts[0]
-        g.asnOrg = asParts.slice(1).join(' ')
-      }
-      return g
-    },
-  },
+  { source: 'nipw.cn', url: 'https://4.wsmdn.top', parse: parseTextIp },
+  { source: '3322', url: 'http://ip.3322.net', parse: parseTextIp },
 ]
 
 // 代理源：海外接口，按分流规则经代理出口，逐源兜底（与后端 netcheck.go 同一套源）
@@ -83,8 +67,10 @@ const BROWSER_PROXY = [
   { source: 'ipify', url: 'https://api.ipify.org', parse: parseTextIp },
 ]
 
-// IPv6 出网探测源：域名只有 AAAA 记录，本机无 IPv6 时连接直接失败
+// IPv6 出网探测源：域名只有 AAAA 记录，本机无 IPv6 时连接直接失败；
+// nipw.cn 的 6.wsmdn.top 为国内直连探测，海外源按分流规则经代理探测
 const BROWSER_IPV6 = [
+  { source: 'nipw.cn', url: 'https://6.wsmdn.top', parse: parseTextIp },
   { source: 'ipv6.ip.sb', url: 'https://api-ipv6.ip.sb/ip', parse: parseTextIp },
   { source: 'ipv6.ipify', url: 'https://api6.ipify.org', parse: parseTextIp },
 ]
@@ -130,6 +116,32 @@ async function fetchBrowserEntry(sources) {
 }
 
 /**
+ * 浏览器端查直连出口：国内纯文本源拿 IP，再反查地理信息。
+ * @returns {Promise<object>} ipEntry 结构（geoip 反查失败时仅缺地理字段）
+ */
+async function fetchBrowserDirect() {
+  const direct = await fetchBrowserEntry(BROWSER_DIRECT)
+  if (!direct.ok) return direct
+  try {
+    // api.ip.sb/geoip/{ip} 查询任意 IP 的归属，与该请求自身走哪条链路无关；
+    // 失败只影响地理字段，IP 本身仍有效
+    const res = await fetch('https://api.ip.sb/geoip/' + encodeURIComponent(direct.ip), {
+      signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined,
+    })
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    const v = await res.json()
+    Object.assign(direct, {
+      country: v.country || '', countryCode: v.country_code || '', city: v.city || '',
+      isp: v.isp || '', org: v.organization || '',
+      asn: v.asn ? 'AS' + v.asn : '', asnOrg: v.asn_organization || '',
+      timezone: v.timezone || '', continent: CONTINENT_CN[v.continent_code] || '',
+      lat: v.latitude != null ? String(v.latitude) : '', lon: v.longitude != null ? String(v.longitude) : '',
+    })
+  } catch { /* 仅缺地理，IP 仍有效 */ }
+  return direct
+}
+
+/**
  * 拉取出口 IP：按当前检测模式发起。
  * - openwrt 模式依赖后端与内核（代理侧经混合端口），内核未运行时不请求；
  * - browser 模式不经过内核，随时可查。
@@ -147,23 +159,21 @@ export async function loadIpInfo(running, refresh = false) {
     if (probeMode.value === 'openwrt') {
       ipData.value = await api.get('/api/ipinfo' + (refresh ? '?refresh=1' : ''))
     } else {
-      const [e1, e2, ipv6] = await Promise.all([
-        fetchBrowserEntry(BROWSER_DIRECT),
+      const [direct, proxy, ipv6] = await Promise.all([
+        fetchBrowserDirect(),
         fetchBrowserEntry(BROWSER_PROXY),
         fetchBrowserEntry(BROWSER_IPV6),
       ])
-      // 浏览器端两条查询走哪条链路由浏览器实际环境决定（系统代理/透明代理分流不可控），
-      // 「国内源=直连、海外源=代理」的初始分配可能对调。用结果归属地自校准：
-      // ip-api 结果自带国家代码，国内归属的一条归「直连」，另一条归「代理」。
-      let direct = e1
-      let proxy = e2
-      if (e1.ok && e2.ok && e1.countryCode && e2.countryCode && e1.countryCode !== e2.countryCode) {
-        if (e2.countryCode === 'CN') {
-          direct = e2
-          proxy = e1
+      // 安全网：极端分流下直连源也可能被代理——两边归属相反时按「国内归属=直连」对调
+      let d = direct
+      let p = proxy
+      if (direct.ok && proxy.ok && direct.countryCode && proxy.countryCode && direct.countryCode !== proxy.countryCode) {
+        if (proxy.countryCode === 'CN') {
+          d = proxy
+          p = direct
         }
       }
-      ipData.value = { direct, proxy, ipv6, ts: Math.floor(Date.now() / 1000) }
+      ipData.value = { direct: d, proxy: p, ipv6, ts: Math.floor(Date.now() / 1000) }
     }
   } catch { /* 查询失败静默，展示占位 */ }
   finally { ipLoading.value = false }
