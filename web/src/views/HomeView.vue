@@ -719,6 +719,30 @@ const INFO_CARDS = [
   { key: 'sys', label: '系统信息' },
 ]
 
+// ---- 布局弹窗拖拽排序：行拖动时实时重排 cardOrder（homeLayout 持久化自动跟随）。
+// ---- dragIdx 记录当前拖拽行下标，dragenter 到别的行即把它移到目标位置 ----
+const dragIdx = ref(-1)
+
+function onDragStart(i, e) {
+  dragIdx.value = i
+  e.dataTransfer.effectAllowed = 'move'
+  // Firefox 需要 setData 才会触发拖拽
+  e.dataTransfer.setData('text/plain', String(i))
+}
+
+function onDragEnter(i) {
+  if (dragIdx.value < 0 || dragIdx.value === i) return
+  const arr = [...cardOrder.value]
+  const [moved] = arr.splice(dragIdx.value, 1)
+  arr.splice(i, 0, moved)
+  dragIdx.value = i
+  cardOrder.value = arr
+}
+
+function onDragEnd() {
+  dragIdx.value = -1
+}
+
 function resetHomeLayout() {
   resetLayout()
   toast('已恢复默认布局', 'success')
@@ -1051,7 +1075,17 @@ function currentOf(g) {
     >
       <div class="layout-body">
         <template v-for="(s, i) in orderedSections" :key="s.key">
-          <div class="layout-row">
+          <div
+            class="layout-row"
+            :class="{ dragging: dragIdx === i }"
+            draggable="true"
+            @dragstart="onDragStart(i, $event)"
+            @dragenter.prevent="onDragEnter(i)"
+            @dragover.prevent
+            @dragend="onDragEnd"
+          >
+            <span class="layout-grip" title="拖拽调整顺序"><AppIcon name="drag" :size="14" /></span>
+            <!-- 触屏无 HTML5 拖拽：箭头上下移仅在触屏/窄屏显示，桌面端隐藏 -->
             <span class="layout-ops">
               <button class="layout-btn" :disabled="i === 0" title="上移" @click="moveSection(s.key, -1)">
                 <AppIcon name="chevron-up" :size="13" />
@@ -1476,8 +1510,22 @@ function currentOf(g) {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 12px; border-radius: 10px;
   background: var(--bg-card-2); border: 1px solid var(--border);
+  cursor: grab;
 }
-.layout-ops { display: inline-flex; gap: 4px; flex: none; }
+.layout-row.dragging { opacity: 0.55; border-style: dashed; border-color: var(--accent); }
+/* 拖拽把手：桌面端显示；触屏用箭头（HTML5 拖拽不支持 touch） */
+.layout-grip {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-dim); opacity: 0.6; flex: none;
+  cursor: grab;
+}
+.layout-row:hover .layout-grip { opacity: 1; color: var(--accent); }
+.layout-ops { display: none; gap: 4px; flex: none; }
+@media (hover: none), (max-width: 760px) {
+  .layout-grip { display: none; }
+  .layout-row { cursor: default; }
+  .layout-ops { display: inline-flex; }
+}
 .layout-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; padding: 0;
@@ -1487,10 +1535,14 @@ function currentOf(g) {
 .layout-btn:hover:not(:disabled) { color: var(--accent); background: var(--hover); }
 .layout-btn:disabled { opacity: 0.35; cursor: default; }
 .layout-label { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
-/* 信息卡组的子卡开关行：缩进挂在组行下面 */
+/* 信息卡组的子卡开关：三等分列水平对齐，一行放不下才换行 */
 .layout-sub {
-  display: flex; flex-wrap: wrap; gap: 8px 18px;
-  padding: 2px 12px 2px 62px;
+  display: grid; grid-template-columns: repeat(3, max-content);
+  justify-content: start; gap: 8px 24px;
+  padding: 2px 12px 2px 46px;
+}
+@media (max-width: 460px) {
+  .layout-sub { grid-template-columns: repeat(2, max-content); }
 }
 .layout-sub-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
 .layout-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
