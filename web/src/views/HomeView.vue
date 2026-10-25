@@ -1568,13 +1568,13 @@ function currentOf(g) {
 .ip-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .ip-row em {
   font-style: normal; flex: none;
-  color: var(--text-dim); font-size: 12px; font-weight: 500;
+  color: var(--text-dim); font-size: 11px; font-weight: 500;
 }
 .ip-row-v {
   flex: 1; min-width: 0; text-align: left;
   background: transparent; border: none; cursor: pointer;
   padding: 0; color: var(--text);
-  font-size: 13px; font-weight: 600;
+  font-size: 12px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ip-row-v:hover { color: var(--accent); }
