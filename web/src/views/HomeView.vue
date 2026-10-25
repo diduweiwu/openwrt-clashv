@@ -784,34 +784,42 @@ function currentOf(g) {
               <AppIcon v-else name="refresh" :size="11" :class="{ spin: pluginChecking || pluginBusy }" />
             </button>
           </n-tag>
-          <!-- 出口 IP（仅运行中展示）：直连/代理两枚小徽标 + 显隐开关 + 更多详情。
-               显示/隐藏由眼睛按钮切换（localStorage 记住），隐藏后徽标消失但按钮保留可再开 -->
-          <template v-if="status?.running">
-            <div v-if="showIps" class="ip-inline">
-              <button class="ip-chip mono" title="国内直连出口 IP，点击复制" @click="copyIp(ipData?.direct)">
-                <span class="ip-chip-k">直连</span>{{ ipText(ipData?.direct) }}
-              </button>
-              <button class="ip-chip mono" :title="ipTitle(ipData?.proxy) || '代理出口 IP，点击复制'" @click="copyIp(ipData?.proxy)">
-                <span class="ip-chip-k">代理</span>{{ ipText(ipData?.proxy) }}
-              </button>
-              <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
-                <AppIcon name="expand" :size="12" />更多
-              </button>
-            </div>
+          <!-- 出口 IP 与行内工具区：直连/代理徽标 + 更多详情 + IP 显隐 + 卡片布局入口。
+               收进同一个可换行容器，窄屏整组一起流动不散落；布局按钮常驻（不依赖运行态），
+               紧跟在 IP 眼睛后面 -->
+          <div class="ip-zone">
+            <template v-if="status?.running">
+              <div v-if="showIps" class="ip-inline">
+                <button class="ip-chip mono" title="国内直连出口 IP，点击复制" @click="copyIp(ipData?.direct)">
+                  <span class="ip-chip-k">直连</span>{{ ipText(ipData?.direct) }}
+                </button>
+                <button class="ip-chip mono" :title="ipTitle(ipData?.proxy) || '代理出口 IP，点击复制'" @click="copyIp(ipData?.proxy)">
+                  <span class="ip-chip-k">代理</span>{{ ipText(ipData?.proxy) }}
+                </button>
+              </div>
+              <!-- 行内工具组：更多 / IP 显隐 / 卡片布局，永远同行不散落 -->
+              <span class="ip-tools">
+                <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
+                  <AppIcon name="expand" :size="12" />更多
+                </button>
+                <n-button
+                  quaternary size="tiny" class="ip-eye"
+                  :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
+                  @click="showIps = !showIps"
+                >
+                  <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="14" />
+                </n-button>
+              </span>
+            </template>
             <n-button
               quaternary size="tiny" class="ip-eye"
-              :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
-              @click="showIps = !showIps"
+              title="卡片布局：调整顺序与显隐"
+              @click="showLayout = true"
             >
-              <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="14" />
+              <AppIcon name="layers" :size="14" />
             </n-button>
-          </template>
+          </div>
           <n-flex class="hero-actions" :size="10">
-            <!-- 卡片布局入口：调整首页各卡片的顺序与显隐（弹窗）。
-                 放在按钮组最左、常驻显示，不依赖版本号/IP 等异步组件加载完成 -->
-            <n-button quaternary title="卡片布局：调整顺序与显隐" @click="showLayout = true">
-              <template #icon><AppIcon name="layers" :size="14" /></template>布局
-            </n-button>
             <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态实心红「停止」；主操作排在重启前面 -->
             <n-button
               :type="status?.running ? 'error' : 'primary'"
@@ -878,6 +886,14 @@ function currentOf(g) {
               </button>
               <span v-else-if="!activeProfile?.url" class="sv dim">手动节点（无订阅链接）</span>
               <span v-else class="sv dim">••••••••••••</span>
+              <button
+                v-if="activeProfile?.url"
+                class="sub-eye"
+                title="复制订阅链接"
+                @click="copySubUrl"
+              >
+                <AppIcon name="copy" :size="12" />
+              </button>
               <button
                 v-if="activeProfile?.url"
                 class="sub-eye"
@@ -1475,7 +1491,11 @@ function currentOf(g) {
 .layout-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
+/* ip-zone 把徽标与工具组收进同一个可换行容器：窄屏整组一起流动，不散落 */
+.ip-zone { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .ip-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* 工具组（更多/眼睛/布局）永不拆行 */
+.ip-tools { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .ip-chip {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 600;
@@ -1657,6 +1677,9 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   /* n-flex 子项间距是行内 margin，显式统一成横向 10px 并清掉竖排残留的纵向间距 */
   .hero-actions :deep(.n-button) { margin-right: 10px !important; margin-bottom: 0 !important; flex: 1 1 0; }
   .hero-actions :deep(.n-button:last-child) { margin-right: 0 !important; }
+  /* 窄屏 IP 区整组流动：徽标等分撑满一行，工具组（更多/眼睛/布局）紧跟其后同行 */
+  .ip-inline { flex: 1 1 100%; }
+  .ip-chip { flex: 1 1 auto; max-width: none; justify-content: center; }
 }
 </style>
 
