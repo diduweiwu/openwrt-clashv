@@ -45,7 +45,9 @@ const BROWSER_DIRECT = [
   { source: '3322', url: 'http://ip.3322.net', parse: parseTextIp },
 ]
 
-// 代理源：海外接口，按分流规则经代理出口，逐源兜底（与后端 netcheck.go 同一套源）
+// 代理源：海外接口候选池。浏览器环境无法强制某条请求走代理（某域名可能被
+// 分流直连），因此并发查询全部候选、取「与直连出口不同」的第一个成功结果——
+// 代理出口的定义就是与直连不同的出口；全部相同时如实展示（当前无代理分流）。
 const BROWSER_PROXY = [
   {
     source: 'ip.sb',
@@ -61,6 +63,27 @@ const BROWSER_PROXY = [
         lon: v.longitude != null ? String(v.longitude) : '',
         continent: CONTINENT_CN[v.continent_code] || '',
       }
+    },
+  },
+  {
+    source: 'ip-api.com',
+    url: 'http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,countryCode,city,isp,org,as,timezone,lat,lon,continent',
+    parse: async (res) => {
+      const v = await res.json()
+      if (v.status !== 'success' || !v.query) throw new Error('查询失败')
+      const g = {
+        ip: v.query, country: v.country || '', countryCode: v.countryCode || '',
+        city: v.city || '', isp: v.isp || '', org: v.org || '',
+        asn: '', asnOrg: '', timezone: v.timezone || '', continent: v.continent || '',
+        lat: v.lat != null ? String(v.lat) : '', lon: v.lon != null ? String(v.lon) : '',
+      }
+      // as 形如「AS9808 中国移动…」：首个空格前是自治域号，其余并入自治域组织
+      const asParts = String(v.as || '').trim().split(' ')
+      if (asParts[0]) {
+        g.asn = asParts[0]
+        g.asnOrg = asParts.slice(1).join(' ')
+      }
+      return g
     },
   },
   { source: 'ip.sb/ip', url: 'https://api.ip.sb/ip', parse: parseTextIp },
@@ -94,8 +117,10 @@ async function parseTextIp(res) {
 }
 
 /**
- * 浏览器端依次请求查询源，返回第一个成功的结果；全部失败时逐源汇总原因。
- * @param {Array} sources 查询源列表（BROWSER_DIRECT / BROWSER_PROXY / BROWSER_IPV6）
+ * 浏览器端按序尝试查询源，返回第一个成功的结果；全部失败时逐源汇总原因。
+ * （直连行、IPv6 探测用：源列表本身区分了链路语义，串行兜底即可；
+ * 代理行因无法控制链路走 fetchBrowserProxy 多源并发判定。）
+ * @param {Array} sources 查询源列表
  * @returns {Promise<object>} ipEntry 结构（含 ok/ip/地理字段/source/error）
  */
 async function fetchBrowserEntry(sources) {
@@ -113,6 +138,49 @@ async function fetchBrowserEntry(sources) {
     }
   }
   return { ok: false, ip: '', country: '', countryCode: '', city: '', isp: '', org: '', asn: '', asnOrg: '', timezone: '', continent: '', lat: '', lon: '', source: '', error: errs.join('；') }
+}
+
+/**
+ * 浏览器端查代理出口：并发查询全部候选源，取「与直连出口不同」的第一个成功结果
+ * （按候选列表顺序优先，全字段源排前）；全部与直连相同则取第一个成功的（如实展示）。
+ * @param {string} directIP 直连出口 IP（空串表示直连查询失败，退化为取第一个成功结果）
+ * @returns {Promise<object>} ipEntry 结构
+ */
+async function fetchBrowserProxy(directIP) {
+  const settled = await Promise.allSettled(
+    BROWSER_PROXY.map(async (src) => {
+      // 超时 8 秒：AbortSignal.timeout 老浏览器不存在时退化为不限时
+      const res = await fetch(src.url, { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const fields = await src.parse(res)
+      return { ok: true, ...fields, source: src.source, error: '' }
+    }),
+  )
+  const okResults = settled
+    .map((r) => (r.status === 'fulfilled' ? r.value : null))
+    .filter((e) => e && e.ok)
+  const empty = { ok: false, ip: '', country: '', countryCode: '', city: '', isp: '', org: '', asn: '', asnOrg: '', timezone: '', continent: '', lat: '', lon: '', source: '', error: '全部查询源失败' }
+  if (!okResults.length) return empty
+  // 与直连不同的第一个结果即代理出口；纯文本源（无地理字段）选中时反查补全
+  let pick = okResults.find((e) => directIP && e.ip !== directIP) || okResults[0]
+  if (!pick.countryCode && pick.ip !== directIP) {
+    try {
+      const res = await fetch('https://api.ip.sb/geoip/' + encodeURIComponent(pick.ip), {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined,
+      })
+      if (res.ok) {
+        const v = await res.json()
+        Object.assign(pick, {
+          country: v.country || '', countryCode: v.country_code || '', city: v.city || '',
+          isp: v.isp || '', org: v.organization || '',
+          asn: v.asn ? 'AS' + v.asn : '', asnOrg: v.asn_organization || '',
+          timezone: v.timezone || '', continent: CONTINENT_CN[v.continent_code] || '',
+          lat: v.latitude != null ? String(v.latitude) : '', lon: v.longitude != null ? String(v.longitude) : '',
+        })
+      }
+    } catch { /* 仅缺地理，IP 仍有效 */ }
+  }
+  return pick
 }
 
 /**
@@ -159,21 +227,13 @@ export async function loadIpInfo(running, refresh = false) {
     if (probeMode.value === 'openwrt') {
       ipData.value = await api.get('/api/ipinfo' + (refresh ? '?refresh=1' : ''))
     } else {
-      const [direct, proxy, ipv6] = await Promise.all([
+      const [direct, ipv6] = await Promise.all([
         fetchBrowserDirect(),
-        fetchBrowserEntry(BROWSER_PROXY),
         fetchBrowserEntry(BROWSER_IPV6),
       ])
-      // 安全网：极端分流下直连源也可能被代理——两边归属相反时按「国内归属=直连」对调
-      let d = direct
-      let p = proxy
-      if (direct.ok && proxy.ok && direct.countryCode && proxy.countryCode && direct.countryCode !== proxy.countryCode) {
-        if (proxy.countryCode === 'CN') {
-          d = proxy
-          p = direct
-        }
-      }
-      ipData.value = { direct: d, proxy: p, ipv6, ts: Math.floor(Date.now() / 1000) }
+      // 代理行的判定依赖直连结果（取与直连不同的出口），在直连查询完成后发起
+      const proxy = await fetchBrowserProxy(direct.ok ? direct.ip : '')
+      ipData.value = { direct, proxy, ipv6, ts: Math.floor(Date.now() / 1000) }
     }
   } catch { /* 查询失败静默，展示占位 */ }
   finally { ipLoading.value = false }

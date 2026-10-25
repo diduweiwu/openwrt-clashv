@@ -142,8 +142,7 @@ func parsePlain(b []byte) (*ipGeo, error) {
 	return &ipGeo{IP: ip}, nil
 }
 
-// ipSources 出口 IP 查询源列表，按序尝试直到成功。海外源经代理失败时逐级落到
-// 纯文本端点（只回 IP，胜在轻量）与国内直连可达的 ip-api.com（免费版仅 http）。
+// ipSources 代理出口查询源列表（经混合端口、强制走代理），按序尝试直到成功。
 var ipSources = []ipSource{
 	{name: "ip.sb", url: "https://api.ip.sb/geoip", parse: parseGeoip},
 	{name: "ip.sb/ip", url: "https://api.ip.sb/ip", parse: parsePlain},
@@ -153,6 +152,66 @@ var ipSources = []ipSource{
 		url:   "http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,countryCode,city,isp,org,as,timezone,lat,lon,continent",
 		parse: parseIPApi,
 	},
+}
+
+// directSources 直连出口查询源：国内直连可达的纯文本回显端点。
+// 国外源在 TUN/透明代理接管本机流量时会被内核按规则分流走代理，查到的不是
+// 直连出口；国内源在任何分流规则下都命中 DIRECT，拿到的才是真实直连出口。
+var directSources = []ipSource{
+	{name: "nipw.cn", url: "https://4.wsmdn.top", parse: parsePlain},
+	{name: "3322", url: "http://ip.3322.net", parse: parsePlain},
+}
+
+// geoLookup 反查指定 IP 的地理信息（归属只取决于参数 IP，与查询自身走哪条链路
+// 无关）：ip.sb geoip/{ip} 优先（字段全），ip-api.com/{ip} 兜底（免费版 http）。
+// 全部失败返回 nil，调用方保留仅含 IP 的结果。
+func geoLookup(hc *http.Client, ip string) *ipGeo {
+	sources := []ipSource{
+		{name: "ip.sb", url: "https://api.ip.sb/geoip/" + ip, parse: parseGeoip},
+		{
+			name:  "ip-api.com",
+			url:   "http://ip-api.com/json/" + ip + "?lang=zh-CN&fields=status,query,country,countryCode,city,isp,org,as,timezone,lat,lon,continent",
+			parse: parseIPApi,
+		},
+	}
+	for _, src := range sources {
+		req, err := http.NewRequest("GET", src.url, nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("User-Agent", browserUA)
+		resp, err := hc.Do(req)
+		if err != nil {
+			continue
+		}
+		data, err := func() ([]byte, error) {
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+			}
+			return io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+		}()
+		if err != nil {
+			continue
+		}
+		if g, err := src.parse(data); err == nil {
+			return g
+		}
+	}
+	return nil
+}
+
+// queryDirectEntry 查询真实直连出口：国内纯文本源拿 IP（任何分流下都走 DIRECT），
+// 再反查地理信息补全（失败仅缺地理字段，IP 仍有效）。
+func queryDirectEntry() ipEntry {
+	entry := queryIPEntry(&http.Client{Timeout: 8 * time.Second}, directSources...)
+	if !entry.OK {
+		return entry
+	}
+	if g := geoLookup(&http.Client{Timeout: 8 * time.Second}, entry.IP); g != nil {
+		return entryFromGeo(g, entry.Source)
+	}
+	return entry
 }
 
 // ipEntry 单个出口的查询结果（直连或代理各一份），扩展字段供详情弹窗展示。
@@ -277,7 +336,7 @@ func (d *deps) handleIPInfo(w http.ResponseWriter, r *http.Request) {
 	wg.Add(3)
 	go func() {
 		defer wg.Done()
-		directEntry = queryIPEntry(&http.Client{Timeout: 8 * time.Second})
+		directEntry = queryDirectEntry()
 	}()
 	go func() {
 		defer wg.Done()
@@ -300,8 +359,10 @@ func (d *deps) handleIPInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"direct": directEntry, "proxy": proxyEntry, "ipv6": ipv6Entry, "ts": ts})
 }
 
-// ipv6Sources IPv6 出网探测源：域名只有 AAAA 记录，本机无 IPv6 时连接直接失败。
+// ipv6Sources IPv6 出网探测源：域名只有 AAAA 记录，本机无 IPv6 时连接直接失败；
+// nipw.cn 的 6.wsmdn.top 为国内直连探测（TUN/分流下也走 DIRECT），海外源兜底
 var ipv6Sources = []ipSource{
+	{name: "nipw.cn", url: "https://6.wsmdn.top", parse: parsePlain},
 	{name: "ipv6.ip.sb", url: "https://api-ipv6.ip.sb/ip", parse: parsePlain},
 	{name: "ipv6.ipify", url: "https://api6.ipify.org", parse: parsePlain},
 }
