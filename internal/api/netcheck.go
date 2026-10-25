@@ -11,12 +11,19 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
+
+// browserUA 浏览器 User-Agent：ip.sb 的边缘节点会拦截常见 HTTP 库的默认 UA
+// （官方文档明确提示需自定义），部分站点的 Cloudflare 防护页也对非浏览器 UA 返回 403，
+// 因此出口 IP 查询与解锁测试统一携带浏览器 UA。
+const browserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 
 // ipSource 是一个出口 IP 查询源：URL + 从 JSON 响应里摘字段的方法。
 // 逐源兜底：海外源（ip.sb）可能被墙，直连场景自动落到国内可达的 ip-api.com。
@@ -26,8 +33,8 @@ type ipSource struct {
 	parse func(data []byte) (ip, country, city, isp string, err error)
 }
 
-// ipSources 出口 IP 查询源列表，按序尝试直到成功。
-// ip-api.com 走 http：免费版不支持 https，国内直连可达且无需令牌。
+// ipSources 出口 IP 查询源列表，按序尝试直到成功。海外源经代理失败时逐级落到
+// 纯文本端点（只回 IP，胜在轻量）与国内直连可达的 ip-api.com（免费版仅 http）。
 var ipSources = []ipSource{
 	{
 		name: "ip.sb",
@@ -50,6 +57,16 @@ var ipSources = []ipSource{
 		},
 	},
 	{
+		name:  "ip.sb/ip",
+		url:   "https://api.ip.sb/ip",
+		parse: parsePlainIP,
+	},
+	{
+		name:  "ipify",
+		url:   "https://api.ipify.org",
+		parse: parsePlainIP,
+	},
+	{
 		name: "ip-api.com",
 		url:  "http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,city,isp",
 		parse: func(b []byte) (string, string, string, string, error) {
@@ -69,6 +86,16 @@ var ipSources = []ipSource{
 			return v.Query, v.Country, v.City, v.ISP, nil
 		},
 	},
+}
+
+// parsePlainIP 解析纯文本 IP 端点（api.ip.sb/ip、api.ipify.org）：响应体就是 IP 本身。
+// 只回 IP 不带地理信息（国家/城市/运营商留空，前端位置行显示 —）。
+func parsePlainIP(b []byte) (string, string, string, string, error) {
+	ip := strings.TrimSpace(string(b))
+	if net.ParseIP(ip) == nil {
+		return "", "", "", "", fmt.Errorf("响应不是合法 IP")
+	}
+	return ip, "", "", "", nil
 }
 
 // ipEntry 单个出口的查询结果（直连或代理各一份）。
@@ -94,18 +121,19 @@ type ipInfoCache struct {
 
 var ipCache ipInfoCache
 
-// queryIPEntry 依次尝试各查询源，返回第一个成功的结果；全部失败时汇总错误。
+// queryIPEntry 依次尝试各查询源，返回第一个成功的结果；全部失败时把各源原因
+// 逐个拼进 Error（如「ip.sb: HTTP 502；ip.sb/ip: …」），方便详情弹窗定位是哪个源挂了。
 func queryIPEntry(hc *http.Client) ipEntry {
-	var lastErr string
+	var errs []string
 	for _, src := range ipSources {
 		entry, err := queryOneSource(hc, src)
 		if err == nil {
 			return entry
 		}
-		lastErr = err.Error()
+		errs = append(errs, src.name+": "+err.Error())
 		slog.Debug("出口 IP 查询源失败", "source", src.name, "err", err)
 	}
-	return ipEntry{OK: false, Error: lastErr}
+	return ipEntry{OK: false, Error: strings.Join(errs, "；")}
 }
 
 // queryOneSource 请求单个查询源并解析（响应上限 64KB，超时由 client 控制）。
@@ -114,7 +142,7 @@ func queryOneSource(hc *http.Client, src ipSource) (ipEntry, error) {
 	if err != nil {
 		return ipEntry{}, err
 	}
-	req.Header.Set("User-Agent", "clashv/1.0")
+	req.Header.Set("User-Agent", browserUA)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return ipEntry{}, err
@@ -283,7 +311,7 @@ func testSite(ctx context.Context, hc *http.Client, site unlockSite) unlockResul
 		return res
 	}
 	// 浏览器 UA：部分站点（如 Cloudflare 防护页）对非浏览器 UA 直接 403，会误报不支持
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+	req.Header.Set("User-Agent", browserUA)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
 	resp, err := hc.Do(req)
 	res.MS = time.Since(start).Milliseconds()

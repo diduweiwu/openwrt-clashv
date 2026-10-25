@@ -1549,8 +1549,9 @@ function currentOf(g) {
 
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
 /* ---- 出口 IP 组合瓦片（实时信息卡内）：直连/代理各一行小字，右上工具区「更多」 ---- */
-/* 瓦片行定高 69px 装不下三行：组合瓦片放开高度，避免内容溢出 */
-.traffic-nums .ip-combo { height: auto; min-height: 69px; }
+/* 瓦片行定高 69px 装不下三行：组合瓦片放开高度，避免内容溢出；
+ * 跨两列放宽（其余瓦片单列）：一行小字装不下完整 IPv4，放宽比一味缩字更可靠 */
+.traffic-nums .ip-combo { height: auto; min-height: 69px; grid-column: span 2; }
 .ip-combo .k { white-space: nowrap; }
 /* 右上「更多」入口：纯图标小钮（tile-gear 同款交互，样式独立声明） */
 .ip-more {
@@ -1565,13 +1566,13 @@ function currentOf(g) {
 .ip-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .ip-row em {
   font-style: normal; flex: none;
-  color: var(--text-dim); font-size: 10.5px; font-weight: 500;
+  color: var(--text-dim); font-size: 10px; font-weight: 500;
 }
 .ip-row-v {
   flex: 1; min-width: 0; text-align: left;
   background: transparent; border: none; cursor: pointer;
   padding: 0; color: var(--text);
-  font-size: 11px; font-weight: 600;
+  font-size: 10.5px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ip-row-v:hover { color: var(--accent); }
