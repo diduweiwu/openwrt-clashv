@@ -27,20 +27,30 @@ const GAP_MS = 5000           // 相邻采样间隔超过此值视为断档（�
 let ro = null                 // ResizeObserver：容器宽度变化（侧栏收起/转屏）时重绘
 
 /**
- * 把 Y 轴满程值向上取整到 2 的幂（8KB 起步），刻度标签是好看的整数速率。
- * 注意不能只在单一数量级内取「1/2/4/8/16 倍」：数据可能达基数的数百倍
+ * 把 Y 轴满程值向上取整到整洁刻度，让满程尽量贴近当前峰值、减少轴顶留白。
+ * 刻度序列为 0.5/0.75/1/1.5/2/3/4/5/6/8/10 × 基数（1024 的幂，8KB/s 起步），
+ * 相邻档密度约 25%，比纯 2 的幂（相邻翻倍、最多浪费一半高度）贴合得多；
+ * 标签仍是整洁速率：512 KB/s、768 KB/s、1.0 MB/s、1.5 MB/s…
+ * 注意不能只在单一数量级内取「1/2/4 倍」：数据可能达基数的数百倍
  * （如 576 KB/s = 576×1KB），那样取出的满程反而小于数据、曲线顶出绘图区。
  *
- * @param {number} v 待取整的速率下界（字节/秒），须 > 0
- * @returns {number} 取整后的满程值，恒 >= v 且 >= 8KB
+ * @param {number} v 待取整的速率下界（字节/秒），恒返回 >= max(v, 8KB)
+ * @returns {number} 取整后的满程值
  *
  * @example
- * niceCeil(589_824) // → 1_048_576（1 MB/s）
+ * niceCeil(589_824) // → 655_360（640 KB/s，而非旧逻辑的 1 MB/s）
  */
 function niceCeil(v) {
-  let m = 1024 * 8
-  while (m < v) m *= 2
-  return m
+  const steps = [0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 8, 10]
+  let unit = 8 * 1024
+  if (v <= unit) return unit
+  // 跨数量级：当前基数 ×10 仍盖不住时基数 ×16（8K→128K→2M…，相邻基数区间重叠无空档）
+  while (unit * steps[steps.length - 1] < v) unit *= 16
+  for (const k of steps) {
+    const m = unit * k
+    if (m >= v) return m
+  }
+  return unit * steps[steps.length - 1]
 }
 
 /**
