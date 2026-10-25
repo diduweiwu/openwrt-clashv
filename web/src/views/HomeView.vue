@@ -3,15 +3,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NFlex, NInput, NModal, NProgress, NTag, NSwitch } from 'naive-ui'
 import { api } from '../api.js'
-import { store, toast, ask, fmtRate, fmtBytes, fmtUptime, fmtTime, tripTotals, resetTrip, delayColor } from '../store.js'
+import { store, toast, ask, fmtRate, fmtBytes, fmtTime, tripTotals, resetTrip, delayColor } from '../store.js'
 import { useGroupTest, GROUP_TYPES } from '../useGroupTest.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
 import UpdateModal from '../components/UpdateModal.vue'
 import IpInfoModal from '../components/IpInfoModal.vue'
 import UnlockPanel from '../components/UnlockPanel.vue'
+import HomeInfoCards from '../components/HomeInfoCards.vue'
 import AppIcon from '../components/AppIcon.vue'
 import { showIps } from '../ipDisplay.js'
+import { ipData, loadIpInfo, ipText, ipPlace as ipTitle, copyIp } from '../ipinfo.js'
 
 const busy = ref('')
 
@@ -670,53 +672,17 @@ const portHelp = computed(() => {
 })
 
 // ---- 出口 IP：运行中在版本号旁显示 国内直连 IP / 代理出口 IP，点「更多」弹窗看详情。
-// ---- 数据来自 /api/ipinfo（后端 60s 缓存），显示/隐藏偏好存 localStorage（ipDisplay.js） ----
-const ipData = ref(null) // {direct:{ip,...}, proxy:{ip,...}, ts}
-const ipLoading = ref(false)
+// ---- 数据与「IP 信息」卡片共用 ipinfo.js 同一份状态；显示/隐藏偏好存 localStorage（ipDisplay.js） ----
 const showIpModal = ref(false)
-
-// 瓦片文本：查询中/失败显示占位符
-function ipText(e) {
-  return e?.ok ? e.ip : (e ? '查询失败' : '…')
-}
-// 悬浮提示：位置 + 运营商
-function ipTitle(e) {
-  if (!e?.ok) return ''
-  return [e.country, e.city, e.isp].filter(Boolean).join(' · ')
-}
-
-async function loadIpInfo(refresh = false) {
-  if (!status.value?.running) return
-  ipLoading.value = true
-  try {
-    ipData.value = await api.get('/api/ipinfo' + (refresh ? '?refresh=1' : ''))
-  } catch { /* 查询失败静默，瓦片显示占位 */ }
-  finally { ipLoading.value = false }
-}
 
 // 内核启动/停止时拉取或清空；重启（running 抖动）后也会重新拉
 watch(
   () => status.value?.running,
   (running) => {
-    if (running) loadIpInfo()
+    if (running) loadIpInfo(running)
     else ipData.value = null
   },
 )
-
-// 复制 IP（LuCI http 内嵌非 secure 上下文退 execCommand，同 IpInfoModal）
-function copyIp(e) {
-  if (!e?.ok) return
-  const done = () => toast('已复制 ' + e.ip, 'success')
-  navigator.clipboard?.writeText(e.ip).then(done).catch(() => {
-    const ta = document.createElement('textarea')
-    ta.value = e.ip
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    ta.remove()
-    done()
-  })
-}
 
 // status 晚于挂载到达时，运行起来后补一次代理列表
 watch(
@@ -822,93 +788,19 @@ function currentOf(g) {
             </n-button>
           </n-flex>
         </div>
-        <!-- 瓦片行：状态 3 块 + 快捷 4 块（TUN/DNS/混合端口/出站模式）挤同一排等宽，齿轮弹对应设置弹窗；
-             tint-* 四色淡彩底循环（style.css --tile-*），相邻不同色便于区分 -->
-        <div class="hero-tiles">
-          <div class="meta-item tint-a">
-            <span class="k">
-              <AppIcon name="cpu" :size="13" />内核版本
-              <button
-                class="tile-gear"
-                :class="{ busy: coreUpgrading && corePercent > 0 }"
-                :title="coreUpgrading ? (coreStageText || '内核升级中…') : '检查内核更新'"
-                :aria-label="coreUpgrading ? (coreStageText || '内核升级中') : '检查内核更新'"
-                :disabled="coreUpgrading"
-                @click="checkCoreUpdate"
-              >
-                <!-- 升级中同样换成迷你圆形进度条，与版本 tag 一致 -->
-                <n-progress
-                  v-if="coreUpgrading && corePercent > 0"
-                  class="tag-prog"
-                  type="circle"
-                  color="currentColor"
-                  :percentage="corePercent"
-                  :show-indicator="false"
-                  :stroke-width="24"
-                />
-                <AppIcon v-else name="refresh" :size="12" :class="{ spin: coreChecking || coreUpgrading }" />
-              </button>
-            </span>
-            <span class="v mono" :class="{ dim: !!coreStageText }" :title="coreStageText || status?.core?.version || '未安装'">
-              {{ coreStageText || status?.core?.version || '未安装' }}
-            </span>
-          </div>
-          <div class="meta-item tint-b">
-            <span class="k"><AppIcon name="server" :size="13" />平台架构</span>
-            <!-- title 给完整平台名（含 linux- 前缀）：瓦片值展示时去掉了前缀，悬浮可看全 -->
-            <span class="v mono" :class="{ dim: !status?.core?.platform }" :title="status?.core?.platform || '不支持'">
-              {{ status?.core?.platform ? status.core.platform.replace(/^linux-/, '') : '不支持' }}
-            </span>
-          </div>
-          <div class="meta-item tint-c">
-            <span class="k"><AppIcon name="clock" :size="13" />运行时长</span>
-            <span class="v mono" :title="status?.running ? fmtUptime(status.uptime) : ''">{{ status?.running ? fmtUptime(status.uptime) : '—' }}</span>
-          </div>
-          <div class="meta-item tint-d">
-            <span class="k">
-              <AppIcon name="network" :size="13" />TUN
-              <button class="tile-gear" title="TUN 设置" @click="openTun">
-                <AppIcon name="gear" :size="12" />
-              </button>
-            </span>
-            <span class="v mono" :class="{ dim: !status?.tun }" :title="status?.tun ? `开启 · ${status.tun_stack || 'mixed'}` : '未开启'">
-              {{ status?.tun ? `开启 · ${status.tun_stack || 'mixed'}` : '未开启' }}
-            </span>
-          </div>
-          <div class="meta-item tint-a">
-            <span class="k">
-              <AppIcon name="globe" :size="13" />DNS
-              <button class="tile-gear" title="DNS 设置" @click="openDns">
-                <AppIcon name="gear" :size="12" />
-              </button>
-            </span>
-            <span class="v mono" :class="{ dim: !status?.dns }" :title="status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管'">
-              {{ status?.dns ? (status.dns_mode === 'fake-ip' ? 'Fake-IP' : status.dns_mode) : '未接管' }}
-            </span>
-          </div>
-          <div class="meta-item tint-b">
-            <span class="k">
-              <AppIcon name="plug" :size="13" />混合端口
-              <button class="tile-gear" title="混合端口使用说明" @click="showPort = true">
-                <AppIcon name="gear" :size="12" />
-              </button>
-            </span>
-            <span class="v mono" :title="status?.mixed_port ? String(status.mixed_port) : ''">{{ status?.mixed_port || '—' }}</span>
-          </div>
-          <div class="meta-item tint-c">
-            <span class="k">
-              <AppIcon name="layers" :size="13" />出站模式
-              <button class="tile-gear" title="切换出站模式" @click="showMode = true">
-                <AppIcon name="gear" :size="12" />
-              </button>
-            </span>
-            <span class="v" :title="MODE_LABEL[status?.mode] || '规则'">
-              <n-tag size="small" round :bordered="false" type="primary">{{ MODE_LABEL[status?.mode] || '规则' }}</n-tag>
-            </span>
-          </div>
-        </div>
+        <!-- 瓦片行已收进下方「Clash 信息 / 系统信息 / IP 信息」卡片（home-grid 两列网格） -->
       </n-flex>
     </n-card>
+
+    <!-- 信息卡网格：解锁测试 | IP 信息 / Clash 信息 | 系统信息（窄屏单列） -->
+    <div class="home-grid">
+      <UnlockPanel />
+      <HomeInfoCards
+        :core-busy="coreUpgrading" :core-percent="corePercent" :core-stage="coreStageText"
+        @check-core="checkCoreUpdate" @open-tun="openTun" @open-dns="openDns"
+        @open-mode="showMode = true" @open-port="showPort = true"
+      />
+    </div>
 
     <!-- 当前订阅：快捷瓦片已并入运行卡瓦片行，订阅卡独占一行 -->
     <n-card>
@@ -998,8 +890,7 @@ function currentOf(g) {
       <n-empty v-else description="内核未运行" style="padding: 40px 0" />
     </n-card>
 
-    <!-- 解锁测试：经当前代理出口逐站测试可达性，支持添加自定义站点 -->
-    <UnlockPanel />
+    <!-- 解锁测试与信息卡已在上方 home-grid 两列网格，此处不再单独放卡 -->
 
     <!-- 切换节点：分组手风琴，默认全展开；容器限高，超出出现竖向滚动 -->
     <n-card>
@@ -1337,22 +1228,6 @@ function currentOf(g) {
   box-shadow: 0 4px 18px var(--accent-soft);
 }
 .meta-item .k { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11.5px; }
-/* 瓦片标题行尾的小齿轮：默认很淡，悬停亮起 */
-.tile-gear {
-  margin-left: auto;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px; padding: 0;
-  border: none; border-radius: 5px;
-  background: transparent; cursor: pointer;
-  color: currentColor; opacity: 0.55;
-}
-.tile-gear:hover { opacity: 1; color: var(--accent); background: var(--hover); }
-/* 升级中禁用（纯进度展示）：置灰且不出现 hover 反馈，悬浮 title 仍显示进度 */
-.tile-gear:disabled,
-.tile-gear:disabled:hover {
-  opacity: 0.6; cursor: default;
-  color: currentColor; background: transparent;
-}
 
 /* 出站模式 / DNS 弹窗的选项卡片 */
 .mode-body { display: flex; flex-direction: column; gap: 8px; }
@@ -1437,28 +1312,12 @@ function currentOf(g) {
 /* 升级中的迷你圆形进度条：顶替原图标位。naive-ui circle 默认 120px，
    选择器带 .n-progress 拉高优先级盖掉默认宽度（scoped 与 cssr 注入顺序不保证）。
    进度中按钮恢复不透明度：disabled 的 0.6 透明度会把弧线压得太淡 */
-.tag-refresh .tag-prog.n-progress.n-progress--circle,
-.tile-gear .tag-prog.n-progress.n-progress--circle {
+.tag-refresh .tag-prog.n-progress.n-progress--circle {
   width: 13px; height: 13px; display: block;
 }
-.tag-refresh.busy:disabled,
-.tile-gear.busy:disabled,
-.tile-gear.busy:disabled:hover { opacity: 1; }
-/* 瓦片行网格：7 块（状态 3 + 快捷 4）挤同一排 7 列等宽；与流量瓦片行同列规格，上下分隔线逐列对齐 */
-.hero-tiles { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; }
-/* 标签行不折行：标签都很短，折行反而破坏标签+齿轮的对齐 */
-.hero-tiles .meta-item .k { white-space: nowrap; }
-/* 值单行不折行，放不下截断省略号：保持瓦片高度恒定（完整内容悬浮 title 查看）。
-   注意 overflow 链路：.meta-item 已 min-width:0，span 在 flex 列里按列宽收缩，
-   nowrap+hidden+ellipsis 三件套缺一不可，否则长值（amd64-compatible）顶出瓦片 */
-.hero-tiles .meta-item .v {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 快捷瓦片（TUN/DNS/混合端口/出站模式）标题行的齿轮贴右 */
-.meta-item .k .tile-gear { margin-left: auto; }
+.tag-refresh.busy:disabled { opacity: 1; }
+/* ---- 信息卡网格：解锁测试 | IP 信息 / Clash 信息 | 系统信息，窄屏转单列 ---- */
+.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
 .ip-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1596,11 +1455,8 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
 
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
-  /* 窄屏 7 块瓦片固定每行两块（等分而非按内容取宽，避免不齐排布；末行单块占半行与桌面留空同规则） */
-  .hero-tiles { grid-template-columns: repeat(2, 1fr); }
-  .hero-tiles .meta-item { padding: 8px 10px 9px; }
-  .hero-tiles .meta-item .k { gap: 4px; }
-  .hero-tiles .meta-item .k .tile-gear { width: 16px; height: 16px; }
+  /* 信息卡网格窄屏转单列 */
+  .home-grid { grid-template-columns: 1fr; }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: 62px; }
