@@ -140,9 +140,10 @@ const hint = computed(() => '经当前代理出口测试 · 2xx/3xx 视为支持
           <n-tag size="small" round :bordered="false" :type="isTesting(site) ? 'info' : view(site).type">
             {{ isTesting(site) ? '测试中…' : view(site).tag }}
           </n-tag>
+          <!-- 状态码+耗时贴标签行右侧：底部一行放不下会被截断（HT...），完整内容悬浮可见 -->
+          <span class="u-code mono" :title="view(site).detail">{{ isTesting(site) ? '' : view(site).detail }}</span>
         </div>
         <div class="u-foot">
-          <span class="u-detail" :title="view(site).detail">{{ view(site).detail }}</span>
           <span class="u-time">{{ view(site).at ? fmtTime(view(site).at) : '' }}</span>
         </div>
       </div>
@@ -213,14 +214,17 @@ const hint = computed(() => '经当前代理出口测试 · 2xx/3xx 视为支持
 .u-btn:hover { opacity: 1; color: var(--accent); background: var(--hover); }
 .u-btn.danger:hover { color: var(--red); }
 .u-btn:disabled { cursor: default; opacity: 0.6; color: var(--text-dim); }
-.u-foot {
+.u-status {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  border-top: 1px dashed var(--border); padding-top: 6px;
 }
-.u-detail {
-  flex: 1; min-width: 0;
+.u-code {
+  flex: 1; min-width: 0; text-align: right;
   color: var(--text-dim); font-size: 11px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.u-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  border-top: 1px dashed var(--border); padding-top: 6px;
 }
 .u-time { color: var(--text-dim); font-size: 11px; flex: none; }
 .spin { animation: u-spin 0.9s linear infinite; }
