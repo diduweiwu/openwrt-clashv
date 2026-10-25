@@ -1575,26 +1575,29 @@ function currentOf(g) {
 .ip-combo .k { white-space: nowrap; }
 /* 右上「更多」入口：纯图标小钮（tile-gear 同款交互，样式独立声明） */
 .ip-more {
-  margin-left: auto;
   display: inline-flex; align-items: center; justify-content: center;
   width: 18px; height: 18px; padding: 0;
   border: none; border-radius: 5px;
   background: transparent; cursor: pointer;
   color: currentColor; opacity: 0.55;
 }
+/* 两个图标钮右对齐：只有首个（更多详情）用 auto 推右，相邻钮紧贴留 3px 间距
+ * （margin-left:auto 写在 .ip-more 上时两钮平分剩余空间，中间隔一大截） */
+.ip-combo .k .ip-more:first-of-type { margin-left: auto; }
+.ip-combo .k .ip-more + .ip-more { margin-left: 3px; }
 .ip-more:hover { opacity: 1; color: var(--accent); background: var(--hover); }
 /* 选中态：OpenWrt 后端检测模式，主题蓝常亮 */
 .ip-more.on { opacity: 1; color: var(--accent); }
 .ip-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .ip-row em {
   font-style: normal; flex: none;
-  color: var(--text-dim); font-size: 9px; font-weight: 500;
+  color: var(--text-dim); font-size: 11px; font-weight: 500;
 }
 .ip-row-v {
   flex: 1; min-width: 0; text-align: left;
   background: transparent; border: none; cursor: pointer;
   padding: 0; color: var(--text);
-  font-size: 9px; font-weight: 600;
+  font-size: 11px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ip-row-v:hover { color: var(--accent); }
