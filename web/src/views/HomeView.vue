@@ -1469,7 +1469,7 @@ function currentOf(g) {
 .traffic-nums .meta-item { height: auto; min-height: 69px; }
 .traffic-nums .meta-item .v { font-size: 22px; white-space: nowrap; }
 /* 瓦片数值的单位小一号：数值保持醒目，B/s、MB 等单位没必要同大 */
-.traffic-nums .meta-item .v-unit { font-style: normal; font-size: 13px; font-weight: 600; margin-left: 2px; opacity: 0.85; }
+.traffic-nums .meta-item .v-unit { font-style: normal; font-size: 15px; font-weight: 600; margin-left: 2px; opacity: 0.85; }
 .trip-reset { flex: none; margin-left: auto; }
 /* 流量曲线与上方指标瓦片的分隔：上下留白拉开距离 + 一条虚线（与订阅卡片分隔风格一致） */
 .chart-gap { margin: 16px 0 12px; border-top: 1px dashed var(--border); }
@@ -1568,13 +1568,13 @@ function currentOf(g) {
 .ip-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .ip-row em {
   font-style: normal; flex: none;
-  color: var(--text-dim); font-size: 10px; font-weight: 500;
+  color: var(--text-dim); font-size: 12px; font-weight: 500;
 }
 .ip-row-v {
   flex: 1; min-width: 0; text-align: left;
   background: transparent; border: none; cursor: pointer;
   padding: 0; color: var(--text);
-  font-size: 10px; font-weight: 600;
+  font-size: 13px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ip-row-v:hover { color: var(--accent); }
@@ -1731,7 +1731,7 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: auto; min-height: 62px; }
   .traffic-nums .meta-item .v { font-size: 16px; }
-  .traffic-nums .meta-item .v-unit { font-size: 11px; }
+  .traffic-nums .meta-item .v-unit { font-size: 13px; }
   .sub-bar { max-width: 100%; }
   /* 窄屏组头放不下四段信息：当前节点与展开的节点卡高亮重复，藏掉保组名完整 */
   .g-now { display: none; }
