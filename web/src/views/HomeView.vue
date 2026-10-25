@@ -785,12 +785,13 @@ function currentOf(g) {
             >
               <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="14" />
             </n-button>
-            <!-- 卡片布局入口：调整首页各卡片的顺序与显隐（弹窗） -->
-            <n-button quaternary size="tiny" class="ip-eye" title="卡片布局：调整顺序与显隐" @click="showLayout = true">
-              <AppIcon name="layers" :size="14" />
-            </n-button>
           </template>
           <n-flex class="hero-actions" :size="10">
+            <!-- 卡片布局入口：调整首页各卡片的顺序与显隐（弹窗）。
+                 放在按钮组最左、常驻显示，不依赖版本号/IP 等异步组件加载完成 -->
+            <n-button quaternary title="卡片布局：调整顺序与显隐" @click="showLayout = true">
+              <template #icon><AppIcon name="layers" :size="14" /></template>布局
+            </n-button>
             <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态实心红「停止」；主操作排在重启前面 -->
             <n-button
               :type="status?.running ? 'error' : 'primary'"
@@ -954,7 +955,11 @@ function currentOf(g) {
     </n-card>
 
     <!-- 页面末尾：解锁测试独占一行，IP 信息 / Clash 信息 / 系统信息三卡一行（等高，窄屏单列） -->
-    <UnlockPanel v-if="sectionVisible('unlock')" :style="secStyle('unlock')" />
+    <!-- UnlockPanel 是多根组件（卡片+弹窗），Vue 不对多根组件做 attrs 透传，
+         order/v-if 必须套在外层 div 上，否则排序样式会静默失效（曾致解锁测试跑到最前） -->
+    <div v-if="sectionVisible('unlock')" :style="secStyle('unlock')">
+      <UnlockPanel />
+    </div>
     <div v-if="sectionVisible('info')" class="home-grid3" :style="secStyle('info')">
       <HomeInfoCards
         :core-busy="coreUpgrading" :core-percent="corePercent" :core-stage="coreStageText"
