@@ -788,19 +788,9 @@ function currentOf(g) {
             </n-button>
           </n-flex>
         </div>
-        <!-- 瓦片行已收进下方「Clash 信息 / 系统信息 / IP 信息」卡片（home-grid 两列网格） -->
+        <!-- 瓦片行已收进页面末尾的「IP 信息 / Clash 信息 / 系统信息」卡片 -->
       </n-flex>
     </n-card>
-
-    <!-- 信息卡网格：解锁测试 | IP 信息 / Clash 信息 | 系统信息（窄屏单列） -->
-    <div class="home-grid">
-      <UnlockPanel />
-      <HomeInfoCards
-        :core-busy="coreUpgrading" :core-percent="corePercent" :core-stage="coreStageText"
-        @check-core="checkCoreUpdate" @open-tun="openTun" @open-dns="openDns"
-        @open-mode="showMode = true" @open-port="showPort = true"
-      />
-    </div>
 
     <!-- 当前订阅：快捷瓦片已并入运行卡瓦片行，订阅卡独占一行 -->
     <n-card>
@@ -890,8 +880,6 @@ function currentOf(g) {
       <n-empty v-else description="内核未运行" style="padding: 40px 0" />
     </n-card>
 
-    <!-- 解锁测试与信息卡已在上方 home-grid 两列网格，此处不再单独放卡 -->
-
     <!-- 切换节点：分组手风琴，默认全展开；容器限高，超出出现竖向滚动 -->
     <n-card>
       <div class="sec-head">
@@ -940,6 +928,16 @@ function currentOf(g) {
         </div>
       </div>
     </n-card>
+
+    <!-- 页面末尾：解锁测试独占一行，IP 信息 / Clash 信息 / 系统信息三卡一行（等高，窄屏单列） -->
+    <UnlockPanel />
+    <div class="home-grid3">
+      <HomeInfoCards
+        :core-busy="coreUpgrading" :core-percent="corePercent" :core-stage="coreStageText"
+        @check-core="checkCoreUpdate" @open-tun="openTun" @open-dns="openDns"
+        @open-mode="showMode = true" @open-port="showPort = true"
+      />
+    </div>
 
     <!-- 添加订阅弹窗（首页原地弹出） -->
     <SubFormModal :open="showAdd" @close="showAdd = false" @added="onSubAdded" />
@@ -1316,8 +1314,10 @@ function currentOf(g) {
   width: 13px; height: 13px; display: block;
 }
 .tag-refresh.busy:disabled { opacity: 1; }
-/* ---- 信息卡网格：解锁测试 | IP 信息 / Clash 信息 | 系统信息，窄屏转单列 ---- */
-.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+/* ---- 信息卡网格：IP 信息 / Clash 信息 / 系统信息三卡一行等高，窄屏转单列 ---- */
+.home-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
+/* 三卡等高：grid 拉伸 + 卡片占满网格区域高度 */
+.home-grid3 > .n-card { height: 100%; }
 
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
 .ip-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -1456,7 +1456,8 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
 /* ---- 手机/平板（≤960，覆盖平板竖屏+小窗）：瓦片与卡片改为可换行的窄列，避免挤压 ---- */
 @media (max-width: 960px) {
   /* 信息卡网格窄屏转单列 */
-  .home-grid { grid-template-columns: 1fr; }
+  /* 信息卡三卡一行窄屏转单列 */
+  .home-grid3 { grid-template-columns: 1fr; }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: 62px; }
