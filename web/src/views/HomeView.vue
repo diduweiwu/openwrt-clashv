@@ -1433,7 +1433,7 @@ function currentOf(g) {
 .traffic-nums { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
 /* 瓦片高度跟随最高者（出口 IP 组合瓦片三行）等高：grid stretch 自动对齐 */
 .traffic-nums .meta-item { height: auto; min-height: 69px; }
-.traffic-nums .meta-item .v { font-size: 16px; white-space: nowrap; }
+.traffic-nums .meta-item .v { font-size: 19px; white-space: nowrap; }
 .trip-reset { flex: none; margin-left: auto; }
 /* 流量曲线与上方指标瓦片的分隔：上下留白拉开距离 + 一条虚线（与订阅卡片分隔风格一致） */
 .chart-gap { margin: 16px 0 12px; border-top: 1px dashed var(--border); }
@@ -1675,7 +1675,7 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   /* 流量瓦片 2×2 */
   .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: auto; min-height: 62px; }
-  .traffic-nums .meta-item .v { font-size: 14px; }
+  .traffic-nums .meta-item .v { font-size: 16px; }
   .sub-bar { max-width: 100%; }
   /* 窄屏组头放不下四段信息：当前节点与展开的节点卡高亮重复，藏掉保组名完整 */
   .g-now { display: none; }
