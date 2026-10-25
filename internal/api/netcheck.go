@@ -25,88 +25,164 @@ import (
 // 因此出口 IP 查询与解锁测试统一携带浏览器 UA。
 const browserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 
-// ipSource 是一个出口 IP 查询源：URL + 从 JSON 响应里摘字段的方法。
+// ipGeo 单个查询源的完整地理信息：字段缺失留空，由解析函数尽力填充。
+type ipGeo struct {
+	IP          string // 出口 IP
+	Country     string // 国家/地区（ip-api 为中文名，ip.sb 为英文国名）
+	CountryCode string // 国家/地区代码（前端转国旗 emoji）
+	City        string // 城市
+	ISP         string // 运营商
+	Org         string // 所属组织
+	ASN         string // 自治域号，形如 AS9808
+	ASNOrg      string // 自治域组织
+	Continent   string // 大洲（已转中文）
+	Timezone    string // 时区，如 Asia/Shanghai
+	Lat         string // 纬度
+	Lon         string // 经度
+}
+
+// ipSource 是一个出口 IP 查询源：URL + 从响应里摘字段的方法。
 // 逐源兜底：海外源（ip.sb）可能被墙，直连场景自动落到国内可达的 ip-api.com。
 type ipSource struct {
-	name string
-	url  string
-	parse func(data []byte) (ip, country, city, isp string, err error)
+	name  string
+	url   string
+	parse func(data []byte) (*ipGeo, error)
+}
+
+// continentCN 大洲代码 → 中文名（详情弹窗展示用）
+var continentCN = map[string]string{
+	"AS": "亚洲", "EU": "欧洲", "NA": "北美洲", "SA": "南美洲",
+	"AF": "非洲", "OC": "大洋洲", "AN": "南极洲",
+}
+
+// parseGeoip 解析 ip.sb /geoip 的 JSON 响应（免费版自带 ASN/组织/时区/坐标全套字段）。
+func parseGeoip(b []byte) (*ipGeo, error) {
+	var v struct {
+		IP              string  `json:"ip"`
+		Country         string  `json:"country"`
+		CountryCode     string  `json:"country_code"`
+		City            string  `json:"city"`
+		ISP             string  `json:"isp"`
+		Organization    string  `json:"organization"`
+		ASN             int     `json:"asn"`
+		ASNOrganization string  `json:"asn_organization"`
+		ContinentCode   string  `json:"continent_code"`
+		Timezone        string  `json:"timezone"`
+		Latitude        float64 `json:"latitude"`
+		Longitude       float64 `json:"longitude"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return nil, err
+	}
+	if v.IP == "" {
+		return nil, fmt.Errorf("响应缺少 ip 字段")
+	}
+	g := &ipGeo{
+		IP: v.IP, Country: v.Country, CountryCode: v.CountryCode, City: v.City,
+		ISP: v.ISP, Org: v.Organization, ASNOrg: v.ASNOrganization,
+		Timezone: v.Timezone, Continent: continentCN[v.ContinentCode],
+	}
+	if v.ASN > 0 {
+		g.ASN = "AS" + strconv.Itoa(v.ASN)
+	}
+	if v.Latitude != 0 || v.Longitude != 0 {
+		g.Lat = strconv.FormatFloat(v.Latitude, 'f', -1, 64)
+		g.Lon = strconv.FormatFloat(v.Longitude, 'f', -1, 64)
+	}
+	return g, nil
+}
+
+// parseIPApi 解析 ip-api.com 的 JSON 响应（免费版 http，as 字段形如「AS9808 中国移动」需拆分）。
+func parseIPApi(b []byte) (*ipGeo, error) {
+	var v struct {
+		Status      string  `json:"status"`
+		Query       string  `json:"query"`
+		Country     string  `json:"country"`
+		CountryCode string  `json:"countryCode"`
+		City        string  `json:"city"`
+		ISP         string  `json:"isp"`
+		Org         string  `json:"org"`
+		AS          string  `json:"as"`
+		Continent   string  `json:"continent"`
+		Timezone    string  `json:"timezone"`
+		Lat         float64 `json:"lat"`
+		Lon         float64 `json:"lon"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return nil, err
+	}
+	if v.Status != "success" || v.Query == "" {
+		return nil, fmt.Errorf("查询失败")
+	}
+	g := &ipGeo{
+		IP: v.Query, Country: v.Country, CountryCode: v.CountryCode, City: v.City,
+		ISP: v.ISP, Org: v.Org, Timezone: v.Timezone, Continent: v.Continent,
+	}
+	// as 形如「AS9808 中国移动…」：首个空格前是自治域号，其余并入自治域组织
+	if fields := strings.SplitN(strings.TrimSpace(v.AS), " ", 2); len(fields) > 0 && fields[0] != "" {
+		g.ASN = fields[0]
+		if len(fields) > 1 {
+			g.ASNOrg = fields[1]
+		}
+	}
+	if v.Lat != 0 || v.Lon != 0 {
+		g.Lat = strconv.FormatFloat(v.Lat, 'f', -1, 64)
+		g.Lon = strconv.FormatFloat(v.Lon, 'f', -1, 64)
+	}
+	return g, nil
+}
+
+// parsePlain 解析纯文本 IP 端点（api.ip.sb/ip、api-ipv6.ip.sb/ip、api.ipify.org）：
+// 响应体就是 IP 本身，不带地理信息（其余字段留空）。
+func parsePlain(b []byte) (*ipGeo, error) {
+	ip := strings.TrimSpace(string(b))
+	if net.ParseIP(ip) == nil {
+		return nil, fmt.Errorf("响应不是合法 IP")
+	}
+	return &ipGeo{IP: ip}, nil
 }
 
 // ipSources 出口 IP 查询源列表，按序尝试直到成功。海外源经代理失败时逐级落到
 // 纯文本端点（只回 IP，胜在轻量）与国内直连可达的 ip-api.com（免费版仅 http）。
 var ipSources = []ipSource{
+	{name: "ip.sb", url: "https://api.ip.sb/geoip", parse: parseGeoip},
+	{name: "ip.sb/ip", url: "https://api.ip.sb/ip", parse: parsePlain},
+	{name: "ipify", url: "https://api.ipify.org", parse: parsePlain},
 	{
-		name: "ip.sb",
-		url:  "https://api.ip.sb/geoip",
-		parse: func(b []byte) (string, string, string, string, error) {
-			var v struct {
-				IP          string `json:"ip"`
-				Country     string `json:"country"`
-				CountryCode string `json:"country_code"`
-				City        string `json:"city"`
-				ISP         string `json:"isp"`
-			}
-			if err := json.Unmarshal(b, &v); err != nil {
-				return "", "", "", "", err
-			}
-			if v.IP == "" {
-				return "", "", "", "", fmt.Errorf("响应缺少 ip 字段")
-			}
-			return v.IP, v.CountryCode, v.City, v.ISP, nil
-		},
-	},
-	{
-		name:  "ip.sb/ip",
-		url:   "https://api.ip.sb/ip",
-		parse: parsePlainIP,
-	},
-	{
-		name:  "ipify",
-		url:   "https://api.ipify.org",
-		parse: parsePlainIP,
-	},
-	{
-		name: "ip-api.com",
-		url:  "http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,city,isp",
-		parse: func(b []byte) (string, string, string, string, error) {
-			var v struct {
-				Status  string `json:"status"`
-				Query   string `json:"query"`
-				Country string `json:"country"`
-				City    string `json:"city"`
-				ISP     string `json:"isp"`
-			}
-			if err := json.Unmarshal(b, &v); err != nil {
-				return "", "", "", "", err
-			}
-			if v.Status != "success" || v.Query == "" {
-				return "", "", "", "", fmt.Errorf("查询失败")
-			}
-			return v.Query, v.Country, v.City, v.ISP, nil
-		},
+		name:  "ip-api.com",
+		url:   "http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,countryCode,city,isp,org,as,timezone,lat,lon,continent",
+		parse: parseIPApi,
 	},
 }
 
-// parsePlainIP 解析纯文本 IP 端点（api.ip.sb/ip、api.ipify.org）：响应体就是 IP 本身。
-// 只回 IP 不带地理信息（国家/城市/运营商留空，前端位置行显示 —）。
-func parsePlainIP(b []byte) (string, string, string, string, error) {
-	ip := strings.TrimSpace(string(b))
-	if net.ParseIP(ip) == nil {
-		return "", "", "", "", fmt.Errorf("响应不是合法 IP")
-	}
-	return ip, "", "", "", nil
-}
-
-// ipEntry 单个出口的查询结果（直连或代理各一份）。
+// ipEntry 单个出口的查询结果（直连或代理各一份），扩展字段供详情弹窗展示。
 type ipEntry struct {
 	OK      bool   `json:"ok"`      // 是否至少有一个源查询成功
 	IP      string `json:"ip"`      // 出口 IP
-	Country string `json:"country"` // 国家/地区（国内源为中文，海外源为国家代码）
+	Country string `json:"country"` // 国家/地区（国内源为中文，海外源为英文国名或代码）
 	City    string `json:"city"`    // 城市
 	ISP     string `json:"isp"`     // 运营商
 	Source  string `json:"source"`  // 命中的查询源
-	Error   string `json:"error"`   // 全部源都失败时的错误信息
+	Error   string `json:"error"`   // 全部源都失败时的逐源错误汇总
+
+	// 扩展地理字段（查询源不支持或纯文本源时留空，弹窗里空值行显示 —）
+	CountryCode string `json:"countryCode,omitempty"` // 国家/地区代码（国旗 emoji）
+	Org         string `json:"org,omitempty"`         // 所属组织
+	ASN         string `json:"asn,omitempty"`         // 自治域号，形如 AS9808
+	ASNOrg      string `json:"asnOrg,omitempty"`      // 自治域组织
+	Continent   string `json:"continent,omitempty"`   // 大洲
+	Timezone    string `json:"timezone,omitempty"`    // 时区
+	Lat         string `json:"lat,omitempty"`         // 纬度
+	Lon         string `json:"lon,omitempty"`         // 经度
+}
+
+// entryFromGeo 由查询源的解析结果构造成功态 ipEntry。
+func entryFromGeo(g *ipGeo, source string) ipEntry {
+	return ipEntry{
+		OK: true, IP: g.IP, Country: g.Country, City: g.City, ISP: g.ISP, Source: source,
+		CountryCode: g.CountryCode, Org: g.Org, ASN: g.ASN, ASNOrg: g.ASNOrg,
+		Continent: g.Continent, Timezone: g.Timezone, Lat: g.Lat, Lon: g.Lon,
+	}
 }
 
 // ipInfoCache 缓存最近一次查询结果，60 秒内重复请求直接返回，
@@ -116,16 +192,21 @@ type ipInfoCache struct {
 	at      time.Time
 	direct  ipEntry
 	proxy   ipEntry
-	proxyOK bool // 代理侧是否查到过（内核未运行时为 false，运行后应重查）
+	ipv6    ipEntry // 本机 IPv6 直连出网探测（与 direct 同为直连侧，仅测可达性）
+	proxyOK bool    // 代理侧是否查到过（内核未运行时为 false，运行后应重查）
 }
 
 var ipCache ipInfoCache
 
-// queryIPEntry 依次尝试各查询源，返回第一个成功的结果；全部失败时把各源原因
+// queryIPEntry 依次尝试查询源，返回第一个成功的结果；全部失败时把各源原因
 // 逐个拼进 Error（如「ip.sb: HTTP 502；ip.sb/ip: …」），方便详情弹窗定位是哪个源挂了。
-func queryIPEntry(hc *http.Client) ipEntry {
+// sources 不传时用默认出口 IP 源（IPv6 探测等场景可传入自定义源列表）。
+func queryIPEntry(hc *http.Client, sources ...ipSource) ipEntry {
+	if len(sources) == 0 {
+		sources = ipSources
+	}
 	var errs []string
-	for _, src := range ipSources {
+	for _, src := range sources {
 		entry, err := queryOneSource(hc, src)
 		if err == nil {
 			return entry
@@ -155,17 +236,18 @@ func queryOneSource(hc *http.Client, src ipSource) (ipEntry, error) {
 	if err != nil {
 		return ipEntry{}, err
 	}
-	ip, country, city, isp, err := src.parse(data)
+	g, err := src.parse(data)
 	if err != nil {
 		return ipEntry{}, err
 	}
-	return ipEntry{OK: true, IP: ip, Country: country, City: city, ISP: isp, Source: src.name}, nil
+	return entryFromGeo(g, src.name), nil
 }
 
-// handleIPInfo GET /api/ipinfo：查询国内直连出口与代理出口的 IP 信息。
+// handleIPInfo GET /api/ipinfo：查询国内直连出口、代理出口与本机 IPv6 出网探测。
 // 参数 refresh=1 时绕过 60 秒缓存强制重查。
-// 返回 {direct: ipEntry, proxy: ipEntry, ts: 采样时刻Unix秒}。
-// 内核未运行时 proxy 侧连接会被拒绝，返回 ok=false 的占位结果。
+// 返回 {direct: ipEntry, proxy: ipEntry, ipv6: ipEntry, ts: 采样时刻Unix秒}。
+// 内核未运行时 proxy 侧连接会被拒绝，返回 ok=false 的占位结果；
+// ipv6 为直连侧探测（请求纯 IPv6 端点，可达即本机支持 IPv6 出网）。
 func (d *deps) handleIPInfo(w http.ResponseWriter, r *http.Request) {
 	refresh := r.URL.Query().Get("refresh") == "1"
 
@@ -175,6 +257,7 @@ func (d *deps) handleIPInfo(w http.ResponseWriter, r *http.Request) {
 		out := map[string]any{
 			"direct": ipCache.direct,
 			"proxy":  ipCache.proxy,
+			"ipv6":   ipCache.ipv6,
 			"ts":     ipCache.at.Unix(),
 		}
 		ipCache.mu.Unlock()
@@ -188,10 +271,10 @@ func (d *deps) handleIPInfo(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err)
 		return
 	}
-	// 直连与代理并发查询，两边都回来后一起落缓存
-	var directEntry, proxyEntry ipEntry
+	// 直连、代理、IPv6 探测并发查询，都回来后一起落缓存
+	var directEntry, proxyEntry, ipv6Entry ipEntry
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		directEntry = queryIPEntry(&http.Client{Timeout: 8 * time.Second})
@@ -200,16 +283,27 @@ func (d *deps) handleIPInfo(w http.ResponseWriter, r *http.Request) {
 		defer wg.Done()
 		proxyEntry = d.queryViaProxy(s.MixedPort)
 	}()
+	go func() {
+		defer wg.Done()
+		ipv6Entry = queryIPEntry(&http.Client{Timeout: 8 * time.Second}, ipv6Sources...)
+	}()
 	wg.Wait()
 
 	ipCache.mu.Lock()
 	ipCache.at = time.Now()
 	ipCache.direct = directEntry
 	ipCache.proxy = proxyEntry
+	ipCache.ipv6 = ipv6Entry
 	ts := ipCache.at.Unix()
 	ipCache.mu.Unlock()
 
-	writeJSON(w, 200, map[string]any{"direct": directEntry, "proxy": proxyEntry, "ts": ts})
+	writeJSON(w, 200, map[string]any{"direct": directEntry, "proxy": proxyEntry, "ipv6": ipv6Entry, "ts": ts})
+}
+
+// ipv6Sources IPv6 出网探测源：域名只有 AAAA 记录，本机无 IPv6 时连接直接失败。
+var ipv6Sources = []ipSource{
+	{name: "ipv6.ip.sb", url: "https://api-ipv6.ip.sb/ip", parse: parsePlain},
+	{name: "ipv6.ipify", url: "https://api6.ipify.org", parse: parsePlain},
 }
 
 // queryViaProxy 经本机混合端口查询代理出口 IP（内核未运行时返回失败占位）。

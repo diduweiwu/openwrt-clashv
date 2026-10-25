@@ -13,7 +13,7 @@ import { ref } from 'vue'
 import { api } from './api.js'
 import { toast } from './store.js'
 
-export const ipData = ref(null) // {direct:{ok,ip,country,city,isp,source,error}, proxy:{...}, ts}
+export const ipData = ref(null) // {direct, proxy, ipv6, ts}——每项为 ipEntry（ok/ip/地理字段/source/error），ipv6 为本机 IPv6 出网探测
 export const ipLoading = ref(false)
 
 const PROBE_KEY = 'clashv_ip_probe'
@@ -40,11 +40,23 @@ export function toggleProbeMode() {
 const BROWSER_DIRECT = [
   {
     source: 'ip-api.com',
-    url: 'http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,city,isp',
+    url: 'http://ip-api.com/json/?lang=zh-CN&fields=status,query,country,countryCode,city,isp,org,as,timezone,lat,lon,continent',
     parse: async (res) => {
       const v = await res.json()
       if (v.status !== 'success' || !v.query) throw new Error('查询失败')
-      return { ip: v.query, country: v.country || '', city: v.city || '', isp: v.isp || '' }
+      const g = {
+        ip: v.query, country: v.country || '', countryCode: v.countryCode || '',
+        city: v.city || '', isp: v.isp || '', org: v.org || '',
+        asn: '', asnOrg: '', timezone: v.timezone || '', continent: v.continent || '',
+        lat: v.lat != null ? String(v.lat) : '', lon: v.lon != null ? String(v.lon) : '',
+      }
+      // as 形如「AS9808 中国移动…」：首个空格前是自治域号，其余并入自治域组织
+      const asParts = String(v.as || '').trim().split(' ')
+      if (asParts[0]) {
+        g.asn = asParts[0]
+        g.asnOrg = asParts.slice(1).join(' ')
+      }
+      return g
     },
   },
 ]
@@ -57,32 +69,50 @@ const BROWSER_PROXY = [
     parse: async (res) => {
       const v = await res.json()
       if (!v.ip) throw new Error('响应缺少 ip 字段')
-      return { ip: v.ip, country: v.country_code || v.country || '', city: v.city || '', isp: v.isp || '' }
+      return {
+        ip: v.ip, country: v.country || '', countryCode: v.country_code || '',
+        city: v.city || '', isp: v.isp || '', org: v.organization || '',
+        asn: v.asn ? 'AS' + v.asn : '', asnOrg: v.asn_organization || '',
+        timezone: v.timezone || '', lat: v.latitude != null ? String(v.latitude) : '',
+        lon: v.longitude != null ? String(v.longitude) : '',
+        continent: CONTINENT_CN[v.continent_code] || '',
+      }
     },
   },
   { source: 'ip.sb/ip', url: 'https://api.ip.sb/ip', parse: parseTextIp },
   { source: 'ipify', url: 'https://api.ipify.org', parse: parseTextIp },
 ]
 
+// IPv6 出网探测源：域名只有 AAAA 记录，本机无 IPv6 时连接直接失败
+const BROWSER_IPV6 = [
+  { source: 'ipv6.ip.sb', url: 'https://api-ipv6.ip.sb/ip', parse: parseTextIp },
+  { source: 'ipv6.ipify', url: 'https://api6.ipify.org', parse: parseTextIp },
+]
+
+// 大洲代码 → 中文名（与后端 continentCN 同表）
+const CONTINENT_CN = {
+  AS: '亚洲', EU: '欧洲', NA: '北美洲', SA: '南美洲',
+  AF: '非洲', OC: '大洋洲', AN: '南极洲',
+}
+
 /**
  * 解析纯文本 IP 端点：响应体就是 IP 本身。
  * @param {Response} res fetch 响应
- * @returns {Promise<{ip: string, country: string, city: string, isp: string}>}
+ * @returns {Promise<object>} 仅含 ip 的地理对象（其余字段空串）
  * @example parseTextIp(await fetch('https://api.ipify.org')) // → { ip: '1.2.3.4', ... }
  */
 async function parseTextIp(res) {
   const ip = (await res.text()).trim()
   if (!/^[0-9a-fA-F.:]+$/.test(ip) || ip.length > 45) throw new Error('响应不是合法 IP')
-  return { ip, country: '', city: '', isp: '' }
+  return { ip, country: '', countryCode: '', city: '', isp: '', org: '', asn: '', asnOrg: '', timezone: '', continent: '', lat: '', lon: '' }
 }
 
 /**
  * 浏览器端依次请求查询源，返回第一个成功的结果；全部失败时逐源汇总原因。
- * @param {'direct'|'proxy'} kind 直连（国内源）/ 代理（海外源）侧
- * @returns {Promise<{ok: boolean, ip: string, country: string, city: string, isp: string, source: string, error: string}>}
+ * @param {Array} sources 查询源列表（BROWSER_DIRECT / BROWSER_PROXY / BROWSER_IPV6）
+ * @returns {Promise<object>} ipEntry 结构（含 ok/ip/地理字段/source/error）
  */
-async function fetchBrowserEntry(kind) {
-  const sources = kind === 'direct' ? BROWSER_DIRECT : BROWSER_PROXY
+async function fetchBrowserEntry(sources) {
   const errs = []
   for (const src of sources) {
     try {
@@ -96,7 +126,7 @@ async function fetchBrowserEntry(kind) {
       errs.push(src.source + ': ' + why)
     }
   }
-  return { ok: false, ip: '', country: '', city: '', isp: '', source: '', error: errs.join('；') }
+  return { ok: false, ip: '', country: '', countryCode: '', city: '', isp: '', org: '', asn: '', asnOrg: '', timezone: '', continent: '', lat: '', lon: '', source: '', error: errs.join('；') }
 }
 
 /**
@@ -117,8 +147,12 @@ export async function loadIpInfo(running, refresh = false) {
     if (probeMode.value === 'openwrt') {
       ipData.value = await api.get('/api/ipinfo' + (refresh ? '?refresh=1' : ''))
     } else {
-      const [direct, proxy] = await Promise.all([fetchBrowserEntry('direct'), fetchBrowserEntry('proxy')])
-      ipData.value = { direct, proxy, ts: Math.floor(Date.now() / 1000) }
+      const [direct, proxy, ipv6] = await Promise.all([
+        fetchBrowserEntry(BROWSER_DIRECT),
+        fetchBrowserEntry(BROWSER_PROXY),
+        fetchBrowserEntry(BROWSER_IPV6),
+      ])
+      ipData.value = { direct, proxy, ipv6, ts: Math.floor(Date.now() / 1000) }
     }
   } catch { /* 查询失败静默，展示占位 */ }
   finally { ipLoading.value = false }
