@@ -914,13 +914,10 @@ function currentOf(g) {
     <n-card v-if="sectionVisible('traffic')" :style="secStyle('traffic')">
       <div class="traffic-head">
         <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时信息</h3>
-        <!-- 出口 IP 工具：更多详情 / 显隐（仅运行中显示），与重置按钮同行贴右 -->
+        <!-- 出口 IP 显隐开关（仅运行中显示），详情入口在出口 IP 瓦片右上角 -->
         <template v-if="status?.running">
-          <n-button quaternary size="small" class="head-tool-first" title="查看更多出口 IP 详情" @click="showIpModal = true">
-            <template #icon><AppIcon name="expand" :size="13" /></template>更多
-          </n-button>
           <n-button
-            quaternary size="small"
+            quaternary size="small" class="head-tool-first"
             :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
             @click="showIps = !showIps"
           >
@@ -957,20 +954,22 @@ function currentOf(g) {
           <span class="k"><AppIcon name="zap" :size="13" />断网守护</span>
           <span class="v" :style="{ color: watchView.color }">{{ watchView.text }}</span>
         </div>
-        <!-- 出口 IP 瓦片（仅运行中显示）：与流量瓦片同款样式，点击复制，完整信息走「更多」 -->
-        <div v-if="status?.running" class="meta-item tint-c ip-tile">
-          <span class="k"><AppIcon name="globe" :size="13" />直连 IP</span>
-          <button
-            class="v mono ip-tile-v" title="国内直连出口 IP，点击复制"
-            @click="copyIp(ipData?.direct)"
-          >{{ ipText(ipData?.direct) }}</button>
-        </div>
-        <div v-if="status?.running" class="meta-item tint-d ip-tile">
-          <span class="k"><AppIcon name="network" :size="13" />代理 IP</span>
-          <button
-            class="v mono ip-tile-v" :title="ipTitle(ipData?.proxy) || '代理出口 IP，点击复制'"
-            @click="copyIp(ipData?.proxy)"
-          >{{ ipText(ipData?.proxy) }}</button>
+        <!-- 出口 IP 组合瓦片（仅运行中显示）：直连/代理各一行，右上工具区放「更多」详情入口 -->
+        <div v-if="status?.running" class="meta-item tint-c ip-combo">
+          <span class="k">
+            <AppIcon name="globe" :size="13" />出口 IP
+            <button class="tile-gear ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
+              <AppIcon name="expand" :size="12" />
+            </button>
+          </span>
+          <span class="ip-row">
+            <em>直连</em>
+            <button class="ip-row-v mono" title="国内直连出口 IP，点击复制" @click="copyIp(ipData?.direct)">{{ ipText(ipData?.direct) }}</button>
+          </span>
+          <span class="ip-row">
+            <em>代理</em>
+            <button class="ip-row-v mono" :title="ipTitle(ipData?.proxy) || '代理出口 IP，点击复制'" @click="copyIp(ipData?.proxy)">{{ ipText(ipData?.proxy) }}</button>
+          </span>
         </div>
       </div>
       <!-- 曲线与上方指标瓦片之间：留白 + 虚线分隔（沿用订阅卡片的 dashed 分隔风格），让图表区视觉独立 -->
@@ -1496,13 +1495,23 @@ function currentOf(g) {
 .layout-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
-/* ---- 出口 IP 瓦片（实时信息卡内）：与流量瓦片同款，值可点击复制 ---- */
-.ip-tile-v {
-  background: transparent; border: none; cursor: pointer;
-  padding: 0; font: inherit; color: inherit; text-align: left;
-  font-family: inherit;
+/* ---- 出口 IP 组合瓦片（实时信息卡内）：直连/代理各一行小字，右上工具区「更多」 ---- */
+.ip-combo .k { white-space: nowrap; }
+.ip-combo .tile-gear.ip-more { margin-left: auto; opacity: 0.55; }
+.ip-combo .tile-gear.ip-more:hover { opacity: 1; }
+.ip-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ip-row em {
+  font-style: normal; flex: none;
+  color: var(--text-dim); font-size: 11.5px; font-weight: 500;
 }
-.ip-tile-v:hover { color: var(--accent); }
+.ip-row-v {
+  flex: 1; min-width: 0; text-align: left;
+  background: transparent; border: none; cursor: pointer;
+  padding: 0; color: var(--text);
+  font-size: 12.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ip-row-v:hover { color: var(--accent); }
 /* 卡头右侧工具：更多/显隐按钮贴右，与重置同行 */
 .head-tool-first { margin-left: auto; }
 .traffic-head .trip-reset { margin-left: 0; }
