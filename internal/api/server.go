@@ -73,6 +73,9 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 
 	// 状态与流量
 	mux.HandleFunc("GET /api/status", d.handleStatus)
+	// 网络体检：出口 IP 查询与网站解锁测试（见 netcheck.go）
+	mux.HandleFunc("GET /api/ipinfo", d.handleIPInfo)
+	mux.HandleFunc("POST /api/unlock/test", d.handleUnlockTest)
 	mux.HandleFunc("GET /api/traffic", d.handleTraffic)
 	mux.HandleFunc("GET /api/traffic/history", d.handleTrafficHistory)
 	mux.HandleFunc("GET /api/connections", d.handleConnections)

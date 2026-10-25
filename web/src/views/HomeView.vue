@@ -8,7 +8,10 @@ import { useGroupTest, GROUP_TYPES } from '../useGroupTest.js'
 import Sparkline from '../components/Sparkline.vue'
 import SubFormModal from '../components/SubFormModal.vue'
 import UpdateModal from '../components/UpdateModal.vue'
+import IpInfoModal from '../components/IpInfoModal.vue'
+import UnlockPanel from '../components/UnlockPanel.vue'
 import AppIcon from '../components/AppIcon.vue'
+import { showIps } from '../ipDisplay.js'
 
 const busy = ref('')
 
@@ -666,6 +669,55 @@ const portHelp = computed(() => {
   ]
 })
 
+// ---- 出口 IP：运行中在版本号旁显示 国内直连 IP / 代理出口 IP，点「更多」弹窗看详情。
+// ---- 数据来自 /api/ipinfo（后端 60s 缓存），显示/隐藏偏好存 localStorage（ipDisplay.js） ----
+const ipData = ref(null) // {direct:{ip,...}, proxy:{ip,...}, ts}
+const ipLoading = ref(false)
+const showIpModal = ref(false)
+
+// 瓦片文本：查询中/失败显示占位符
+function ipText(e) {
+  return e?.ok ? e.ip : (e ? '查询失败' : '…')
+}
+// 悬浮提示：位置 + 运营商
+function ipTitle(e) {
+  if (!e?.ok) return ''
+  return [e.country, e.city, e.isp].filter(Boolean).join(' · ')
+}
+
+async function loadIpInfo(refresh = false) {
+  if (!status.value?.running) return
+  ipLoading.value = true
+  try {
+    ipData.value = await api.get('/api/ipinfo' + (refresh ? '?refresh=1' : ''))
+  } catch { /* 查询失败静默，瓦片显示占位 */ }
+  finally { ipLoading.value = false }
+}
+
+// 内核启动/停止时拉取或清空；重启（running 抖动）后也会重新拉
+watch(
+  () => status.value?.running,
+  (running) => {
+    if (running) loadIpInfo()
+    else ipData.value = null
+  },
+)
+
+// 复制 IP（LuCI http 内嵌非 secure 上下文退 execCommand，同 IpInfoModal）
+function copyIp(e) {
+  if (!e?.ok) return
+  const done = () => toast('已复制 ' + e.ip, 'success')
+  navigator.clipboard?.writeText(e.ip).then(done).catch(() => {
+    const ta = document.createElement('textarea')
+    ta.value = e.ip
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    ta.remove()
+    done()
+  })
+}
+
 // status 晚于挂载到达时，运行起来后补一次代理列表
 watch(
   () => store.status?.running,
@@ -726,6 +778,28 @@ function currentOf(g) {
               <AppIcon v-else name="refresh" :size="11" :class="{ spin: pluginChecking || pluginBusy }" />
             </button>
           </n-tag>
+          <!-- 出口 IP（仅运行中展示）：直连/代理两枚小徽标 + 显隐开关 + 更多详情。
+               显示/隐藏由眼睛按钮切换（localStorage 记住），隐藏后徽标消失但按钮保留可再开 -->
+          <template v-if="status?.running">
+            <div v-if="showIps" class="ip-inline">
+              <button class="ip-chip mono" title="国内直连出口 IP，点击复制" @click="copyIp(ipData?.direct)">
+                <span class="ip-chip-k">直连</span>{{ ipText(ipData?.direct) }}
+              </button>
+              <button class="ip-chip mono" :title="ipTitle(ipData?.proxy) || '代理出口 IP，点击复制'" @click="copyIp(ipData?.proxy)">
+                <span class="ip-chip-k">代理</span>{{ ipText(ipData?.proxy) }}
+              </button>
+              <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
+                <AppIcon name="expand" :size="12" />更多
+              </button>
+            </div>
+            <n-button
+              quaternary size="tiny" class="ip-eye"
+              :title="showIps ? '隐藏出口 IP' : '显示出口 IP'"
+              @click="showIps = !showIps"
+            >
+              <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="14" />
+            </n-button>
+          </template>
           <n-flex class="hero-actions" :size="10">
             <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态实心红「停止」；主操作排在重启前面 -->
             <n-button
@@ -923,6 +997,9 @@ function currentOf(g) {
       <Sparkline v-if="status?.running" :series="store.history" :height="170" />
       <n-empty v-else description="内核未运行" style="padding: 40px 0" />
     </n-card>
+
+    <!-- 解锁测试：经当前代理出口逐站测试可达性，支持添加自定义站点 -->
+    <UnlockPanel />
 
     <!-- 切换节点：分组手风琴，默认全展开；容器限高，超出出现竖向滚动 -->
     <n-card>
@@ -1209,6 +1286,8 @@ function currentOf(g) {
       </template>
     </n-modal>
 
+    <!-- 出口 IP 详情弹窗（首页「更多」入口） -->
+    <IpInfoModal v-model:show="showIpModal" />
     <!-- 升级确认弹窗：新版本徽标 + Release 更新日志（插件/内核检查更新共用） -->
     <UpdateModal
       v-model:show="updateAskShow"
@@ -1380,6 +1459,29 @@ function currentOf(g) {
 
 /* 快捷瓦片（TUN/DNS/混合端口/出站模式）标题行的齿轮贴右 */
 .meta-item .k .tile-gear { margin-left: auto; }
+
+/* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
+.ip-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ip-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600;
+  color: var(--text); background: var(--bg-card-2);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 3px 10px; cursor: pointer; font-family: inherit;
+  max-width: 190px;
+}
+.ip-chip:hover { border-color: var(--accent); color: var(--accent); }
+.ip-chip-k { color: var(--text-dim); font-weight: 500; flex: none; }
+/* 长值截断（IPv6），完整内容走悬浮 title 与复制 */
+.ip-chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-more {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11.5px; color: var(--text-dim);
+  background: transparent; border: none; cursor: pointer;
+  padding: 2px 4px; border-radius: 6px;
+}
+.ip-more:hover { color: var(--accent); background: var(--hover); }
+.ip-eye { flex: none; color: var(--text-dim); }
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .sec-head h3 { font-size: 15px; }
