@@ -1,6 +1,6 @@
 <script setup>
 // 手绘 canvas 流量曲线（无第三方图表库，保持小体积低内存）
-// 固定显示最近 1 小时窗口：历史由后端每秒采样并落盘持久化（/api/traffic/history
+// 固定显示最近 10 分钟窗口（刻度 1 分钟一格）：历史由后端每秒采样并落盘持久化（/api/traffic/history
 // 首屏灌入），刷新页面/重启插件曲线不清零；X 轴按真实时间定位（整分钟对齐刻度），
 // 内核停止/页面关闭期没有采样，曲线按时间断档分段绘制、不跨档连线；悬浮出十字线
 // + 读数卡显示所指时刻的上传/下载速率，贴右侧自动向左翻转，交互对齐 Clash Verge 的流量图
@@ -20,9 +20,9 @@ const hoverX = ref(null) // 悬浮点横坐标（CSS 像素，相对 canvas 左�
 const PAD_T = 8   // 绘图区上边距
 const PAD_R = 10  // 绘图区右边距
 const PAD_B = 20  // 绘图区下边距（留给时间刻度）
-const WIN_MS = 60 * 60 * 1000 // 显示窗口：固定最近 1 小时（与后端历史保留窗口一致）
+const WIN_MS = 10 * 60 * 1000 // 显示窗口：横轴全程固定 10 分钟（后端保留 1 小时历史，这里只展示最近 10 分钟）
 const SAMPLE_MS = 1000        // 采样间隔：后端 1 秒一采样，旧点无 t 时倒推用
-const MAX_POINTS = 3600       // 1 小时 × 1 秒，与 store.history 上限一致
+const MAX_POINTS = 3600       // 最多取 1 小时 × 1 秒的采样（切片后仅 WIN_MS 窗口内会绘出）
 const GAP_MS = 5000           // 相邻采样间隔超过此值视为断档（内核停止/页面关闭期），曲线分段绘制
 let ro = null                 // ResizeObserver：容器宽度变化（侧栏收起/转屏）时重绘
 
@@ -91,21 +91,21 @@ function readTheme() {
 }
 
 /**
- * 选 X 轴刻度步长（分钟）：窗口恒 1 小时，刻度候选 10/15/30 分钟，
- * 取能满足「每格宽度不小于 56px」的最小步长——宽屏 10 分钟一格，
- * 窄屏自动放宽到 15/30 分钟，保证标签不叠印。
+ * 选 X 轴刻度步长（分钟）：窗口恒 10 分钟，刻度候选 1/2/5 分钟，
+ * 取能满足「每格宽度不小于 48px」的最小步长——默认 1 分钟一格，
+ * 窄屏自动放宽到 2/5 分钟，保证标签不叠印。
  *
  * @param {number} plotW 绘图区像素宽
- * @returns {number} 步长（分钟），10/15/30 之一
+ * @returns {number} 步长（分钟），1/2/5 之一
  *
  * @example
- * pickXStep(984) // → 10（每格约 164px）
+ * pickXStep(984) // → 1（每格约 98px）
  */
 function pickXStep(plotW) {
-  for (const step of [10, 15, 30]) {
-    if ((plotW * step) / 60 >= 56) return step
+  for (const step of [1, 2, 5]) {
+    if ((plotW * step) / (WIN_MS / 60000) >= 48) return step
   }
-  return 30
+  return 5
 }
 
 /**
@@ -113,7 +113,7 @@ function pickXStep(plotW) {
  * 数据不足两点时清掉悬浮卡并返回 null，调用方据此跳过后续绘制。
  *
  * X 轴是时间轴：X(t) 按真实时刻在 [left, right] 窗口内线性定位，
- * 历史不足 1 小时时曲线只占窗口右侧，左侧留白等待采样填满。
+ * 历史不足 10 分钟时曲线只占窗口右侧，左侧留白等待采样填满。
  *
  * @returns {object|null} 场景对象 {ctx,w,h,data,n,max,theme,px0,px1,py0,py1,X,Y,timeAt,left,right}
  *
