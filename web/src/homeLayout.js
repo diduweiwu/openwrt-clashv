@@ -21,13 +21,19 @@ export const HOME_SECTIONS = [
 
 const DEFAULT_ORDER = HOME_SECTIONS.map(s => s.key)
 
+// 固定显示的区块：不允许隐藏（只在布局弹窗里调排序），如运行状态卡是首页主操作入口
+const ALWAYS_VISIBLE = ['status']
+
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || '{}')
     const order = Array.isArray(raw.order) ? raw.order.filter(k => DEFAULT_ORDER.includes(k)) : []
     // 版本升级新增的区块补到末尾，避免存档里没有而整块消失
     for (const k of DEFAULT_ORDER) if (!order.includes(k)) order.push(k)
-    const hidden = Array.isArray(raw.hidden) ? raw.hidden.filter(k => DEFAULT_ORDER.includes(k) || ['ip', 'clash', 'sys'].includes(k)) : []
+    // 固定显示区块从存档的隐藏列表剔除（老版本存过 hidden 的自动恢复显示）
+    const hidden = (Array.isArray(raw.hidden) ? raw.hidden : [])
+      .filter(k => DEFAULT_ORDER.includes(k) || ['ip', 'clash', 'sys'].includes(k))
+      .filter(k => !ALWAYS_VISIBLE.includes(k))
     return { order, hidden }
   } catch {
     return { order: [...DEFAULT_ORDER], hidden: [] }
@@ -35,6 +41,9 @@ function load() {
 }
 
 const saved = load()
+
+// 老存档里固定显示区块的隐藏记录已剔除，立即写回保持存档与实际状态一致
+try { localStorage.setItem(KEY, JSON.stringify({ order: saved.order, hidden: saved.hidden })) } catch { /* 隐私模式等 */ }
 
 // 区块顺序（key 数组，含全部区块）与隐藏的卡片 key 列表
 export const cardOrder = ref(saved.order)
@@ -74,8 +83,9 @@ export function moveSection(key, dir) {
   cardOrder.value = arr
 }
 
-// 切换单个卡片显隐
+// 切换单个卡片显隐（固定显示的区块忽略，如运行状态卡）
 export function toggleCard(key, visible) {
+  if (ALWAYS_VISIBLE.includes(key)) return
   const set = new Set(hiddenCards.value)
   if (visible) set.delete(key)
   else set.add(key)

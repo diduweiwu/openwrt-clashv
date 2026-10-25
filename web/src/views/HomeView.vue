@@ -1109,8 +1109,10 @@ function currentOf(g) {
               </button>
             </span>
             <span class="layout-label">{{ s.label }}</span>
+            <!-- 运行状态卡固定显示：不放开关，提示必显示 -->
+            <span v-if="s.key === 'status'" class="layout-fixed">必显示</span>
             <n-switch
-              v-if="s.key !== 'info'"
+              v-else-if="s.key !== 'info'"
               size="small"
               :value="cardVisible(s.key)"
               @update:value="(v) => toggleCard(s.key, v)"
@@ -1551,6 +1553,8 @@ function currentOf(g) {
 .layout-btn:hover:not(:disabled) { color: var(--accent); background: var(--hover); }
 .layout-btn:disabled { opacity: 0.35; cursor: default; }
 .layout-label { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
+/* 固定显示区块（运行状态）的提示：占住开关的位置，dim 小字 */
+.layout-fixed { flex: none; color: var(--text-dim); font-size: 11px; opacity: 0.8; }
 /* 信息卡组的子卡开关：三等分列水平对齐，一行放不下才换行 */
 .layout-sub {
   display: grid; grid-template-columns: repeat(3, max-content);
