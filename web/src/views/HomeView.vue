@@ -1485,11 +1485,10 @@ function currentOf(g) {
 
 /* 标题行：标题居左、重置钮贴右；指标瓦片在标题下方独立成行 */
 .traffic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 0; border-bottom: 1px dashed var(--border); padding-bottom: 12px; }
-/* 与上方 7 瓦片行同规格：同 7 列等宽网格 + 16px 间距，四块流量瓦片占前四列，
-   出口 IP 组合瓦片跨两列（右侧一格留空），竖向分隔线与上行逐列对齐 */
-.traffic-nums { display: grid; grid-template-columns: repeat(7, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
-/* 断网守护开启时瓦片多一块：列数 +1，出口 IP 瓦片跨两列后仍恰好一行放下 */
-.traffic-nums.has-watchdog { grid-template-columns: repeat(8, 1fr); }
+/* 瓦片行：5 列等宽网格（运行中五块瓦片恰好占满），每块都比旧 7 列方案宽约 40%；
+   断网守护开启时瓦片多一块，联动改 6 列保持等宽占满 */
+.traffic-nums { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; align-items: stretch; margin: 12px 0 8px; }
+.traffic-nums.has-watchdog { grid-template-columns: repeat(6, 1fr); }
 /* 瓦片高度跟随最高者（出口 IP 组合瓦片三行）等高：grid stretch 自动对齐 */
 .traffic-nums .meta-item { height: auto; min-height: 69px; }
 .traffic-nums .meta-item .v { font-size: 22px; white-space: nowrap; }
@@ -1579,9 +1578,8 @@ function currentOf(g) {
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
 /* ---- 出口 IP 组合瓦片（实时信息卡内）：直连/代理各一行小字，右上工具区「更多」 ---- */
 /* 瓦片行定高 69px 装不下三行：组合瓦片放开高度，避免内容溢出；
- * 跨两列加宽装下完整 IPv4（守护开启时网格 8 列，5 块单列瓦片 + 2 列组合瓦片仍一行放下；
- * 无守护 7 列时 4 单列 + 2 列恰好占满）。移动端 2 列网格下 span 2 即整行铺满 */
-.traffic-nums .ip-combo { height: auto; min-height: 69px; padding-left: 8px; padding-right: 8px; grid-column: span 2; }
+ * 整行 5 列等宽（守护开启 6 列）下每块瓦片都已加宽，组合瓦片与其他瓦片同宽即可装下完整 IPv4 */
+.traffic-nums .ip-combo { height: auto; min-height: 69px; padding-left: 8px; padding-right: 8px; }
 .ip-combo .k { white-space: nowrap; }
 /* 右上「更多」入口：纯图标小钮（tile-gear 同款交互，样式独立声明） */
 .ip-more {
