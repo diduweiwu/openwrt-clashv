@@ -19,6 +19,7 @@ import { api } from '../api.js'
 import { store, fmtUptime } from '../store.js'
 import AppIcon from './AppIcon.vue'
 import { ipData, ipLoading, loadIpInfo, ipText, ipPlace, copyIp } from '../ipinfo.js'
+import { cardVisible } from '../homeLayout.js'
 
 const props = defineProps({
   coreBusy: Boolean,  // 内核升级中（齿轮换进度环、不可点）
@@ -43,7 +44,7 @@ const pluginText = computed(() =>
 
 <template>
   <!-- IP 信息 -->
-  <n-card>
+  <n-card v-if="cardVisible('ip')">
     <div class="ic-head">
       <span class="ic-chip chip-blue"><AppIcon name="globe" :size="16" /></span>
       <h3>IP 信息</h3>
@@ -76,7 +77,7 @@ const pluginText = computed(() =>
   </n-card>
 
   <!-- Clash 信息 -->
-  <n-card>
+  <n-card v-if="cardVisible('clash')">
     <div class="ic-head">
       <span class="ic-chip chip-orange"><AppIcon name="zap" :size="16" /></span>
       <h3>Clash 信息</h3>
@@ -141,7 +142,7 @@ const pluginText = computed(() =>
   </n-card>
 
   <!-- 系统信息 -->
-  <n-card>
+  <n-card v-if="cardVisible('sys')">
     <div class="ic-head">
       <span class="ic-chip chip-red"><AppIcon name="server" :size="16" /></span>
       <h3>系统信息</h3>

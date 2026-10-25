@@ -14,6 +14,9 @@ import HomeInfoCards from '../components/HomeInfoCards.vue'
 import AppIcon from '../components/AppIcon.vue'
 import { showIps } from '../ipDisplay.js'
 import { ipData, loadIpInfo, ipText, ipPlace as ipTitle, copyIp } from '../ipinfo.js'
+import {
+  HOME_SECTIONS, cardOrder, orderOf, sectionVisible, cardVisible, moveSection, toggleCard, resetLayout,
+} from '../homeLayout.js'
 
 const busy = ref('')
 
@@ -684,6 +687,23 @@ watch(
   },
 )
 
+// ---- 首页卡片布局：区块顺序 + 显隐（homeLayout.js，localStorage 持久化）。
+// ---- 排序靠 .page（flex column）上的 CSS order，无需改模板结构；入口在运行行右侧 ----
+const showLayout = ref(false)
+const secStyle = (key) => ({ order: orderOf(key) })
+// 弹窗列表按当前顺序展示（上移/下移即与相邻行交换）
+const orderedSections = computed(() => cardOrder.value.map(k => HOME_SECTIONS.find(s => s.key === k)))
+const INFO_CARDS = [
+  { key: 'ip', label: 'IP 信息' },
+  { key: 'clash', label: 'Clash 信息' },
+  { key: 'sys', label: '系统信息' },
+]
+
+function resetHomeLayout() {
+  resetLayout()
+  toast('已恢复默认布局', 'success')
+}
+
 // status 晚于挂载到达时，运行起来后补一次代理列表
 watch(
   () => store.status?.running,
@@ -706,7 +726,7 @@ function currentOf(g) {
 <template>
   <div class="page">
     <!-- 运行状态 -->
-    <n-card>
+    <n-card v-if="sectionVisible('status')" :style="secStyle('status')">
       <n-flex vertical :size="16">
         <!-- 运行状态与控制按钮同行（普通尺寸小按钮贴右），瓦片独占下一行 -->
         <div class="hero-top">
@@ -765,6 +785,10 @@ function currentOf(g) {
             >
               <AppIcon :name="showIps ? 'eye' : 'eye-off'" :size="14" />
             </n-button>
+            <!-- 卡片布局入口：调整首页各卡片的顺序与显隐（弹窗） -->
+            <n-button quaternary size="tiny" class="ip-eye" title="卡片布局：调整顺序与显隐" @click="showLayout = true">
+              <AppIcon name="layers" :size="14" />
+            </n-button>
           </template>
           <n-flex class="hero-actions" :size="10">
             <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态实心红「停止」；主操作排在重启前面 -->
@@ -793,7 +817,7 @@ function currentOf(g) {
     </n-card>
 
     <!-- 当前订阅：快捷瓦片已并入运行卡瓦片行，订阅卡独占一行 -->
-    <n-card>
+    <n-card v-if="sectionVisible('profile')" :style="secStyle('profile')">
       <div class="sec-head">
         <h3><AppIcon class="sec-ico" name="file-text" :size="15" />当前订阅</h3>
         <div class="sub-actions">
@@ -840,7 +864,7 @@ function currentOf(g) {
     </n-card>
 
     <!-- 流量 -->
-    <n-card>
+    <n-card v-if="sectionVisible('traffic')" :style="secStyle('traffic')">
       <div class="traffic-head">
         <h3><AppIcon class="sec-ico" name="activity" :size="15" />实时流量</h3>
         <n-button
@@ -881,7 +905,7 @@ function currentOf(g) {
     </n-card>
 
     <!-- 切换节点：分组手风琴，默认全展开；容器限高，超出出现竖向滚动 -->
-    <n-card>
+    <n-card v-if="sectionVisible('nodes')" :style="secStyle('nodes')">
       <div class="sec-head">
         <h3><AppIcon class="sec-ico" name="shuffle" :size="15" />切换节点</h3>
         <span class="page-sub">点击节点确认后切换 · 点击分组标题可折叠</span>
@@ -930,14 +954,62 @@ function currentOf(g) {
     </n-card>
 
     <!-- 页面末尾：解锁测试独占一行，IP 信息 / Clash 信息 / 系统信息三卡一行（等高，窄屏单列） -->
-    <UnlockPanel />
-    <div class="home-grid3">
+    <UnlockPanel v-if="sectionVisible('unlock')" :style="secStyle('unlock')" />
+    <div v-if="sectionVisible('info')" class="home-grid3" :style="secStyle('info')">
       <HomeInfoCards
         :core-busy="coreUpgrading" :core-percent="corePercent" :core-stage="coreStageText"
         @check-core="checkCoreUpdate" @open-tun="openTun" @open-dns="openDns"
         @open-mode="showMode = true" @open-port="showPort = true"
       />
     </div>
+
+    <!-- 卡片布局弹窗：上下移调区块顺序 + 开关显隐（homeLayout.js localStorage 持久化） -->
+    <n-modal
+      preset="card"
+      title="首页卡片布局"
+      :show="showLayout"
+      :style="{ width: '480px', maxWidth: '94vw' }"
+      @update:show="showLayout = false"
+    >
+      <div class="layout-body">
+        <template v-for="(s, i) in orderedSections" :key="s.key">
+          <div class="layout-row">
+            <span class="layout-ops">
+              <button class="layout-btn" :disabled="i === 0" title="上移" @click="moveSection(s.key, -1)">
+                <AppIcon name="chevron-up" :size="13" />
+              </button>
+              <button class="layout-btn" :disabled="i === orderedSections.length - 1" title="下移" @click="moveSection(s.key, 1)">
+                <AppIcon name="chevron-down" :size="13" />
+              </button>
+            </span>
+            <span class="layout-label">{{ s.label }}</span>
+            <n-switch
+              v-if="s.key !== 'info'"
+              size="small"
+              :value="cardVisible(s.key)"
+              @update:value="(v) => toggleCard(s.key, v)"
+            />
+          </div>
+          <!-- 信息卡组的三张卡可单独隐藏，小号开关排一行 -->
+          <div v-if="s.key === 'info'" class="layout-sub">
+            <span v-for="c in INFO_CARDS" :key="c.key" class="layout-sub-item">
+              {{ c.label }}
+              <n-switch
+                size="small"
+                :value="cardVisible(c.key)"
+                @update:value="(v) => toggleCard(c.key, v)"
+              />
+            </span>
+          </div>
+        </template>
+        <div class="layout-foot">
+          <n-button quaternary size="small" @click="resetHomeLayout">恢复默认</n-button>
+          <n-button type="primary" size="small" @click="showLayout = false">
+            <template #icon><AppIcon name="check" :size="13" /></template>完成
+          </n-button>
+        </div>
+      </div>
+    </n-modal>
 
     <!-- 添加订阅弹窗（首页原地弹出） -->
     <SubFormModal :open="showAdd" @close="showAdd = false" @added="onSubAdded" />
@@ -1318,6 +1390,31 @@ function currentOf(g) {
 .home-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
 /* 三卡等高：grid 拉伸 + 卡片占满网格区域高度 */
 .home-grid3 > .n-card { height: 100%; }
+
+/* ---- 卡片布局弹窗 ---- */
+.layout-body { display: flex; flex-direction: column; gap: 8px; }
+.layout-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 10px;
+  background: var(--bg-card-2); border: 1px solid var(--border);
+}
+.layout-ops { display: inline-flex; gap: 4px; flex: none; }
+.layout-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0;
+  border: none; border-radius: 6px; background: transparent; cursor: pointer;
+  color: var(--text-dim);
+}
+.layout-btn:hover:not(:disabled) { color: var(--accent); background: var(--hover); }
+.layout-btn:disabled { opacity: 0.35; cursor: default; }
+.layout-label { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
+/* 信息卡组的子卡开关行：缩进挂在组行下面 */
+.layout-sub {
+  display: flex; flex-wrap: wrap; gap: 8px 18px;
+  padding: 2px 12px 2px 62px;
+}
+.layout-sub-item { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+.layout-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 
 /* ---- 出口 IP 内联区：两枚小徽标 + 更多按钮；hero-top 有 flex-wrap，窄屏自动换行 ---- */
 .ip-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
