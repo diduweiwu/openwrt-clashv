@@ -37,7 +37,7 @@ onMounted(async () => {
 })
 
 const pluginText = computed(() =>
-  status.value?.plugin_version === 'dev' ? '开发版' : 'v' + status.value.plugin_version
+  status.value?.plugin_version === 'dev' ? '开发版' : 'v' + (status.value?.plugin_version || '…')
 )
 </script>
 
