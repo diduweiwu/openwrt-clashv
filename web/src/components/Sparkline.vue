@@ -147,8 +147,23 @@ function buildScene() {
   const n = data.length
   if (n < 2) { tip.value = null; return null }
 
-  let peak = 1024 * 8 // 满程下限 8 KB/s：全零时曲线贴底而不是除零
-  for (const p of data) peak = Math.max(peak, p.up, p.down)
+  // 窗口右端对齐到「包含最新采样点的整分钟」：刻度位置与数字每分钟才跳变一次
+  // （连续滚动会每秒微移）；代价是曲线末端与右缘之间有 0~59 秒的对齐空隙，
+  // 由 drawSeries 在曲线末端画实时位置点来解释
+  const lastMs = data[n - 1].t ?? Date.now()
+  const right = Math.ceil(lastMs / 60000) * 60000
+  const left = right - WIN_MS
+
+  // 满程按当前 10 分钟窗口内的峰值取整：后端保留 1 小时历史，若对全量取峰值，
+  // 更早的旧尖峰（已离开显示窗口）会把轴顶撑在几十 MB/s，窗口内的真实流量
+  // 被压成贴底直线；只统计窗口内采样后，旧尖峰滑出窗口轴刻度随之回落。
+  // 满程下限 8 KB/s：全零时曲线贴底而不是除零
+  let peak = 1024 * 8
+  for (let i = 0; i < n; i++) {
+    const t = data[i].t ?? (right - (n - 1 - i) * SAMPLE_MS) // 与 timeAt 同规则：旧点无 t 按 1 秒间隔倒推
+    if (t < left) continue
+    peak = Math.max(peak, data[i].up, data[i].down)
+  }
   const max = niceCeil(peak)
   const theme = readTheme()
 
@@ -156,12 +171,6 @@ function buildScene() {
   let px0 = 30
   for (const v of [0, max / 2, max]) px0 = Math.max(px0, ctx.measureText(fmtRate(v)).width + 14)
   const px1 = w - PAD_R, py0 = PAD_T, py1 = h - PAD_B
-  // 窗口右端对齐到「包含最新采样点的整分钟」：刻度位置与数字每分钟才跳变一次
-  // （连续滚动会每秒微移）；代价是曲线末端与右缘之间有 0~59 秒的对齐空隙，
-  // 由 drawSeries 在曲线末端画实时位置点来解释
-  const lastMs = data[n - 1].t ?? Date.now()
-  const right = Math.ceil(lastMs / 60000) * 60000
-  const left = right - WIN_MS
   const X = (t) => px0 + ((t - left) / WIN_MS) * (px1 - px0)
   const Y = (v) => py1 - (v / max) * (py1 - py0)
   const timeAt = (i) => data[i].t ?? (right - (n - 1 - i) * SAMPLE_MS)
