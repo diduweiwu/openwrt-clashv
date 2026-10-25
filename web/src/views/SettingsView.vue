@@ -1452,4 +1452,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
   /* 底部保存按钮填满横向宽度：窄屏下单按钮贴角显得小气 */
   .save-bar .n-button { width: 100%; }
 }
+
+/* 设置卡标题区与内容区分隔线：与首页各卡片的虚线同风格（n-card 内部结构需 :deep 穿透） */
+:deep(.n-card-header) { border-bottom: 1px dashed var(--border); }
 </style>
