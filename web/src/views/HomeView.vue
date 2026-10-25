@@ -1740,6 +1740,9 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   /* n-flex 子项间距是行内 margin，显式统一成横向 10px 并清掉竖排残留的纵向间距 */
   .hero-actions :deep(.n-button) { margin-right: 10px !important; margin-bottom: 0 !important; flex: 1 1 0; }
   .hero-actions :deep(.n-button:last-child) { margin-right: 0 !important; }
+  /* 当前订阅卡四个操作钮收窄：一行放得下（图标+两字+窄内边距） */
+  .sub-actions :deep(.n-button) { padding: 0 8px; font-size: 12px; }
+  .sub-actions :deep(.n-button__content) { gap: 4px; }
 }
 </style>
 
