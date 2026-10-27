@@ -397,15 +397,16 @@ func (d *deps) scheduleLoop() {
 }
 
 // backupLoop 每 30 秒检查一次是否到达 WebDAV 定时备份时间，命中规则与订阅
-// 定时更新一致：今天星期在配置内、当前时间落在「到点起 10 分钟」窗口内、
-// 今天还没跑过；窗口外重启服务不补跑。星期列表或服务器地址未配置即关闭。
-// 备份名为「自动备份_<日期_时间>」，末尾随机串由 CreateBackup 统一追加。
+// 定时更新一致：开关开启、今天星期在配置内、当前时间落在「到点起 10 分钟」
+// 窗口内、今天还没跑过；窗口外重启服务不补跑。开关关闭、星期列表或服务器
+// 地址未配置均视为关闭。备份名为「自动备份_<日期_时间>」，末尾随机串由
+// CreateBackup 统一追加。
 func (d *deps) backupLoop() {
 	lastDate := ""
 	for {
 		time.Sleep(30 * time.Second)
 		s, err := d.cfg.Get()
-		if err != nil || s.WebDAVBackupDays == "" || s.WebDAVURL == "" {
+		if err != nil || !s.WebDAVBackupEnabled || s.WebDAVBackupDays == "" || s.WebDAVURL == "" {
 			continue
 		}
 		now := time.Now()

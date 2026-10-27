@@ -239,8 +239,8 @@ const HELP = {
   webdavSchedule: {
     title: '定时备份',
     rows: [
-      { k: '作用', v: '在选定星期的指定时间点自动备份并上传到 WebDAV；不选任何星期即为关闭。' },
-      { k: '默认与建议', v: '建议每天低峰（如凌晨 4 点）一次；备份含内核程序，包体数十 MB，注意网盘流量与空间。' },
+      { k: '作用', v: '开启后在选定星期的指定时间点自动备份并上传到 WebDAV；开关关闭即停用定时备份（已保存的星期与时间会保留，重开无需重选）。' },
+      { k: '默认与建议', v: '默认关闭；建议每天低峰（如凌晨 4 点）一次，备份含内核程序包体数十 MB，注意网盘流量与空间。' },
     ],
   },
   webdavBackup: {
@@ -294,6 +294,7 @@ const form = reactive({
   webdav_user: '',
   webdav_pass: '',
   webdav_dir: 'clashv-backups',
+  webdav_backup_enabled: false,
   webdav_backup_days: '',
   webdav_backup_time: '04:00',
   token: '',
@@ -428,6 +429,7 @@ async function load() {
       webdav_user: s.webdav_user || '',
       webdav_pass: s.webdav_pass || '',
       webdav_dir: s.webdav_dir || 'clashv-backups',
+      webdav_backup_enabled: !!s.webdav_backup_enabled,
       webdav_backup_days: s.webdav_backup_days || '',
       webdav_backup_time: s.webdav_backup_time || '04:00',
       token: s.token || '',
@@ -511,6 +513,7 @@ async function save() {
       webdav_user: r.settings.webdav_user || '',
       webdav_pass: r.settings.webdav_pass || '',
       webdav_dir: r.settings.webdav_dir || 'clashv-backups',
+      webdav_backup_enabled: !!r.settings.webdav_backup_enabled,
       webdav_backup_days: r.settings.webdav_backup_days || '',
       webdav_backup_time: r.settings.webdav_backup_time || '04:00',
       token: r.settings.token || '',
@@ -1429,6 +1432,15 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             <n-button size="small" quaternary type="error" @click="cancelUpgrade">取消</n-button>
           </div>
         </div>
+        <!-- 恢复出厂：并入插件卡末尾，二次确认后执行 -->
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">重置所有配置<HelpModal v-bind="HELP.reset" /></span>
+          </div>
+          <n-button type="error" ghost size="small" :loading="resetting" @click="resetAll">
+            <template #icon><AppIcon name="trash" :size="13" /></template>重置
+          </n-button>
+        </div>
       </div>
     </n-card>
 
@@ -1503,7 +1515,14 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
         <div class="row">
           <div class="row-text">
             <span class="rt">定时备份<HelpModal v-bind="HELP.webdavSchedule" /></span>
-            <span class="rs">不选任何星期即为关闭</span>
+            <span class="rs">到点自动打包当前状态并上传到 WebDAV</span>
+          </div>
+          <n-switch v-model:value="form.webdav_backup_enabled" />
+        </div>
+        <div class="row" v-if="form.webdav_backup_enabled">
+          <div class="row-text">
+            <span class="rt">备份星期<HelpModal v-bind="HELP.webdavSchedule" /></span>
+            <span class="rs">可多选；不选任何星期则定时不会执行</span>
           </div>
           <n-select
             v-model:value="webdavDays"
@@ -1514,7 +1533,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             class="ctl"
           />
         </div>
-        <div class="row" v-if="webdavDays.length">
+        <div class="row" v-if="form.webdav_backup_enabled && webdavDays.length">
           <div class="row-text">
             <span class="rt">备份时间<HelpModal v-bind="HELP.webdavSchedule" /></span>
           </div>
@@ -1540,20 +1559,6 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           </div>
           <n-button size="small" @click="openCloudList">
             <template #icon><AppIcon name="clock" :size="13" /></template>管理{{ cloudBackups.length ? `（${cloudBackups.length}）` : '' }}
-          </n-button>
-        </div>
-      </div>
-    </n-card>
-
-    <!-- 恢复出厂：除订阅配置外全部数据回到安装初始状态，二次确认后执行 -->
-    <n-card v-if="tab === 'plugin'">
-      <div class="rows">
-        <div class="row">
-          <div class="row-text">
-            <span class="rt">重置所有配置<HelpModal v-bind="HELP.reset" /></span>
-          </div>
-          <n-button type="error" ghost size="small" :loading="resetting" @click="resetAll">
-            <template #icon><AppIcon name="trash" :size="13" /></template>重置
           </n-button>
         </div>
       </div>

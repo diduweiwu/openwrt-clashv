@@ -47,8 +47,9 @@ type Settings struct {
 	WebDAVUser       string `json:"webdav_user"`       // WebDAV 账号
 	WebDAVPass       string `json:"webdav_pass"`       // WebDAV 密码/应用密码（Basic Auth 原文，坚果云等用应用密码）
 	WebDAVDir        string `json:"webdav_dir"`        // WebDAV 上的备份目录（相对地址路径，可多级 a/b，默认 clashv-backups）
-	WebDAVBackupDays string `json:"webdav_backup_days"` // 定时云备份的星期列表（逗号分隔 0=周日…6=周六），空为关闭
-	WebDAVBackupTime string `json:"webdav_backup_time"` // 定时云备份的时间点（HH:mm）
+	WebDAVBackupEnabled bool  `json:"webdav_backup_enabled"` // 定时云备份总开关；关闭时不看星期直接不跑
+	WebDAVBackupDays    string `json:"webdav_backup_days"`  // 定时云备份的星期列表（逗号分隔 0=周日…6=周六）
+	WebDAVBackupTime    string `json:"webdav_backup_time"`  // 定时云备份的时间点（HH:mm）
 	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
 	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
 	GithubToken      string `json:"github_token"`      // GitHub 访问令牌：私有仓库查 Release/下载安装包必带，公开仓库留空
@@ -87,9 +88,10 @@ func Defaults() Settings {
 		WebDAVURL:        "",
 		WebDAVUser:       "",
 		WebDAVPass:       "",
-		WebDAVDir:        "clashv-backups",
-		WebDAVBackupDays: "", // 默认关闭，配置了连接与星期后才生效
-		WebDAVBackupTime: "04:00",
+		WebDAVDir:         "clashv-backups",
+		WebDAVBackupEnabled: false, // 默认关闭定时云备份
+		WebDAVBackupDays:  "",
+		WebDAVBackupTime:  "04:00",
 		WorkDir:          "",
 		PluginRepo:       "diduweiwu/openwrt-clashv",
 		GithubToken:      "",

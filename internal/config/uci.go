@@ -37,6 +37,7 @@ import (
 //	    option webdav_user ''
 //	    option webdav_pass ''
 //	    option webdav_dir 'clashv-backups'
+//	    option webdav_backup_enabled '0'
 //	    option webdav_backup_days ''
 //	    option webdav_backup_time '04:00'
 //	    option workdir ''
@@ -118,6 +119,9 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setStr(&s.WebDAVUser, "webdav_user")
 	setStr(&s.WebDAVPass, "webdav_pass")
 	setStr(&s.WebDAVDir, "webdav_dir")
+	if _, ok := getOK("webdav_backup_enabled"); ok {
+		s.WebDAVBackupEnabled = isOn("webdav_backup_enabled")
+	}
 	setStr(&s.WebDAVBackupDays, "webdav_backup_days")
 	setStr(&s.WebDAVBackupTime, "webdav_backup_time")
 	setStr(&s.WorkDir, "workdir")
@@ -174,6 +178,7 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.webdav_user='%s'", uciSection, s.WebDAVUser)
 	line("set %s.webdav_pass='%s'", uciSection, s.WebDAVPass)
 	line("set %s.webdav_dir='%s'", uciSection, s.WebDAVDir)
+	line("set %s.webdav_backup_enabled='%s'", uciSection, onOff(s.WebDAVBackupEnabled))
 	line("set %s.webdav_backup_days='%s'", uciSection, s.WebDAVBackupDays)
 	line("set %s.webdav_backup_time='%s'", uciSection, s.WebDAVBackupTime)
 	line("set %s.workdir='%s'", uciSection, s.WorkDir)
