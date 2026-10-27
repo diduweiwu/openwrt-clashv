@@ -68,6 +68,8 @@ Go 后端 + 内嵌 Web 界面，一个二进制搞定，**不玩脚本编辑那�
   - 🧦 TUN 模式（内核 auto-route 接管全局流量）；关闭时自动用防火墙接管局域网 TCP（透明代理，与 OpenClash 的 redirect 模式一致）
   - 🧭 DNS 接管（fake-ip）+ DNS 劫持（防火墙转发 / dnsmasq 转发），旁路由/网关模式开箱即用
   - 💓 断网自动重启（可选）：定时拨测检测地址，内核运行中但不通时自动重启内核尝试恢复，重启次数可设上限；首页显示检测状态
+  - ☁️ WebDAV 云备份（可选）：备份包上传到自己的 WebDAV 网盘（坚果云/Alist/群晖等），支持连接测试、定时自动备份、手动备份、云备份列表下载恢复与删除
+  - 💾 本地备份与恢复：全部设置、订阅、自定义规则与内核程序一键打包/恢复
   - 🔐 访问令牌等常用开关
 - 🧩 **LuCI 集成**：安装后在 LuCI「服务 → ClashV」进入界面（iframe 内嵌，自适应撑满视口）
 - 🪶 **低占用**：Go 后端约 10–20MB 内存；前端纯静态文件由 Go 直接托管，无 Node/PHP/Lua 运行时
@@ -269,6 +271,13 @@ make linux        # 交叉编译 7 种 Linux 架构 bin/clashv-{arm64,armv7,mips
 | GET/POST | /api/core/latest·upgrade | 内核检查更新/升级 |
 | GET/POST | /api/plugin/latest·upgrade | 插件检查更新/升级 |
 | POST | /api/service/restart | 重启服务（OpenWrt） |
+| GET | /api/backup/list | 本地备份列表 |
+| POST | /api/backup/create·restore | 创建/恢复本地备份 |
+| DELETE | /api/backup/{name} | 删除本地备份 |
+| POST | /api/webdav/test | WebDAV 连接测试（可用未保存的连接参数） |
+| GET | /api/webdav/backup/list | WebDAV 云备份列表 |
+| POST | /api/webdav/backup/create·restore | 备份并上传到 WebDAV / 下载恢复云备份 |
+| DELETE | /api/webdav/backup/{name} | 删除 WebDAV 云备份 |
 
 设置令牌后，非本机的 API 请求需带 `X-Clashv-Token` 头（页面上首次访问会弹框输入，自动重试）。
 

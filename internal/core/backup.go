@@ -7,6 +7,8 @@ package core
 
 import (
 	"archive/zip"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +40,18 @@ type backupMeta struct {
 
 var backupNameRe = regexp.MustCompile(`[\\/:*?"<>|]`)
 
+// randHex 生成 n 字节的十六进制随机串（crypto/rand），用于备份名后缀防撞。
+//
+// 示例：randHex(3) => "a1b2c3"
+func randHex(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		// 随机数不可用（极少见）时退回纳秒时间戳，保证后缀仍不重复
+		return fmt.Sprintf("%x", time.Now().UnixNano())[:n*2]
+	}
+	return hex.EncodeToString(b)
+}
+
 // sanitizeBackupName 规整用户输入的备份名：去空白、剔除文件系统非法字符、
 // 限长。中文名允许。返回不带 .zip 后缀的名字。
 func sanitizeBackupName(name string) (string, error) {
@@ -57,12 +71,16 @@ func sanitizeBackupName(name string) (string, error) {
 // backupsDir 返回备份目录。
 func (m *Manager) backupsDir() string { return filepath.Join(m.cfg.Home(), "backups") }
 
-// CreateBackup 把当前设置、订阅文件、自定义规则、内核二进制打包为 <name>.zip。
+// CreateBackup 把当前设置、订阅文件、自定义规则、内核二进制打包为
+// <name>_<随机串>.zip：名称在用户输入基础上自动追加 6 位随机后缀，本地与
+// WebDAV 云备份共用此规则，同时天然避免同名覆盖。返回的 BackupInfo.Name 为
+// 追加后缀的最终名。
 func (m *Manager) CreateBackup(name string) (BackupInfo, error) {
 	name, err := sanitizeBackupName(name)
 	if err != nil {
 		return BackupInfo{}, err
 	}
+	name = name + "_" + randHex(3)
 	dir := m.backupsDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return BackupInfo{}, err

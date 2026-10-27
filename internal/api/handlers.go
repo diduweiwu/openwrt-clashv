@@ -1123,3 +1123,100 @@ func (d *deps) handleBackupDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
+
+// ---- WebDAV 云备份 ----
+
+// handleWebDAVTest 用请求体传入的连接参数测试 WebDAV 连通性（供「连接测试」
+// 按钮在表单未保存时验证当前值）；目录不存在会顺带创建。连接参数也可不传，
+// 此时用已保存设置（便于核对当前生效配置）。
+//
+// 请求体：{"url":"https://dav.example.com/dav","user":"a@b.c","pass":"xxx","dir":"clashv-backups"}
+// 成功：{"ok":true,"ms":123}；失败：4xx/5xx {"error":"原因"}。
+func (d *deps) handleWebDAVTest(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		URL  string `json:"url"`
+		User string `json:"user"`
+		Pass string `json:"pass"`
+		Dir  string `json:"dir"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body) // 空请求体按已保存设置测试
+	if strings.TrimSpace(body.URL) == "" {
+		s, err := d.cfg.Get()
+		if err != nil {
+			writeErr(w, 500, err)
+			return
+		}
+		body.URL, body.User, body.Pass, body.Dir = s.WebDAVURL, s.WebDAVUser, s.WebDAVPass, s.WebDAVDir
+	}
+	ms, err := d.mgr.WebDAVTest(body.URL, body.User, body.Pass, body.Dir)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "ms": ms})
+}
+
+// handleWebDAVBackupList 列出远程备份目录中的备份包（.zip，时间倒序）。
+//
+// 响应：{"backups":[{"name":"...","size":123,"created_at":1700000000}]}。
+func (d *deps) handleWebDAVBackupList(w http.ResponseWriter, r *http.Request) {
+	list, err := d.mgr.WebDAVBackupList()
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"backups": list})
+}
+
+// handleWebDAVBackupCreate 手动发起一次云备份：打包当前状态并上传 WebDAV。
+// 名称末尾自动追加随机串（与本地备份同规则）。
+//
+// 请求体：{"name":"我的备份"}；响应：{"ok":true,"backup":{"name":"我的备份_a1b2c3",...}}。
+func (d *deps) handleWebDAVBackupCreate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法的 JSON"))
+		return
+	}
+	info, err := d.mgr.WebDAVBackupCreate(body.Name)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "backup": info})
+}
+
+// handleWebDAVBackupRestore 从 WebDAV 下载指定备份并恢复（本地同步留档）。
+// 内核在运行则恢复后自动重启。
+//
+// 请求体：{"name":"我的备份_a1b2c3"}；响应：{"ok":true,"restarted":bool,"settings":{...}}。
+func (d *deps) handleWebDAVBackupRestore(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, errStr("请求体不是合法的 JSON"))
+		return
+	}
+	restarted, err := d.mgr.WebDAVBackupRestore(body.Name)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	slog.Info("WebDAV 备份恢复完成", "name", body.Name, "restarted", restarted)
+	s, _ := d.cfg.Get()
+	writeJSON(w, 200, map[string]any{"ok": true, "restarted": restarted, "settings": s})
+}
+
+// handleWebDAVBackupDelete 删除远程备份（本地留档不受影响）。
+//
+// 响应：{"ok":true}。
+func (d *deps) handleWebDAVBackupDelete(w http.ResponseWriter, r *http.Request) {
+	if err := d.mgr.WebDAVBackupDelete(r.PathValue("name")); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}

@@ -33,6 +33,12 @@ import (
 //	    option auto_reboot_url ''
 //	    option auto_reboot_max '1'
 //	    option custom_ua ''
+//	    option webdav_url ''
+//	    option webdav_user ''
+//	    option webdav_pass ''
+//	    option webdav_dir 'clashv-backups'
+//	    option webdav_backup_days ''
+//	    option webdav_backup_time '04:00'
 //	    option workdir ''
 //	    option plugin_repo 'diduweiwu/openwrt-clashv'
 //	    option github_token ''
@@ -108,6 +114,12 @@ func (m *Manager) loadUCI(s *Settings) error {
 	setStr(&s.AutoRebootURL, "auto_reboot_url")
 	setInt(&s.AutoRebootMax, "auto_reboot_max")
 	setStr(&s.CustomUA, "custom_ua")
+	setStr(&s.WebDAVURL, "webdav_url")
+	setStr(&s.WebDAVUser, "webdav_user")
+	setStr(&s.WebDAVPass, "webdav_pass")
+	setStr(&s.WebDAVDir, "webdav_dir")
+	setStr(&s.WebDAVBackupDays, "webdav_backup_days")
+	setStr(&s.WebDAVBackupTime, "webdav_backup_time")
 	setStr(&s.WorkDir, "workdir")
 	setStr(&s.PluginRepo, "plugin_repo")
 	setStr(&s.GithubToken, "github_token")
@@ -158,6 +170,12 @@ func (m *Manager) saveUCI(s *Settings) error {
 	line("set %s.auto_reboot_url='%s'", uciSection, s.AutoRebootURL)
 	line("set %s.auto_reboot_max='%d'", uciSection, s.AutoRebootMax)
 	line("set %s.custom_ua='%s'", uciSection, s.CustomUA)
+	line("set %s.webdav_url='%s'", uciSection, s.WebDAVURL)
+	line("set %s.webdav_user='%s'", uciSection, s.WebDAVUser)
+	line("set %s.webdav_pass='%s'", uciSection, s.WebDAVPass)
+	line("set %s.webdav_dir='%s'", uciSection, s.WebDAVDir)
+	line("set %s.webdav_backup_days='%s'", uciSection, s.WebDAVBackupDays)
+	line("set %s.webdav_backup_time='%s'", uciSection, s.WebDAVBackupTime)
 	line("set %s.workdir='%s'", uciSection, s.WorkDir)
 	line("set %s.plugin_repo='%s'", uciSection, s.PluginRepo)
 	line("set %s.github_token='%s'", uciSection, s.GithubToken)

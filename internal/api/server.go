@@ -68,6 +68,8 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	go d.scheduleLoop()
 	// 断网守护：定时拨测检测地址，不通自动重启内核（见 watch.go）
 	go d.watchLoop()
+	// WebDAV 定时云备份：到点自动打包上传（见下方 backupLoop）
+	go d.backupLoop()
 
 	mux := http.NewServeMux()
 
@@ -141,6 +143,13 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("POST /api/backup/create", d.handleBackupCreate)
 	mux.HandleFunc("POST /api/backup/restore", d.handleBackupRestore)
 	mux.HandleFunc("DELETE /api/backup/{name}", d.handleBackupDelete)
+
+	// WebDAV 云备份
+	mux.HandleFunc("POST /api/webdav/test", d.handleWebDAVTest)
+	mux.HandleFunc("GET /api/webdav/backup/list", d.handleWebDAVBackupList)
+	mux.HandleFunc("POST /api/webdav/backup/create", d.handleWebDAVBackupCreate)
+	mux.HandleFunc("POST /api/webdav/backup/restore", d.handleWebDAVBackupRestore)
+	mux.HandleFunc("DELETE /api/webdav/backup/{name}", d.handleWebDAVBackupDelete)
 
 		// 升级进度（内核/插件共用）
 		mux.HandleFunc("GET /api/upgrade/progress", d.handleUpgradeProgress)
@@ -383,6 +392,50 @@ func (d *deps) scheduleLoop() {
 			slog.Warn("订阅定时更新未完成", "err", restartErr)
 		} else if restarted {
 			slog.Info("订阅定时更新完成，内核已重载")
+		}
+	}
+}
+
+// backupLoop 每 30 秒检查一次是否到达 WebDAV 定时备份时间，命中规则与订阅
+// 定时更新一致：今天星期在配置内、当前时间落在「到点起 10 分钟」窗口内、
+// 今天还没跑过；窗口外重启服务不补跑。星期列表或服务器地址未配置即关闭。
+// 备份名为「自动备份_<日期_时间>」，末尾随机串由 CreateBackup 统一追加。
+func (d *deps) backupLoop() {
+	lastDate := ""
+	for {
+		time.Sleep(30 * time.Second)
+		s, err := d.cfg.Get()
+		if err != nil || s.WebDAVBackupDays == "" || s.WebDAVURL == "" {
+			continue
+		}
+		now := time.Now()
+		due := false
+		for _, day := range config.ParseWeekdays(s.WebDAVBackupDays) {
+			if int(now.Weekday()) == day {
+				due = true
+				break
+			}
+		}
+		if !due {
+			continue
+		}
+		hh, mm, ok := config.ParseHHMM(s.WebDAVBackupTime)
+		if !ok {
+			continue
+		}
+		sched := time.Date(now.Year(), now.Month(), now.Day(), hh, mm, 0, 0, now.Location())
+		if now.Before(sched) || now.After(sched.Add(10*time.Minute)) {
+			continue
+		}
+		today := now.Format("2006-01-02")
+		if today == lastDate {
+			continue
+		}
+		lastDate = today
+		name := "自动备份_" + now.Format("2006-01-02_150405")
+		slog.Info("到达 WebDAV 定时备份时间，开始备份并上传", "time", s.WebDAVBackupTime)
+		if _, err := d.mgr.WebDAVBackupCreate(name); err != nil {
+			slog.Warn("WebDAV 定时备份失败", "name", name, "err", err)
 		}
 	}
 }

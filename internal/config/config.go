@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,6 +43,12 @@ type Settings struct {
 	AutoRebootURL    string `json:"auto_reboot_url"`   // 断网检测地址（HTTP GET，如 http://www.gstatic.com/generate_204），空为关闭
 	AutoRebootMax    int    `json:"auto_reboot_max"`   // 连续失败期间自动重启内核的次数上限（检测恢复后重新计数），1~10
 	CustomUA         string `json:"custom_ua"`         // 上次使用的自定义订阅 User-Agent（记住，下次预填）
+	WebDAVURL        string `json:"webdav_url"`        // WebDAV 服务器地址（含 http/https，如 https://dav.jianguoyun.com/dav/）
+	WebDAVUser       string `json:"webdav_user"`       // WebDAV 账号
+	WebDAVPass       string `json:"webdav_pass"`       // WebDAV 密码/应用密码（Basic Auth 原文，坚果云等用应用密码）
+	WebDAVDir        string `json:"webdav_dir"`        // WebDAV 上的备份目录（相对地址路径，可多级 a/b，默认 clashv-backups）
+	WebDAVBackupDays string `json:"webdav_backup_days"` // 定时云备份的星期列表（逗号分隔 0=周日…6=周六），空为关闭
+	WebDAVBackupTime string `json:"webdav_backup_time"` // 定时云备份的时间点（HH:mm）
 	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
 	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
 	GithubToken      string `json:"github_token"`      // GitHub 访问令牌：私有仓库查 Release/下载安装包必带，公开仓库留空
@@ -77,6 +84,12 @@ func Defaults() Settings {
 		AutoRebootURL:     "google.com",
 		AutoRebootMax:     1, // 检测不通默认只自动重启一次，防止反复重启刷屏
 		CustomUA:         "",
+		WebDAVURL:        "",
+		WebDAVUser:       "",
+		WebDAVPass:       "",
+		WebDAVDir:        "clashv-backups",
+		WebDAVBackupDays: "", // 默认关闭，配置了连接与星期后才生效
+		WebDAVBackupTime: "04:00",
 		WorkDir:          "",
 		PluginRepo:       "diduweiwu/openwrt-clashv",
 		GithubToken:      "",
@@ -287,6 +300,20 @@ func (s *Settings) normalize() {
 	s.DownloadProxy = strings.TrimSuffix(strings.TrimSpace(s.DownloadProxy), "/")
 	s.GithubToken = strings.ReplaceAll(strings.TrimSpace(s.GithubToken), "'", "")
 	s.CustomUA = strings.ReplaceAll(strings.TrimSpace(s.CustomUA), "'", "")
+	// WebDAV：地址缺协议头按 https 补全（云盘服务基本都有 TLS）；密码为 Basic Auth
+	// 原文，剔除单引号以兼容 UCI 单引号包裹存储
+	s.WebDAVURL = strings.TrimRight(strings.TrimSpace(s.WebDAVURL), "/")
+	if s.WebDAVURL != "" && !strings.Contains(s.WebDAVURL, "://") {
+		s.WebDAVURL = "https://" + s.WebDAVURL
+	}
+	s.WebDAVUser = strings.TrimSpace(s.WebDAVUser)
+	s.WebDAVPass = strings.ReplaceAll(strings.TrimSpace(s.WebDAVPass), "'", "")
+	s.WebDAVDir = SanitizeWebDAVDir(s.WebDAVDir)
+	// 定时云备份：星期列表与时间点规则与订阅定时更新一致
+	s.WebDAVBackupDays = EncodeWeekdays(ParseWeekdays(s.WebDAVBackupDays))
+	if _, _, ok := ParseHHMM(s.WebDAVBackupTime); !ok {
+		s.WebDAVBackupTime = "04:00"
+	}
 	// DNS 劫持模式白名单；历史配置为空时视为默认防火墙转发
 	s.DNSHijack = strings.TrimSpace(s.DNSHijack)
 	switch s.DNSHijack {
@@ -377,6 +404,28 @@ func ParseHHMM(s string) (int, int, bool) {
 	}
 	return hh, mm, true
 }
+
+// SanitizeWebDAVDir 规整 WebDAV 备份目录：去空白与首尾斜杠、剔除文件系统与
+// URL 非法字符（中文名允许）、支持多级相对路径（如 nas/clashv）；规整后为空
+// 回退默认目录 clashv-backups。返回不含首尾斜杠的多级目录串。
+//
+// 示例：
+//
+//	SanitizeWebDAVDir("/我的 备份/")  => "我的 备份"
+//	SanitizeWebDAVDir("a:b\\c")       => "abc"
+//	SanitizeWebDAVDir("")             => "clashv-backups"
+func SanitizeWebDAVDir(dir string) string {
+	dir = strings.TrimSpace(strings.ReplaceAll(dir, "\\", "/"))
+	dir = strings.Trim(dir, "/")
+	dir = webdavDirRe.ReplaceAllString(dir, "")
+	if dir == "" {
+		return "clashv-backups"
+	}
+	return dir
+}
+
+// webdavDirRe 匹配目录名中不允许出现的字符（斜杠作为多级分隔符保留）。
+var webdavDirRe = regexp.MustCompile(`[\\:*?"<>|]`)
 
 // EnsureDirs 创建运行所需目录结构。
 func (m *Manager) EnsureDirs() error {

@@ -1,7 +1,7 @@
 <script setup>
 // 设置页：基础设置、TUN/DNS、内核更新（mihomo）、插件更新
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSlider, NSpin, NSwitch, NTabs, NTabPane, NTag } from 'naive-ui'
+import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSlider, NSpin, NSwitch, NTabs, NTabPane, NTag, NTimePicker } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
 import { glassEnabled, glassOpacity } from '../glass.js'
@@ -220,6 +220,43 @@ const HELP = {
       { k: '注意', v: '恢复会覆盖当前全部设置、订阅与自定义规则；内核在运行时会自动重启。' },
     ],
   },
+  webdav: {
+    title: 'WebDAV 云备份',
+    rows: [
+      { k: '作用', v: '把备份包上传到你自己的 WebDAV 网盘（坚果云、InfiniCloud、Alist、群晖等都兼容），路由器刷机/损坏后也能找回配置。' },
+      { k: '连接参数', v: '服务器地址填到挂载路径（如 https://dav.jianguoyun.com/dav/）；坚果云等使用应用密码的服务，密码填应用密码。备份目录是远程备份包的存放目录，可多级（如 nas/clashv），不存在会在测试/备份时自动创建。' },
+      { k: '安全说明', v: '账号与密码保存在路由器本机配置中（与访问令牌同级别存储），仅用于登录你的 WebDAV 服务。' },
+      { k: '备份内容', v: '与本地备份一致：全部设置、订阅配置与列表、自定义规则、内核程序；名称末尾会自动追加随机串防重名。' },
+    ],
+  },
+  webdavTest: {
+    title: '连接测试',
+    rows: [
+      { k: '作用', v: '按上方填写（含未保存的修改）尝试连接 WebDAV 服务器：验证地址、账号密码与备份目录，目录不存在时自动创建。' },
+      { k: '建议', v: '填完连接参数先测试再保存，避免定时备份到点才发现配置不通。' },
+    ],
+  },
+  webdavSchedule: {
+    title: '定时备份',
+    rows: [
+      { k: '作用', v: '在选定星期的指定时间点自动备份并上传到 WebDAV；不选任何星期即为关闭。' },
+      { k: '默认与建议', v: '建议每天低峰（如凌晨 4 点）一次；备份含内核程序，包体数十 MB，注意网盘流量与空间。' },
+    ],
+  },
+  webdavBackup: {
+    title: '备份到 WebDAV',
+    rows: [
+      { k: '作用', v: '立即打包当前状态并上传到 WebDAV，可自定义名称（末尾自动追加随机串）。' },
+      { k: '注意', v: '需要已保存的 WebDAV 连接配置；上传成功后本地不留副本（省路由器存储），上传失败会保留本地包供重试。' },
+    ],
+  },
+  webdavList: {
+    title: '云备份列表',
+    rows: [
+      { k: '作用', v: '查看 WebDAV 上的全部备份，可选择一份下载恢复或删除；恢复后本地也会留档。' },
+      { k: '注意', v: '恢复会覆盖当前全部设置、订阅与自定义规则；内核在运行时会自动重启。' },
+    ],
+  },
   reset: {
     title: '重置所有配置',
     rows: [
@@ -253,6 +290,12 @@ const form = reactive({
   auto_reboot_enabled: false,
   auto_reboot_url: '',
   auto_reboot_max: 1,
+  webdav_url: '',
+  webdav_user: '',
+  webdav_pass: '',
+  webdav_dir: 'clashv-backups',
+  webdav_backup_days: '',
+  webdav_backup_time: '04:00',
   token: '',
   luci_auth: true,
   core_arch: '',
@@ -381,6 +424,12 @@ async function load() {
       auto_reboot_enabled: !!s.auto_reboot_enabled,
       auto_reboot_url: s.auto_reboot_url || '',
       auto_reboot_max: s.auto_reboot_max || 1,
+      webdav_url: s.webdav_url || '',
+      webdav_user: s.webdav_user || '',
+      webdav_pass: s.webdav_pass || '',
+      webdav_dir: s.webdav_dir || 'clashv-backups',
+      webdav_backup_days: s.webdav_backup_days || '',
+      webdav_backup_time: s.webdav_backup_time || '04:00',
       token: s.token || '',
       luci_auth: s.luci_auth !== false,
       core_arch: s.core_arch || '',
@@ -458,6 +507,12 @@ async function save() {
       auto_reboot_enabled: !!r.settings.auto_reboot_enabled,
       auto_reboot_url: r.settings.auto_reboot_url || '',
       auto_reboot_max: r.settings.auto_reboot_max || 1,
+      webdav_url: r.settings.webdav_url || '',
+      webdav_user: r.settings.webdav_user || '',
+      webdav_pass: r.settings.webdav_pass || '',
+      webdav_dir: r.settings.webdav_dir || 'clashv-backups',
+      webdav_backup_days: r.settings.webdav_backup_days || '',
+      webdav_backup_time: r.settings.webdav_backup_time || '04:00',
       token: r.settings.token || '',
       luci_auth: r.settings.luci_auth !== false,
       core_arch: r.settings.core_arch || '',
@@ -668,13 +723,11 @@ const showBackupCreate = ref(false)
 const backupName = ref('')
 const backupCreating = ref(false)
 
-// 自动备份名：时间格式 + 随机串，用户可在弹窗里改名
+// 备份名预填：时间格式即可，防撞的随机串由后端创建时统一追加（本地与云备份同规则）
 function genBackupName() {
   const d = new Date()
   const p = n => String(n).padStart(2, '0')
-  const rand = Array.from(crypto.getRandomValues(new Uint8Array(3)))
-    .map(b => b.toString(16).padStart(2, '0')).join('')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_${rand}`
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
 }
 
 async function refreshBackups() {
@@ -743,6 +796,133 @@ async function deleteBackup(b) {
     toast(e.message, 'error')
   } finally {
     deletingName.value = ''
+  }
+}
+
+// ---- WebDAV 云备份：连接配置存表单（随底部保存提交），备份/列表/恢复即时操作 ----
+
+// 定时备份星期：后端存逗号分隔串，多选下拉要数组，双向转换。
+// 注意空串 split 出 ['']、Number('') 是 0，必须先判空，否则会误选「周日」
+const webdavDays = computed({
+  get: () => form.webdav_backup_days
+    ? form.webdav_backup_days.split(',').map(Number).filter(n => n >= 0 && n <= 6)
+    : [],
+  set: (v) => { form.webdav_backup_days = [...v].sort((a, b) => a - b).join(',') },
+})
+
+// 云备份弹窗里的星期选项（与订阅页定时更新同款）
+const WEBDAV_DAY_OPTIONS = [
+  { label: '周一', value: 1 }, { label: '周二', value: 2 }, { label: '周三', value: 3 },
+  { label: '周四', value: 4 }, { label: '周五', value: 5 }, { label: '周六', value: 6 },
+  { label: '周日', value: 0 },
+]
+
+const webdavTesting = ref(false)
+
+// 连接测试用表单当前值（未保存也能测），保存前先验证配置有效性
+async function testWebDAV() {
+  if (webdavTesting.value) return
+  if (!form.webdav_url.trim()) {
+    toast('请先填写服务器地址', 'error')
+    return
+  }
+  webdavTesting.value = true
+  try {
+    const r = await api.post('/api/webdav/test', {
+      url: form.webdav_url,
+      user: form.webdav_user,
+      pass: form.webdav_pass,
+      dir: form.webdav_dir,
+    })
+    toast(`连接成功（${r.ms} ms）`, 'success')
+  } catch (e) {
+    toast(e.message, 'error', 6000)
+  } finally {
+    webdavTesting.value = false
+  }
+}
+
+const cloudBackups = ref([])
+const cloudLoading = ref(false)
+const showCloudList = ref(false)
+const cloudRestoring = ref('')
+const cloudDeleting = ref('')
+const showCloudCreate = ref(false)
+const cloudName = ref('')
+const cloudCreating = ref(false)
+
+async function refreshCloudBackups() {
+  cloudLoading.value = true
+  try {
+    const r = await api.get('/api/webdav/backup/list')
+    cloudBackups.value = r.backups || []
+  } catch (e) {
+    toast(e.message, 'error', 6000)
+  } finally {
+    cloudLoading.value = false
+  }
+}
+
+function openCloudCreate() {
+  if (!form.webdav_url.trim()) {
+    toast('请先填写并保存 WebDAV 连接配置', 'error')
+    return
+  }
+  cloudName.value = genBackupName()
+  showCloudCreate.value = true
+}
+
+async function createCloudBackup() {
+  if (!cloudName.value.trim()) {
+    toast('请填写备份名称', 'error')
+    return
+  }
+  cloudCreating.value = true
+  try {
+    const r = await api.post('/api/webdav/backup/create', { name: cloudName.value })
+    toast(`已备份到 WebDAV：${r.backup?.name || '完成'}`, 'success', 5000)
+    showCloudCreate.value = false
+    refreshCloudBackups() // 行尾「管理（N）」计数即时更新
+  } catch (e) {
+    toast(e.message, 'error', 6000)
+  } finally {
+    cloudCreating.value = false
+  }
+}
+
+function openCloudList() {
+  showCloudList.value = true
+  refreshCloudBackups()
+}
+
+async function restoreCloudBackup(b) {
+  const running = store.status?.running
+  if (!(await ask('恢复云备份', `将下载「${b.name}」并覆盖当前全部设置、订阅配置与自定义规则${running ? '，内核会自动重启' : ''}。确定恢复？`))) return
+  cloudRestoring.value = b.name
+  try {
+    const r = await api.post('/api/webdav/backup/restore', { name: b.name })
+    toast(r.restarted ? '云备份已恢复，内核已重启生效' : '云备份已恢复；内核当前未运行，可到首页启动', 'success', 5000)
+    showCloudList.value = false
+    await load()
+    store.status = await api.get('/api/status')
+  } catch (e) {
+    toast(e.message, 'error', 6000)
+  } finally {
+    cloudRestoring.value = ''
+  }
+}
+
+async function deleteCloudBackup(b) {
+  if (!(await ask('删除云备份', `确认删除 WebDAV 上的「${b.name}」？删除后不可恢复`))) return
+  cloudDeleting.value = b.name
+  try {
+    await api.del('/api/webdav/backup/' + encodeURIComponent(b.name))
+    toast('云备份已删除', 'success')
+    refreshCloudBackups()
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    cloudDeleting.value = ''
   }
 }
 
@@ -1274,6 +1454,97 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
       </div>
     </n-card>
 
+    <!-- WebDAV 云备份：连接配置随底部保存提交；测试/定时/手动备份/列表为即时操作 -->
+    <n-card v-if="tab === 'plugin'" title="WebDAV 云备份">
+      <div class="rows">
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">服务器地址<HelpModal v-bind="HELP.webdav" /></span>
+          </div>
+          <n-input v-model:value="form.webdav_url" placeholder="https://dav.jianguoyun.com/dav/" />
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">账号<HelpModal v-bind="HELP.webdav" /></span>
+          </div>
+          <n-input v-model:value="form.webdav_user" placeholder="WebDAV 账号（如邮箱）" />
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">密码<HelpModal v-bind="HELP.webdav" /></span>
+          </div>
+          <n-input-group class="ctl">
+            <n-input
+              v-model:value="form.webdav_pass"
+              type="password"
+              show-password-on="click"
+              placeholder="密码 / 应用密码"
+            />
+            <n-button title="清空密码" :disabled="!form.webdav_pass" @click="form.webdav_pass = ''">
+              <template #icon><AppIcon name="trash" :size="14" /></template>
+            </n-button>
+          </n-input-group>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">备份目录<HelpModal v-bind="HELP.webdav" /></span>
+          </div>
+          <n-input v-model:value="form.webdav_dir" placeholder="clashv-backups" />
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">连接测试<HelpModal v-bind="HELP.webdavTest" /></span>
+            <span class="rs">按上方填写（含未保存的修改）验证，目录不存在会自动创建</span>
+          </div>
+          <n-button size="small" :loading="webdavTesting" @click="testWebDAV">
+            <template #icon><AppIcon name="zap" :size="13" /></template>测试
+          </n-button>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">定时备份<HelpModal v-bind="HELP.webdavSchedule" /></span>
+            <span class="rs">不选任何星期即为关闭</span>
+          </div>
+          <n-select
+            v-model:value="webdavDays"
+            multiple
+            :options="WEBDAV_DAY_OPTIONS"
+            placeholder="选择备份星期"
+            :max-tag-count="3"
+            class="ctl"
+          />
+        </div>
+        <div class="row" v-if="webdavDays.length">
+          <div class="row-text">
+            <span class="rt">备份时间<HelpModal v-bind="HELP.webdavSchedule" /></span>
+          </div>
+          <n-time-picker
+            v-model:formatted-value="form.webdav_backup_time"
+            value-format="HH:mm"
+            format="HH:mm"
+            class="ctl"
+          />
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">备份到 WebDAV<HelpModal v-bind="HELP.webdavBackup" /></span>
+            <span class="rs">立即打包当前状态并上传，名称末尾自动追加随机串</span>
+          </div>
+          <n-button size="small" type="primary" secondary @click="openCloudCreate">
+            <template #icon><AppIcon name="upload" :size="13" /></template>备份
+          </n-button>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="rt">云备份列表<HelpModal v-bind="HELP.webdavList" /></span>
+          </div>
+          <n-button size="small" @click="openCloudList">
+            <template #icon><AppIcon name="clock" :size="13" /></template>管理{{ cloudBackups.length ? `（${cloudBackups.length}）` : '' }}
+          </n-button>
+        </div>
+      </div>
+    </n-card>
+
     <!-- 恢复出厂：除订阅配置外全部数据回到安装初始状态，二次确认后执行 -->
     <n-card v-if="tab === 'plugin'">
       <div class="rows">
@@ -1298,7 +1569,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
         <div class="page-sub">备份内容：全部设置、订阅配置与列表、自定义规则、内核程序（不含运行缓存与日志）</div>
         <n-input v-model:value="backupName" placeholder="备份名称（可编辑）" @keyup.enter="createBackup" />
         <div class="backup-foot">
-          <span class="page-sub">同名备份会被拒绝，换个名字即可</span>
+          <span class="page-sub">名称末尾会自动追加随机串，不会与已有备份重名</span>
           <n-button type="primary" size="small" :loading="backupCreating" @click="createBackup">备份</n-button>
         </div>
       </div>
@@ -1327,6 +1598,48 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
       </n-spin>
       <div class="backup-foot" style="margin-top: 10px">
         <span class="page-sub">恢复会覆盖当前全部设置、订阅与自定义规则；内核在运行时会自动重启</span>
+      </div>
+    </n-modal>
+
+    <!-- 创建云备份弹窗：名称可自定义，随机串由后端追加 -->
+    <n-modal
+      preset="card" title="备份到 WebDAV" :show="showCloudCreate"
+      :style="{ width: '580px', maxWidth: '94vw' }"
+      @update:show="showCloudCreate = false"
+    >
+      <div class="backup-body">
+        <div class="page-sub">上传到 {{ form.webdav_url || '（未配置服务器地址）' }} 的 {{ form.webdav_dir }} 目录；内容与本地备份一致</div>
+        <n-input v-model:value="cloudName" placeholder="备份名称（可编辑）" @keyup.enter="createCloudBackup" />
+        <div class="backup-foot">
+          <span class="page-sub">名称末尾会自动追加随机串；上传成功后本地不留副本</span>
+          <n-button type="primary" size="small" :loading="cloudCreating" @click="createCloudBackup">备份</n-button>
+        </div>
+      </div>
+    </n-modal>
+
+    <!-- 云备份列表弹窗：下载恢复 / 删除（远程） -->
+    <n-modal
+      preset="card" title="云备份列表" :show="showCloudList"
+      :style="{ width: '720px', maxWidth: '94vw' }"
+      @update:show="showCloudList = false"
+    >
+      <n-spin :show="cloudLoading">
+        <n-empty v-if="!cloudBackups.length" description="WebDAV 上还没有备份" style="padding: 30px 0" />
+        <div v-else class="backup-list">
+          <div v-for="b in cloudBackups" :key="b.name" class="backup-row">
+            <div class="row-text">
+              <span class="rt mono">{{ b.name }}</span>
+              <span class="rs">{{ b.created_at ? fmtTime(b.created_at) : '时间未知' }} · {{ fmtSize(b.size) }}</span>
+            </div>
+            <div class="btn-pair">
+              <n-button size="small" type="primary" :loading="cloudRestoring === b.name" @click="restoreCloudBackup(b)">恢复</n-button>
+              <n-button size="small" type="error" ghost :loading="cloudDeleting === b.name" @click="deleteCloudBackup(b)">删除</n-button>
+            </div>
+          </div>
+        </div>
+      </n-spin>
+      <div class="backup-foot" style="margin-top: 10px">
+        <span class="page-sub">恢复会下载备份到本地并覆盖当前全部设置；内核在运行时会自动重启，本地也会留档一份</span>
       </div>
     </n-modal>
 
