@@ -1442,6 +1442,10 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 
 /* ---- 手机/平板：行内控件换到文案下方铺满，开关保持靠右 ---- */
 @media (max-width: 760px) {
+  /* 顶部 segment tabs 窄屏放不下时横向滑动兜底（max-width:100% 只会裁剪不会滚）；
+     同时收窄 tab 内边距，360px 手机 5 个 tab 刚好放得下、多数情况无需滑动 */
+  .tabs { overflow-x: auto; }
+  .tabs :deep(.n-tabs-tab) { padding: 6px 10px; }
   .row { flex-wrap: wrap; }
   .row .ctl, .row .num, .row > .n-input, .row .n-input-group { width: 100% !important; }
   .row > .n-switch { margin-left: auto; }

@@ -22,6 +22,17 @@ const auto = ref(true)
 const follow = ref(true)
 const loading = ref(false)
 
+// 全屏查看：日志卡固定铺满视口（筛选条一起带走），Esc 或再点一次退出
+const full = ref(false)
+
+// 全屏时锁住背景滚动（手机端触摸拖动不会带动底下的页面），退出/销毁时恢复
+watch(full, v => { document.body.style.overflow = v ? 'hidden' : '' })
+
+// Esc 退出全屏（仅全屏态响应，不影响其他页面）
+function onGlobalKey(e) {
+  if (e.key === 'Escape' && full.value) full.value = false
+}
+
 // 筛选条件：关键字 / 级别 / 时间范围（[起, 止] 毫秒时间戳，null=不限）
 const kw = ref('')
 const levelSel = ref(null)
@@ -172,8 +183,16 @@ async function clearLog() {
   }
 }
 
-onMounted(() => { load(false); setAuto(true) })
-onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+onMounted(() => {
+  load(false)
+  setAuto(true)
+  window.addEventListener('keydown', onGlobalKey)
+})
+onBeforeUnmount(() => {
+  if (timer) clearInterval(timer)
+  window.removeEventListener('keydown', onGlobalKey)
+  document.body.style.overflow = '' // 全屏态直接切页时恢复背景滚动
+})
 </script>
 
 <template>
@@ -199,7 +218,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       </div>
     </n-card>
 
-    <n-card class="log-card">
+    <n-card class="log-card" :class="{ full }">
       <!-- 筛选与快捷操作条 -->
       <div class="log-bar">
         <n-input v-model:value="kw" size="small" clearable placeholder="关键字筛选…" class="f-kw">
@@ -216,6 +235,11 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         />
         <span class="lg-count mono">{{ filtered.length }}/{{ parsed.length }} 行</span>
         <div class="bar-btns">
+          <!-- 全屏查看：整卡（含筛选条）铺满视口，手机端日志区太矮时的主要出口 -->
+          <n-button size="small" :title="full ? '退出全屏（Esc）' : '全屏查看日志'" @click="full = !full">
+            <template #icon><AppIcon :name="full ? 'shrink' : 'expand'" :size="13" /></template>
+            {{ full ? '退出' : '全屏' }}
+          </n-button>
           <n-button size="small" title="瞬移到顶部" @click="jump(true)"><template #icon><AppIcon name="chevron-up" :size="14" /></template></n-button>
           <n-button size="small" title="瞬移到底部" @click="jump(false)"><template #icon><AppIcon name="chevron-down" :size="14" /></template></n-button>
           <n-button size="small" type="error" ghost @click="clearLog">
@@ -275,6 +299,15 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   .f-range { width: 100%; flex: 1 1 100%; }
 }
 
+/* 全屏查看：日志卡固定铺满视口（筛选条一起带走）。实心底盖掉磨砂半透明；
+   手机端 56vh 定高被压过恢复内部弹性（选择器多两个类，特异性必然高于上面媒体查询） */
+.log-card.full {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 1000;
+  border-radius: 0; border: none;
+  background: var(--bg);
+}
+.log-card.full .log-view, .log-card.full .log-empty { height: auto; flex: 1; }
+
 .log-view {
   flex: 1; min-height: 0; box-sizing: border-box;
   padding: 12px 16px;
@@ -283,6 +316,16 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   overflow-y: auto;
 }
 .log-empty { flex: 1; min-height: 0; overflow-y: auto; }
+
+/* 手机端不再锁死一屏：头部卡与筛选条换行后会把 flex:1 的日志区压到只剩一条缝，
+   改页面自然高度 + 日志区定高 56vh，页面整体滚动、日志组件内部滚动不变。
+   必须放在桌面 .log-view/.log-empty 之后：同特异性下靠后者胜（放在前面的媒体块
+   里会被上方 flex:1 盖掉，56vh 定高不生效） */
+@media (max-width: 760px) {
+  .page.logs-page { height: auto; }
+  .log-card { flex: none; }
+  .log-view, .log-empty { height: 56vh; flex: none; }
+}
 .lg-line { white-space: pre-wrap; word-break: break-all; min-height: 1.75em; }
 .lg-m { color: var(--text); }
 .lg-a { color: var(--text-dim); font-size: 11px; margin-left: 8px; }

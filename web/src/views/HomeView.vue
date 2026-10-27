@@ -1757,8 +1757,9 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   /* 信息卡网格窄屏转单列 */
   /* 信息卡三卡一行窄屏转单列 */
   .home-grid3 { grid-template-columns: 1fr; }
-  /* 流量瓦片 2×2 */
-  .traffic-nums { gap: 10px; grid-template-columns: repeat(2, 1fr); }
+  /* 流量瓦片 2×2（has-watchdog 的桌面 6 列是双类、特异性更高，必须同选择器并列才能盖掉，
+     否则开断网守护时手机端仍 6 列等分挤成一条） */
+  .traffic-nums, .traffic-nums.has-watchdog { gap: 10px; grid-template-columns: repeat(2, 1fr); }
   .traffic-nums .meta-item { height: auto; min-height: 62px; }
   .traffic-nums .meta-item .v { font-size: 16px; }
   .traffic-nums .meta-item .v-unit { font-size: 13px; }
