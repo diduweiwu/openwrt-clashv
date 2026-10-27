@@ -142,6 +142,38 @@ func parsePlain(b []byte) (*ipGeo, error) {
 	return &ipGeo{IP: ip}, nil
 }
 
+// parseIP38 解析 ip38.cn 的 get_ip_info.php 响应：{"ip":"…","region":"中国 四川 成都 移动"}。
+// region 为空格分隔的归属描述：首段国家、末段运营商（≥3 段时）、中间各段合并为
+// 省/市描述；段数不足时尽力填充。仅能识别「中国」的国家代码（国旗 emoji 用），
+// 其余字段（ASN/经纬度等）该源不提供，留空由弹窗按空值显示。
+func parseIP38(b []byte) (*ipGeo, error) {
+	var v struct {
+		IP     string `json:"ip"`
+		Region string `json:"region"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return nil, err
+	}
+	if net.ParseIP(strings.TrimSpace(v.IP)) == nil {
+		return nil, fmt.Errorf("响应缺少合法 ip 字段")
+	}
+	g := &ipGeo{IP: strings.TrimSpace(v.IP)}
+	parts := strings.Fields(v.Region)
+	if len(parts) > 0 {
+		g.Country = parts[0]
+		if g.Country == "中国" {
+			g.CountryCode = "CN"
+		}
+	}
+	if len(parts) >= 3 {
+		g.ISP = parts[len(parts)-1]
+		g.City = strings.Join(parts[1:len(parts)-1], " ")
+	} else if len(parts) == 2 {
+		g.City = parts[1]
+	}
+	return g, nil
+}
+
 // ipSources 代理出口查询源列表（经混合端口、强制走代理），按序尝试直到成功。
 var ipSources = []ipSource{
 	{name: "ip.sb", url: "https://api.ip.sb/geoip", parse: parseGeoip},
@@ -154,10 +186,13 @@ var ipSources = []ipSource{
 	},
 }
 
-// directSources 直连出口查询源：国内直连可达的纯文本回显端点。
-// 国外源在 TUN/透明代理接管本机流量时会被内核按规则分流走代理，查到的不是
-// 直连出口；国内源在任何分流规则下都命中 DIRECT，拿到的才是真实直连出口。
+// directSources 直连出口查询源：国内直连可达的端点，ip38.cn 优先（一次同时
+// 返回 IP 与归属地；边缘节点拦截非浏览器 UA，queryOneSource 统一带 browserUA
+// 已规避，实测无 UA 请求 403）。国外源在 TUN/透明代理接管本机流量时会被内核
+// 按规则分流走代理，查到的不是直连出口；国内源在任何分流规则下都命中 DIRECT，
+// 拿到的才是真实直连出口。ip38 失败时落到纯文本源 + geoLookup 反查的老两步。
 var directSources = []ipSource{
+	{name: "ip38.cn", url: "https://api.ip38.com/get_ip_info.php", parse: parseIP38},
 	{name: "nipw.cn", url: "https://4.wsmdn.top", parse: parsePlain},
 	{name: "3322", url: "http://ip.3322.net", parse: parsePlain},
 }
@@ -201,11 +236,12 @@ func geoLookup(hc *http.Client, ip string) *ipGeo {
 	return nil
 }
 
-// queryDirectEntry 查询真实直连出口：国内纯文本源拿 IP（任何分流下都走 DIRECT），
-// 再反查地理信息补全（失败仅缺地理字段，IP 仍有效）。
+// queryDirectEntry 查询真实直连出口。ip38.cn 源一次同时返回 IP 与中文归属地，
+// 直接采用（不反查——geoLookup 走国外源 ip.sb，正是要替换掉的依赖）；纯文本源
+// （nipw/3322）只回显裸 IP，才反查地理补全（失败仅缺地理字段，IP 仍有效）。
 func queryDirectEntry() ipEntry {
 	entry := queryIPEntry(&http.Client{Timeout: 8 * time.Second}, directSources...)
-	if !entry.OK {
+	if !entry.OK || entry.Country != "" {
 		return entry
 	}
 	if g := geoLookup(&http.Client{Timeout: 8 * time.Second}, entry.IP); g != nil {
@@ -357,6 +393,22 @@ func (d *deps) handleIPInfo(w http.ResponseWriter, r *http.Request) {
 	ipCache.mu.Unlock()
 
 	writeJSON(w, 200, map[string]any{"direct": directEntry, "proxy": proxyEntry, "ipv6": ipv6Entry, "ts": ts})
+}
+
+// handleIPGeoDirect GET /api/ipgeo/direct：只查国内直连出口（ip38.cn 一次返回
+// IP 与归属地），供浏览器端检测模式的直连行调用——api.ip38.com 的 CORS 只
+// 放行 www.ip38.com 自己，浏览器页面无法直接 fetch，经本后端转发即可；后端
+// 直连国内站在任何分流规则下都走 DIRECT，与直连行语义一致。每次实时查询
+// 不走缓存（前端已有 60 秒轻缓存兜频率）。
+//
+// 返回：ipEntry 结构；失败 502 {"error": "..."}。
+func (d *deps) handleIPGeoDirect(w http.ResponseWriter, r *http.Request) {
+	entry := queryDirectEntry()
+	if !entry.OK {
+		writeErr(w, 502, fmt.Errorf("%s", entry.Error))
+		return
+	}
+	writeJSON(w, 200, entry)
 }
 
 // ipv6Sources IPv6 出网探测源：域名只有 AAAA 记录，本机无 IPv6 时连接直接失败；

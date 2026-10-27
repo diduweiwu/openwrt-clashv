@@ -77,6 +77,8 @@ func Serve(cfg *config.Manager, prof *profiles.Manager, mgr *core.Manager, versi
 	mux.HandleFunc("GET /api/status", d.handleStatus)
 	// 网络体检：出口 IP 查询与网站解锁测试（见 netcheck.go）
 	mux.HandleFunc("GET /api/ipinfo", d.handleIPInfo)
+	// 直连出口单独查（ip38.cn）：浏览器端检测模式的直连行经此后端转发（ip38 CORS 只放行其官网）
+	mux.HandleFunc("GET /api/ipgeo/direct", d.handleIPGeoDirect)
 	mux.HandleFunc("POST /api/unlock/test", d.handleUnlockTest)
 	mux.HandleFunc("GET /api/traffic", d.handleTraffic)
 	mux.HandleFunc("GET /api/traffic/history", d.handleTrafficHistory)

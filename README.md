@@ -258,6 +258,8 @@ make linux        # 交叉编译 7 种 Linux 架构 bin/clashv-{arm64,armv7,mips
 | GET | /api/status | 运行状态、版本、当前订阅 |
 | GET | /api/traffic | 实时流量快照（前端 1s 轮询） |
 | GET | /api/traffic/history | 最近 1 小时流量历史采样（后端落盘持久化，重启不丢） |
+| GET | /api/ipinfo | 出口 IP 查询（直连/代理/IPv6，60 秒缓存） |
+| GET | /api/ipgeo/direct | 直连出口单独查（ip38.cn，浏览器端检测模式经此后端转发） |
 | GET/PUT | /api/settings | 读写设置 |
 | GET | /api/proxies | 全部代理与分组（透传内核） |
 | PUT | /api/proxies/{group} | 切换节点 `{"name":"..."}` |

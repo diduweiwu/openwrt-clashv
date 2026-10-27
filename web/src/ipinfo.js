@@ -36,10 +36,13 @@ export function toggleProbeMode() {
 
 // ---- 浏览器端查询源 ----
 
-// 直连源：国内直连可达的纯文本 IP 回显（nipw.cn 背后端点，腾讯 EdgeOne，CORS 全开）。
+// 直连行首选：经插件后端转发查 ip38.cn（api.ip38.com/get_ip_info.php 一次同时
+// 返回 ip 与归属地）。该接口 CORS 只放行 www.ip38.com 自己、还拦截非浏览器 UA，
+// 浏览器页面无法直接 fetch，因此走后端转发（同源无 CORS）；后端直连的是国内站，
+// 任何分流规则下都命中 DIRECT，与直连行语义一致，且内核未运行也照常可查。
+// 后端转发失败时回退下面的国内纯文本源 + ip.sb 反查两步法兜底。
 // 国外源（ip-api.com 等）在部分浏览器环境会被分流走代理、查到的反而是代理出口，
-// 因此直连行必须用国内源。拿到 IP 后再经 ip.sb geoip/{ip} 反查地理信息——
-// 该查询查的是参数 IP 的归属，与请求走哪条链路无关。
+// 因此直连行必须用国内源。
 const BROWSER_DIRECT = [
   { source: 'nipw.cn', url: 'https://4.wsmdn.top', parse: parseTextIp },
   { source: '3322', url: 'http://ip.3322.net', parse: parseTextIp },
@@ -184,15 +187,20 @@ async function fetchBrowserProxy(directIP) {
 }
 
 /**
- * 浏览器端查直连出口：国内纯文本源拿 IP，再反查地理信息。
- * @returns {Promise<object>} ipEntry 结构（geoip 反查失败时仅缺地理字段）
+ * 浏览器端查直连出口：优先经后端转发查 ip38.cn（一次拿 IP+归属地，CORS 限制
+ * 使浏览器无法直连该接口，见 BROWSER_DIRECT 注释）；转发失败回退国内纯文本源
+ * 拿 IP、再经 ip.sb geoip/{ip} 反查地理的老两步法（反查查的是参数 IP 的归属，
+ * 与该请求自身走哪条链路无关，失败仅缺地理字段）。
+ * @returns {Promise<object>} ipEntry 结构
  */
 async function fetchBrowserDirect() {
+  try {
+    // 后端实时查询无缓存；本函数被 loadIpInfo 的 60 秒前端轻缓存兜频率
+    return await api.get('/api/ipgeo/direct')
+  } catch { /* 后端不可用等，回退浏览器端直查 */ }
   const direct = await fetchBrowserEntry(BROWSER_DIRECT)
   if (!direct.ok) return direct
   try {
-    // api.ip.sb/geoip/{ip} 查询任意 IP 的归属，与该请求自身走哪条链路无关；
-    // 失败只影响地理字段，IP 本身仍有效
     const res = await fetch('https://api.ip.sb/geoip/' + encodeURIComponent(direct.ip), {
       signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined,
     })
