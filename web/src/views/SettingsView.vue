@@ -1447,7 +1447,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
   .tabs { overflow-x: auto; }
   .tabs :deep(.n-tabs-tab) { padding: 6px 10px; }
   .row { flex-wrap: wrap; }
-  .row .ctl, .row .num, .row > .n-input, .row .n-input-group { width: 100% !important; }
+  .row .ctl, .row .num, .row > .n-input, .row .n-input-group, .row .glass-ctl { width: 100% !important; }
   .row > .n-switch { margin-left: auto; }
   .prog-side { width: 100%; }
   .prog { width: auto; flex: 1; }
