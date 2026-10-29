@@ -1026,7 +1026,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
       <div class="head-row">
         <div>
           <h2 class="page-title">设置</h2>
-          <p class="page-sub">插件全部配置 · 修改后点底部「保存」生效，涉及连接的改动会自动重启内核</p>
+          <p class="page-sub">修改后点底部「保存」生效，涉及连接的改动会自动重启内核</p>
         </div>
         <n-tabs v-model:value="tab" type="segment" size="small" class="tabs">
           <n-tab-pane name="general"><template #tab>通用</template></n-tab-pane>
@@ -1706,6 +1706,9 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+/* 头部说明文案压小字号（全局 page-sub 13px 偏大，这句长文案在窄屏要折两行），
+   11.5px 在 320px 窄屏也能尽量保持一行 */
+.head-row .page-sub { font-size: 11.5px; }
 /* segment tabs 自带 width:100% + tab 平分拉伸，这里收成内容宽度（与日志页同款不占满），窄屏兜底不溢出；
    naive segment tab 默认左右 padding 为 0（设计上靠拉伸撑宽），收窄后必须补横向内边距否则文字挤在一起 */
 .tabs { width: fit-content; max-width: 100%; min-width: 0; }

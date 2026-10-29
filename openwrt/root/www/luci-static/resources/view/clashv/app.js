@@ -41,6 +41,11 @@ return L.view.extend({
 			src += (src.indexOf('?') >= 0 ? '&' : '?') + 'luci_bg=' + luciBg;
 		var frame = E('iframe', {
 			src: src,
+			/* 放行系统级全屏：日志页「全屏」用 Fullscreen API 盖满整个浏览器窗口，
+			   不放行时只能退化为 iframe 区域内铺满（allow 是现代标准写法，
+			   allowfullscreen 兼容旧内核，两个都留） */
+			allow: 'fullscreen',
+			allowfullscreen: 'true',
 			/* 底色与插件页同色（拿不到主题色时透明）：避免加载间隙闪出突兀色块 */
 			style: 'width:100%;border:0;border-radius:8px;display:block;background:' +
 				(luciBg ? 'rgb(' + luciBg + ')' : 'transparent')

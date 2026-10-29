@@ -24,13 +24,37 @@ const loading = ref(false)
 
 // 全屏查看：日志卡固定铺满视口（筛选条一起带走），Esc 或再点一次退出
 const full = ref(false)
+// 日志卡元素：系统级全屏的挂载目标（n-card ref 是组件实例，取 $el；普通元素直用）
+const cardRef = ref(null)
+const cardEl = () => cardRef.value?.$el || cardRef.value
 
 // 全屏时锁住背景滚动（手机端触摸拖动不会带动底下的页面），退出/销毁时恢复
 watch(full, v => { document.body.style.overflow = v ? 'hidden' : '' })
 
+// 系统全屏状态同步：用户按 Esc / 浏览器退出全屏时事件会把 full 拉回 false，
+// 铺满兜底态（无系统全屏事件）不受影响
+function onFsChange() {
+  full.value = document.fullscreenElement === cardEl()
+}
+
+// 全屏切换：优先系统级 Fullscreen API（可盖满整个浏览器窗口，LuCI 内嵌时需
+// 入口页 app.js 给 iframe 放行 allowfullscreen）；未授权/不支持（requestFullscreen
+// 抛错）时回退 iframe 内 fixed 铺满——只能在 iframe 区域内全屏，但功能不丢
+async function toggleFull() {
+  if (document.fullscreenElement) {
+    try { await document.exitFullscreen() } catch { /* 浏览器自行处理 */ }
+    return
+  }
+  try {
+    await cardEl().requestFullscreen()
+  } catch {
+    full.value = !full.value
+  }
+}
+
 // Esc 退出全屏（仅全屏态响应，不影响其他页面）
 function onGlobalKey(e) {
-  if (e.key === 'Escape' && full.value) full.value = false
+  if (e.key === 'Escape' && full.value && !document.fullscreenElement) full.value = false
 }
 
 // 筛选条件：关键字 / 级别 / 时间范围（[起, 止] 毫秒时间戳，null=不限）
@@ -187,11 +211,15 @@ onMounted(() => {
   load(false)
   setAuto(true)
   window.addEventListener('keydown', onGlobalKey)
+  document.addEventListener('fullscreenchange', onFsChange)
 })
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
   window.removeEventListener('keydown', onGlobalKey)
-  document.body.style.overflow = '' // 全屏态直接切页时恢复背景滚动
+  document.removeEventListener('fullscreenchange', onFsChange)
+  // 系统全屏态直接切页时退出；铺满兜底态恢复背景滚动
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+  document.body.style.overflow = ''
 })
 </script>
 
@@ -219,7 +247,7 @@ onBeforeUnmount(() => {
       </div>
     </n-card>
 
-    <n-card class="log-card" :class="{ full }">
+    <n-card ref="cardRef" class="log-card" :class="{ full }">
       <!-- 筛选与快捷操作条 -->
       <div class="log-bar">
         <n-input v-model:value="kw" size="small" clearable placeholder="关键字筛选…" class="f-kw">
@@ -236,8 +264,9 @@ onBeforeUnmount(() => {
         />
         <span class="lg-count mono">{{ filtered.length }}/{{ parsed.length }} 行</span>
         <div class="bar-btns">
-          <!-- 全屏查看：整卡（含筛选条）铺满视口，手机端日志区太矮时的主要出口 -->
-          <n-button size="small" :title="full ? '退出全屏（Esc）' : '全屏查看日志'" @click="full = !full">
+          <!-- 全屏查看：优先系统级全屏（盖满整个浏览器窗口，LuCI 内嵌需入口页放行），
+               不可用时回退 iframe 内 fixed 铺满 -->
+          <n-button size="small" :title="full ? '退出全屏（Esc）' : '全屏查看日志'" @click="toggleFull">
             <template #icon><AppIcon :name="full ? 'shrink' : 'expand'" :size="13" /></template>
             {{ full ? '退出' : '全屏' }}
           </n-button>
@@ -327,6 +356,14 @@ onBeforeUnmount(() => {
   .page.logs-page { height: auto; }
   .log-card { flex: none; }
   .log-view, .log-empty { height: 56vh; flex: none; }
+}
+
+/* 手机端头部刷新选项：checkbox 字号压小 + 文本不换行（默认 14px 且容器窄时
+   「自动刷新/跟随滚动」标签会折行），间距同步收紧；须放在上方桌面规则之后 */
+@media (max-width: 760px) {
+  .opts { gap: 8px; }
+  .opts :deep(.n-checkbox) { font-size: 12px; }
+  .opts :deep(.n-checkbox__label) { white-space: nowrap; padding-left: 6px; }
 }
 .lg-line { white-space: pre-wrap; word-break: break-all; min-height: 1.75em; }
 .lg-m { color: var(--text); }
