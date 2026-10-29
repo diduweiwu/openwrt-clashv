@@ -8,9 +8,16 @@ const RESULT_KEY = 'clashv_unlock_results'
 
 // 内置预设站点：GET 经代理返回 2xx/3xx 视为「支持」，403/404/451 视为「不支持」
 // （如 Netflix 对无版权区域的影片返回 404），其余状态/超时为「测试失败」。
+//
+// ChatGPT/Claude 两项探的是 API 域名的 /v1/models，而非官网首页：官网
+// （chatgpt.com/claude.ai）有 Cloudflare 浏览器指纹拦截，本插件后端这类非浏览器
+// 客户端无论区域是否解锁一律 403；且 claude.ai 对封锁区域返回 302 跳转，状态码
+// 语义也不成立。API 端点不拦非浏览器客户端，区域封禁发生在鉴权之前：不带密钥
+// 请求时，区域放行返回 401、区域封锁返回 403，后端对这两个域名把 401 同样视为
+// 支持（见 internal/api/netcheck.go 的 unlock401OK）。
 export const PRESET_SITES = [
-  { name: 'ChatGPT', url: 'https://chat.openai.com/' },
-  { name: 'Claude', url: 'https://claude.ai/' },
+  { name: 'ChatGPT', url: 'https://api.openai.com/v1/models' },
+  { name: 'Claude', url: 'https://api.anthropic.com/v1/models' },
   { name: 'Gemini', url: 'https://gemini.google.com/' },
   { name: 'Netflix', url: 'https://www.netflix.com/title/70143836' },
   { name: 'Disney+', url: 'https://www.disneyplus.com/' },

@@ -503,8 +503,18 @@ func (d *deps) handleUnlockTest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"results": results})
 }
 
-// testSite 经代理请求单个站点：状态码 2xx/3xx 视为解锁，4xx/5xx 原样带回，
-// 传输层失败（超时/重置）code=0、err 带原因。响应体不读取（只判状态码，上限 4KB 防连接悬挂）。
+// unlock401OK 这些 API 域名的区域封禁发生在鉴权之前：不带密钥请求 /v1/models，
+// 区域放行时返回 401（仅缺鉴权），区域封锁时返回 403。解锁测试对这些域名把
+// 401 同样视为支持——ChatGPT/Claude 预设探点用它们替代有 Cloudflare 浏览器
+// 指纹拦截（非浏览器客户端一律 403）的官网首页。
+var unlock401OK = map[string]bool{
+	"api.openai.com":    true,
+	"api.anthropic.com": true,
+}
+
+// testSite 经代理请求单个站点：状态码 2xx/3xx 视为解锁（unlock401OK 域名的
+// 401 同理），4xx/5xx 原样带回，传输层失败（超时/重置）code=0、err 带原因。
+// 响应体不读取（只判状态码，上限 4KB 防连接悬挂）。
 func testSite(ctx context.Context, hc *http.Client, site unlockSite) unlockResult {
 	res := unlockResult{Name: site.Name, URL: site.URL}
 	if site.URL == "" {
@@ -529,7 +539,8 @@ func testSite(ctx context.Context, hc *http.Client, site unlockSite) unlockResul
 	defer resp.Body.Close()
 	_, _ = io.CopyN(io.Discard, resp.Body, 4<<10)
 	res.Code = resp.StatusCode
-	res.OK = resp.StatusCode >= 200 && resp.StatusCode < 400
+	res.OK = resp.StatusCode >= 200 && resp.StatusCode < 400 ||
+		(resp.StatusCode == http.StatusUnauthorized && unlock401OK[req.URL.Host])
 	if !res.OK {
 		res.Err = "HTTP " + strconv.Itoa(resp.StatusCode)
 	}
