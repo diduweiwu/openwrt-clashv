@@ -198,14 +198,15 @@ onBeforeUnmount(() => {
 <template>
   <div class="page logs-page">
     <n-card>
-      <div class="head-row">
-        <div>
-          <h2 class="page-title">日志</h2>
-          <p class="page-sub">
-            {{ TABS.find(k => k.key === tab)?.hint }} ·
-            {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template>
-          </p>
-        </div>
+      <div class="head">
+        <h2 class="page-title">日志</h2>
+        <p class="page-sub">
+          {{ TABS.find(k => k.key === tab)?.hint }} ·
+          {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template>
+        </p>
+      </div>
+      <!-- 标签与刷新选项独立一行：与标题分离后不再挤占同一行，窄屏换行也更整齐 -->
+      <div class="ctl-row">
         <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
           <!-- NTab 纯展示标签：NTabPane 会渲染空内容区，在标签下多出一大块高度 -->
           <n-tab v-for="k in TABS" :key="k.key" :name="k.key">{{ k.label }}</n-tab>
@@ -268,18 +269,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.tabs { width: 260px; flex: none; margin-left: auto; }
+/* 标题块与控制行分两行：标题在上，标签+刷新选项独立一行靠下（tabs 左、选项右） */
+.head { margin-bottom: 12px; }
+.ctl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tabs { width: 260px; flex: none; }
 .opts { display: flex; align-items: center; gap: 14px; }
 /* 日志页整体精确占满内容区（.content 有 overflow:auto，若页面超高会同时出现
    内外两根滚动条）：page 高度锁死为可视区，日志卡片吃掉剩余高度，滚动只发生在
    日志组件内部；头部已包进 n-card，块间呼吸恢复走全局 16px gap（头部卡片与
    日志卡片之间的间距），不再依赖 head-row 自身的 margin-bottom */
 .page.logs-page { height: 100%; gap: 16px; }
-/* 手机端与设置页对齐：tabs 换行后靠左（桌面的 margin-left:auto 只是把它推到标题行右侧） */
-@media (max-width: 760px) {
-  .tabs { margin-left: 0; }
-}
 .log-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .log-card :deep(.n-card-content) { padding: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
@@ -309,13 +308,16 @@ onBeforeUnmount(() => {
 .log-card.full .log-view, .log-card.full .log-empty { height: auto; flex: 1; }
 
 .log-view {
-  flex: 1; min-height: 0; box-sizing: border-box;
+  flex: 1; box-sizing: border-box;
+  /* 最小高度兜底：视口过矮时头部卡+筛选条会把 flex:1 的日志区压缩到 0（完全看不见
+     日志），260px 起步保证始终可读；垫高后整页超出时由 .content 滚动兜底 */
+  min-height: 260px;
   padding: 12px 16px;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 12px; line-height: 1.75;
   overflow-y: auto;
 }
-.log-empty { flex: 1; min-height: 0; overflow-y: auto; }
+.log-empty { flex: 1; min-height: 260px; overflow-y: auto; }
 
 /* 手机端不再锁死一屏：头部卡与筛选条换行后会把 flex:1 的日志区压到只剩一条缝，
    改页面自然高度 + 日志区定高 56vh，页面整体滚动、日志组件内部滚动不变。

@@ -64,6 +64,13 @@ html[data-theme='light'] {
 
 html, body, #app { height: 100%; margin: 0; }
 
+/* 窗口级滚动锁死：本应用所有滚动都发生在 .content（及页内局部区域）内部，
+   html/body 自身永远不该滚。部分浏览器（WebKit 对 blur 滤镜的 fixed 光晕层等
+   场景）会把文档可滚区域撑大几像素，窗口多出一根滚动条，与 .content 的滚动条
+   叠成双滚动条；overflow:hidden 直接裁掉这条路径，任何环境下都只剩一根。
+   手机端照常可用：滚动仍发生在 .content 内部，不受 body 锁死影响 */
+html, body { overflow: hidden; }
+
 /* ---- LuCI iframe 内嵌（html.embedded，类由 main.js 挂载）----
    页面底色让位：html/body 全透明，LuCI 主题的背景色/背景图（含 Argon 等
    第三方主题）直接透过来，界面与主题融为一体。只动页面底色：卡片/侧栏仍是
