@@ -1709,6 +1709,11 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 /* 头部说明文案压小字号（全局 page-sub 13px 偏大，这句长文案在窄屏要折两行），
    11.5px 在 320px 窄屏也能尽量保持一行 */
 .head-row .page-sub { font-size: 11.5px; }
+/* 手机端再压一档：360~390 宽设备的卡片内容区仅约 300px，11.5px 的 27 字仍会
+   折行（尾字掉行），10.5px 可保一行；须放在上方规则之后 */
+@media (max-width: 760px) {
+  .head-row .page-sub { font-size: 10.5px; }
+}
 /* segment tabs 自带 width:100% + tab 平分拉伸，这里收成内容宽度（与日志页同款不占满），窄屏兜底不溢出；
    naive segment tab 默认左右 padding 为 0（设计上靠拉伸撑宽），收窄后必须补横向内边距否则文字挤在一起 */
 .tabs { width: fit-content; max-width: 100%; min-width: 0; }
