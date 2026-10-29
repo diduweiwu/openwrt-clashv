@@ -472,8 +472,8 @@ onMounted(() => {
 .t2 { font-size: 11.5px; }
 .upd-tag { font-family: var(--mono, ui-monospace, monospace); font-size: 11px; }
 .li-ua { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* 操作按钮行：整行居中（用户要求的视觉重心），宽度不够时自动换行仍保持居中 */
-.li-ops { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 3px; }
+/* 操作按钮行：左对齐（与名称/地址行对齐），宽度不够时自动换行 */
+.li-ops { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
 /* 分页器：列表底部居中，仅订阅多于一页时出现 */
 .list-pager { display: flex; justify-content: center; padding: 14px 0 2px; }
 
