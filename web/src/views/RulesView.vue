@@ -233,7 +233,7 @@ watch(
         <div>
           <h2 class="page-title">规则</h2>
           <p class="page-sub">
-            自定义规则置顶于订阅规则之前<template v-if="store.status?.running"> · 内核当前加载共 {{ rules.length }} 条</template><template v-if="keyword">，命中：自定义 {{ customFiltered.length }} / 运行时 {{ filtered.length }} 条</template>
+            <template v-if="store.status?.running">内核当前加载共 {{ rules.length }} 条</template><template v-if="keyword">命中：自定义 {{ customFiltered.length }} / 运行时 {{ filtered.length }} 条</template><template v-if="!store.status?.running && !keyword">启动内核后这里会显示实际加载的路由规则</template>
           </p>
         </div>
         <n-button size="small" :loading="loading" :disabled="!store.status?.running" @click="load(false); loadTargets()">
@@ -254,7 +254,7 @@ watch(
     <!-- 自定义规则：弹窗内新增/编辑，内核运行时保存后自动重载 -->
     <n-card>
       <div class="sec-head">
-        <h3><AppIcon class="sec-ico" name="layers" :size="15" />自定义规则</h3>
+        <h3><AppIcon class="sec-ico" name="layers" :size="15" />自定义规则<span class="sub-note">置顶于订阅规则之前</span></h3>
         <div class="sec-side">
           <span class="page-sub">共 {{ custom.length }} 条<template v-if="keyword"> · 命中 {{ customFiltered.length }} 条</template> · 越靠前越优先</span>
           <n-button size="small" type="primary" @click="openAdd">
@@ -349,6 +349,8 @@ watch(
 
 .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .sec-head h3 { font-size: 15px; }
+/* 标题行内的说明副文案：小一号灰字跟在标题后同一行（自页头副标题挪来） */
+.sub-note { font-size: 11.5px; font-weight: 400; color: var(--text-dim); margin-left: 8px; }
 .sec-ico { color: var(--accent); margin-right: 7px; vertical-align: -2px; }
 .sec-side { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
