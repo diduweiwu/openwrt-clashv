@@ -190,7 +190,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
           <h2 class="page-title">连接</h2>
           <p class="page-sub">
             ↑ {{ fmtBytes(totals.up) }} · ↓ {{ fmtBytes(totals.down) }} · 活跃 {{ activeCount }} 条
-            <template v-if="sub === 'closed'"> · 已关闭 {{ closedCount }} 条（仅记录本页打开期间的关闭）</template>
+            <template v-if="sub === 'closed'"> · 已关闭 {{ closedCount }} 条</template>
           </p>
         </div>
         <div class="actions">
