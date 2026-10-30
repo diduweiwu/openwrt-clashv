@@ -303,7 +303,7 @@ onMounted(() => {
             @click="activeName && (nameExp = !nameExp)"
           >{{ profiles.length }} 个订阅<template v-if="activeName"> · {{ activeName }}</template></span>
         </div>
-        <n-button type="primary" @click="openAdd"><template #icon><AppIcon name="plus" :size="14" /></template>添加</n-button>
+        <n-button type="primary" size="small" @click="openAdd"><template #icon><AppIcon name="plus" :size="13" /></template>添加</n-button>
       </div>
     </n-card>
 
@@ -508,10 +508,12 @@ onMounted(() => {
 @media (max-width: 760px) {
   .filter-bar .f-kw { flex: 1 1 100%; max-width: 100%; }
   .bar-btns { margin-left: 0; }
-  /* 订阅 item 操作按钮：压小高度与字号；自然宽度不铺满整行（round 163 的等分
-     铺满已按用户回调撤销——已启用项少一个按钮时会被拉得过宽） */
+  /* 订阅 item 操作按钮：压小高度、字号与内边距，四个（更新/删除/编辑/启用）
+     在 320 最窄下也能排进一行；wrap 兜底——万一（系统字体放大等）仍放不下，
+     溢出换行而不是把页面撑出横向滚动（round 163 的等分铺满仍维持撤销） */
   .sub-list :deep(.n-list-item) { padding: 12px; }
-  .li-ops { flex-wrap: nowrap; gap: 6px; }
-  .li-ops :deep(.n-button) { height: 26px; font-size: 12px; }
+  .li-ops { gap: 6px; }
+  .li-ops :deep(.n-button) { height: 26px; font-size: 12px; padding: 0 8px; }
+  .li-ops :deep(.n-button .n-button__icon) { margin-right: 2px; }
 }
 </style>
