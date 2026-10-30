@@ -9,9 +9,19 @@ import { store, toast, ask } from '../store.js'
 import AppIcon from '../components/AppIcon.vue'
 
 const TABS = [
-  { key: 'core', label: '内核日志', hint: 'mihomo 运行日志（logs/core.log）' },
-  { key: 'plugin', label: '插件日志', hint: 'clashv 插件自身日志（logs/clashv.log）' },
+  { key: 'core', label: '内核日志', path: 'logs/core.log', hint: 'mihomo 运行日志' },
+  { key: 'plugin', label: '插件日志', path: 'logs/clashv.log', hint: 'clashv 插件自身日志' },
 ]
+
+// 副标题与悬浮说明：副标题只留「路径 · 体积」一行，描述/截断说明悬浮展示
+const tabPath = computed(() => TABS.find(k => k.key === tab.value)?.path || '')
+const subTitle = computed(() => {
+  const t = TABS.find(k => k.key === tab.value) || {}
+  const parts = [`${t.hint}（${t.path}）`]
+  if (exists.value) parts.push(`共 ${fmtSize(size.value)}`)
+  if (truncated.value) parts.push('仅显示末尾 128 KB')
+  return parts.join(' · ')
+})
 
 const tab = ref('core')
 const raw = ref('')
@@ -23,8 +33,7 @@ const follow = ref(true)
 const loading = ref(false)
 
 // 全屏查看：日志卡固定铺满视口（筛选条一起带走），Esc 或再点一次退出
-const full = ref(false)
-// 日志卡元素：系统级全屏的挂载目标（n-card ref 是组件实例，取 $el；普通元素直用）
+const full = ref(false)// 日志卡元素：系统级全屏的挂载目标（n-card ref 是组件实例，取 $el；普通元素直用）
 const cardRef = ref(null)
 const cardEl = () => cardRef.value?.$el || cardRef.value
 
@@ -227,10 +236,10 @@ onBeforeUnmount(() => {
   <div class="page logs-page">
     <n-card>
       <div class="head">
-        <!-- 运行日志状态：标题右侧同行小字副标题（与规则页 sub-note 同款） -->
+        <!-- 运行日志状态：标题右侧同行小字副标题，只留路径与体积一行；完整信息悬浮可见 -->
         <div class="title-line">
           <h2 class="page-title">日志</h2>
-          <span class="sub-note">{{ TABS.find(k => k.key === tab)?.hint }} · {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template></span>
+          <span class="sub-note mono" :title="subTitle">{{ tabPath }} · {{ exists ? fmtSize(size) : '无文件' }}</span>
         </div>
         <!-- 标签与刷新选项独立一行 -->
         <div class="ctl-row">
