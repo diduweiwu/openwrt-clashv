@@ -13,8 +13,7 @@ const TABS = [
   { key: 'plugin', label: '插件日志', path: 'logs/clashv.log', hint: 'clashv 插件自身日志' },
 ]
 
-// 副标题与悬浮说明：副标题只留「路径 · 体积」一行，描述/截断说明悬浮展示
-const tabPath = computed(() => TABS.find(k => k.key === tab.value)?.path || '')
+// 副标题与悬浮说明：副标题只留体积一行，路径/描述/截断说明悬浮展示
 const subTitle = computed(() => {
   const t = TABS.find(k => k.key === tab.value) || {}
   const parts = [`${t.hint}（${t.path}）`]
@@ -269,7 +268,7 @@ onBeforeUnmount(() => {
         <!-- 运行日志状态：标题右侧同行小字副标题，只留路径与体积一行；完整信息悬浮可见 -->
         <div class="title-line">
           <h2 class="page-title">日志</h2>
-          <span class="sub-note mono" :title="subTitle">{{ tabPath }} · {{ exists ? fmtSize(size) : '无文件' }}</span>
+          <span class="sub-note mono" :title="subTitle">{{ exists ? fmtSize(size) : '无文件' }}</span>
         </div>
         <!-- 标签与刷新选项独立一行 -->
         <div class="ctl-row">
