@@ -6,6 +6,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { NButton, NCard, NCheckbox, NEmpty, NInput, NModal, NSelect } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast } from '../store.js'
+import { RULE_TYPES, NORESOLVE_TYPES, VALUE_HINT, fetchRuleTargets } from '../ruleTypes.js'
 import AppIcon from '../components/AppIcon.vue'
 
 const rules = ref([]) // 内核运行时规则
@@ -34,42 +35,7 @@ async function loadCustom() {
 }
 
 // ---- 自定义规则表单：类型 / 值 / 目标 三段合成 clash 规则串 ----
-const RULE_TYPES = [
-  { label: 'DOMAIN（精确域名）', value: 'DOMAIN' },
-  { label: 'DOMAIN-SUFFIX（域名后缀）', value: 'DOMAIN-SUFFIX' },
-  { label: 'DOMAIN-KEYWORD（域名关键字）', value: 'DOMAIN-KEYWORD' },
-  { label: 'DOMAIN-REGEX（域名正则）', value: 'DOMAIN-REGEX' },
-  { label: 'GEOSITE（GeoSite 数据库）', value: 'GEOSITE' },
-  { label: 'GEOIP（GeoIP 国家/地区码）', value: 'GEOIP' },
-  { label: 'IP-CIDR（IPv4 网段）', value: 'IP-CIDR' },
-  { label: 'IP-CIDR6（IPv6 网段）', value: 'IP-CIDR6' },
-  { label: 'IP-ASN（ASN 编号）', value: 'IP-ASN' },
-  { label: 'SRC-IP-CIDR（来源网段）', value: 'SRC-IP-CIDR' },
-  { label: 'SRC-PORT（来源端口）', value: 'SRC-PORT' },
-  { label: 'DST-PORT（目标端口）', value: 'DST-PORT' },
-  { label: 'PROCESS-NAME（进程名）', value: 'PROCESS-NAME' },
-  { label: 'MATCH（兜底，放行其余全部）', value: 'MATCH' },
-]
-// IP 类规则可加 no-resolve：命中时不再做 DNS 解析（路由器上推荐勾选）
-const NORESOLVE_TYPES = ['GEOIP', 'IP-CIDR', 'IP-CIDR6', 'IP-ASN']
-
-// 值输入框按类型给示例，降低格式门槛
-const VALUE_HINT = {
-  DOMAIN: 'www.example.com',
-  'DOMAIN-SUFFIX': 'example.com',
-  'DOMAIN-KEYWORD': 'google',
-  'DOMAIN-REGEX': '^.*\\.example\\.com$',
-  GEOSITE: 'youtube',
-  GEOIP: 'CN',
-  'IP-CIDR': '192.168.1.0/24',
-  'IP-CIDR6': '2620:0:2d0::/48',
-  'IP-ASN': '13335',
-  'SRC-IP-CIDR': '192.168.1.0/24',
-  'SRC-PORT': '7777',
-  'DST-PORT': '443',
-  'PROCESS-NAME': 'curl',
-}
-
+// 类型全集 / no-resolve 适用类型 / 值示例见 ../ruleTypes.js（与连接页快速添加共用）
 const form = ref({ type: 'DOMAIN-SUFFIX', value: '', target: 'DIRECT', noResolve: false })
 const noResolveVisible = computed(() => NORESOLVE_TYPES.includes(form.value.type))
 const valuePlaceholder = computed(() =>
@@ -90,10 +56,7 @@ const targetOptions = computed(() => {
 async function loadTargets() {
   if (!store.status?.running) { targetNames.value = []; return }
   try {
-    const data = await api.get('/api/proxies')
-    targetNames.value = Object.values(data.proxies || {})
-      .filter(p => ['Selector', 'URLTest', 'Fallback', 'LoadBalance', 'Relay'].includes(p.type) && p.name !== 'GLOBAL')
-      .map(p => p.name)
+    targetNames.value = await fetchRuleTargets()
     if (form.value.target !== 'DIRECT' && form.value.target !== 'REJECT' &&
         !targetNames.value.includes(form.value.target)) {
       form.value.target = 'DIRECT' // 上次选的组随订阅消失时回退直连

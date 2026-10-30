@@ -2,11 +2,14 @@
 // 连接页：内核当前活动连接的完整明细（字段对齐 Clash Verge 连接页）。
 // 活跃列表来自 /api/connections（后端每秒轮询内核）；「已关闭」在本页前端追踪——
 // 上一秒还在、这一秒消失的连接带最后流量快照移入已关闭列表。
-import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
-import { NButton, NCard, NCheckbox, NDataTable, NEmpty, NInput, NTag, NTabs, NTabPane } from 'naive-ui'
+// 另有：卡片全屏查看（与日志页同法）、右键连接行基于目标域名/IP 快速添加规则。
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { NButton, NCard, NCheckbox, NDataTable, NDropdown, NEmpty, NInput, NTag, NTabs, NTabPane } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, fmtBytes, fmtRate } from '../store.js'
+import { fetchRuleTargets, isIpText, appendCustomRule } from '../ruleTypes.js'
 import AppIcon from '../components/AppIcon.vue'
+import RuleQuickModal from '../components/RuleQuickModal.vue'
 
 const sub = ref('active')
 const items = ref([])
@@ -175,11 +178,168 @@ function processText(c) {
   return m.process || m.processPath || '—'
 }
 
+// ---- 全屏查看：与日志页同法——系统级 Fullscreen API 优先（可盖满整个浏览器窗口，
+// LuCI 内嵌需入口页 iframe 放行 allowfullscreen），不可用时回退卡片 fixed 铺满；
+// Esc 退出铺满兜底态 ----
+const full = ref(false)
+const cardRef = ref(null)
+// n-card ref 是组件实例，取 $el；普通元素直用
+const cardEl = () => cardRef.value?.$el || cardRef.value
+
+// 全屏时锁住背景滚动（手机端触摸拖动不会带动底下的页面），退出/销毁时恢复
+watch(full, v => { document.body.style.overflow = v ? 'hidden' : '' })
+
+// 系统全屏状态同步：用户按 Esc / 浏览器退出全屏时事件会把 full 拉回 false
+function onFsChange() {
+  full.value = document.fullscreenElement === cardEl()
+}
+
+async function toggleFull() {
+  if (document.fullscreenElement) {
+    try { await document.exitFullscreen() } catch { /* 浏览器自行处理 */ }
+    return
+  }
+  try {
+    await cardEl().requestFullscreen()
+  } catch {
+    full.value = !full.value
+  }
+}
+
+// Esc 退出全屏（仅铺满兜底态响应；系统全屏态由浏览器自行退出）
+function onGlobalKey(e) {
+  if (e.key === 'Escape' && full.value && !document.fullscreenElement) full.value = false
+}
+
+// ---- 右键快速添加规则：基于该连接的目标域名 / IP 合成规则串，
+// 一级菜单选匹配方式、二级菜单选目标（DIRECT/REJECT/代理组），点击即入列 ----
+const menuShow = ref(false)
+const menuX = ref(0)
+const menuY = ref(0)
+const menuOpts = ref([])
+// 当前右键连接的候选信息（host/ip/弹窗预填推荐）：菜单回调间传递用
+let ctxBase = null
+// 目标候选（代理组名）：右键菜单与快速添加弹窗共用
+const targets = ref([])
+
+async function refreshTargets() {
+  targets.value = await fetchRuleTargets().catch(() => [])
+}
+
+// 三段合成 clash 规则串（IP 类固定带 no-resolve：路由器上避免为匹配规则而解析 DNS）
+function composeRule(type, value, target, noResolve) {
+  return `${type},${value},${target}${noResolve ? ',no-resolve' : ''}`
+}
+
+// 二级菜单的目标项：DIRECT/REJECT 常用项在前，订阅代理组在后
+function targetKids(base) {
+  const kids = []
+  for (const t of ['DIRECT', 'REJECT']) {
+    kids.push({ label: t, key: `${base.key}::${t}`, rule: composeRule(base.type, base.value, t, base.noResolve) })
+  }
+  if (targets.value.length) kids.push({ type: 'divider', key: `${base.key}::div` })
+  for (const n of targets.value) {
+    kids.push({ label: n, key: `${base.key}::${n}`, rule: composeRule(base.type, base.value, n, base.noResolve) })
+  }
+  return kids
+}
+
+const iconOf = (name) => () => h(AppIcon, { name, size: 13 })
+
+// 从连接记录提取规则候选：host 是嗅探域名（可能为空或恰为 IP 形态），
+// ip 为目标地址；弹窗预填推荐 = 有真域名用域名后缀，否则用 IP 网段
+function connRuleBase(row) {
+  const m = row.metadata || {}
+  const host = (m.host || '').trim()
+  const ip = (m.destinationIP || '').trim()
+  const hostIsIp = !!host && isIpText(host)
+  const domain = host && !hostIsIp ? host : ''
+  return {
+    host: domain,
+    ip,
+    title: domain ? (ip ? `${domain} · ${ip}` : domain) : (ip || '—'),
+    recommend: domain
+      ? { type: 'DOMAIN-SUFFIX', value: domain, noResolve: false }
+      : ip
+        ? { type: ip.includes(':') ? 'IP-CIDR6' : 'IP-CIDR', value: ip.includes(':') ? `${ip}/128` : `${ip}/32`, noResolve: true }
+        : { type: 'DOMAIN-SUFFIX', value: '', noResolve: false },
+  }
+}
+
+// 一级菜单：顶部只读目标行 + 域名精确/域名后缀/IP 网段三组 + 自定义入口
+function buildMenuOpts(base) {
+  const opts = [{
+    type: 'render',
+    key: 'ctx-head',
+    render: () => h('div', { class: 'conn-ctx-head' }, [
+      h('span', { class: 'conn-ctx-label' }, '添加规则'),
+      h('span', { class: 'conn-ctx-val mono' }, base.title),
+    ]),
+  }]
+  if (base.host) {
+    opts.push({ label: '域名精确匹配', key: 'g-domain', icon: iconOf('globe'), children: targetKids({ key: 'domain', type: 'DOMAIN', value: base.host }) })
+    opts.push({ label: '域名后缀（含子域）', key: 'g-suffix', icon: iconOf('globe'), children: targetKids({ key: 'suffix', type: 'DOMAIN-SUFFIX', value: base.host }) })
+  }
+  if (base.ip) {
+    const v6 = base.ip.includes(':')
+    opts.push({
+      label: v6 ? 'IPv6 地址（/128）' : 'IP 地址（/32）',
+      key: 'g-ip', icon: iconOf('network'),
+      children: targetKids({ key: 'ip', type: v6 ? 'IP-CIDR6' : 'IP-CIDR', value: v6 ? `${base.ip}/128` : `${base.ip}/32`, noResolve: true }),
+    })
+  }
+  opts.push({ type: 'divider', key: 'd-sep' })
+  opts.push({ label: '自定义…', key: 'g-custom', icon: iconOf('edit') })
+  return opts
+}
+
+// 表格行右键：定位弹出菜单（下拉浮层在全屏态挂进卡片，避免被系统全屏吞掉）
+function rowProps(row) {
+  return {
+    onContextmenu: (e) => {
+      e.preventDefault()
+      ctxBase = connRuleBase(row)
+      menuX.value = e.clientX
+      menuY.value = e.clientY
+      menuOpts.value = buildMenuOpts(ctxBase)
+      menuShow.value = true
+    },
+  }
+}
+
+// ---- 快速添加规则弹窗（「自定义…」入口）：类型/值按连接目标预填 ----
+const quickShow = ref(false)
+const quickInit = ref({ type: 'DOMAIN-SUFFIX', value: '', noResolve: false })
+
+// 菜单选择分发：带 rule 的叶子项直接入列；「自定义…」开弹窗细调
+async function onMenuSelect(key, option) {
+  menuShow.value = false
+  if (option.rule) {
+    await appendCustomRule(option.rule)
+    return
+  }
+  if (key === 'g-custom' && ctxBase) {
+    quickInit.value = { ...ctxBase.recommend }
+    refreshTargets() // 弹窗每次打开都刷新代理组候选，跟随当前订阅
+    quickShow.value = true
+  }
+}
+
 onMounted(() => {
   poll(false)
   setAuto(true)
+  refreshTargets()
+  window.addEventListener('keydown', onGlobalKey)
+  document.addEventListener('fullscreenchange', onFsChange)
 })
-onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+onBeforeUnmount(() => {
+  if (timer) clearInterval(timer)
+  window.removeEventListener('keydown', onGlobalKey)
+  document.removeEventListener('fullscreenchange', onFsChange)
+  // 系统全屏态直接切页时退出；铺满兜底态恢复背景滚动
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+  document.body.style.overflow = ''
+})
 </script>
 
 <template>
@@ -195,6 +355,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
           </span>
         </div>
         <div class="actions">
+          <!-- 全屏查看：优先系统级全屏（盖满整个浏览器窗口，LuCI 内嵌需入口页放行），
+               不可用时回退 iframe 内 fixed 铺满 -->
+          <n-button size="small" circle :disabled="!store.status?.running"
+            :title="full ? '退出全屏（Esc）' : '全屏查看连接'" @click="toggleFull">
+            <template #icon><AppIcon :name="full ? 'shrink' : 'expand'" :size="13" /></template>
+          </n-button>
           <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
           <n-button size="small" :loading="loading" @click="poll(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
           <n-button size="small" type="error" ghost :disabled="!store.status?.running || !activeCount" @click="closeAll">
@@ -218,7 +384,8 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
     <n-card v-if="!store.status?.running" class="pad">
       <n-empty description="内核未运行，启动后这里会显示连接明细" />
     </n-card>
-    <n-card v-else class="conn-card">
+    <n-card v-else ref="cardRef" class="conn-card" :class="{ full }">
+      <!-- 连接行支持右键：基于目标域名 / IP 快速添加规则（活跃与已关闭都可加） -->
       <n-data-table
         v-if="shown.length"
         size="small"
@@ -226,6 +393,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         :data="shown"
         :row-key="c => c.id"
         :row-class-name="c => (c.closedAt ? 'gone' : '')"
+        :row-props="rowProps"
         flex-height
         :scroll-x="1370"
         class="conn-table"
@@ -242,6 +410,20 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
       />
       <div v-if="pollError" class="poll-err">⚠ {{ pollError }}</div>
     </n-card>
+
+    <!-- 右键快速添加规则菜单：手动定位，选择或点击外部后关闭。
+         全屏态浮层挂进卡片内，避免被系统全屏盖掉 -->
+    <n-dropdown
+      trigger="manual" :show="menuShow" :x="menuX" :y="menuY"
+      :options="menuOpts" placement="bottom-start"
+      :to="full ? (cardEl() || 'body') : 'body'"
+      @select="onMenuSelect" @clickoutside="menuShow = false"
+    />
+    <!-- 快速添加规则弹窗（「自定义…」入口）：类型/值按连接目标预填 -->
+    <RuleQuickModal
+      v-model:show="quickShow" :init="quickInit" :targets="targets"
+      :to="full ? (cardEl() || 'body') : 'body'"
+    />
   </div>
 </template>
 
@@ -257,7 +439,9 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .sub-note { font-size: 11.5px; color: var(--text-dim); }
 .page-title { margin-bottom: 2px; }
-.actions { display: flex; align-items: center; gap: 14px; }
+.actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+/* 复选框文字禁竖排挤压：放不下时整组换行而不是把「自动刷新」压成一字一行 */
+.actions :deep(.n-checkbox__label) { white-space: nowrap; }
 .toolbar :deep(.n-card-content) { padding: 8px 14px; }
 .toolbar-row { display: flex; align-items: center; gap: 12px; }
 .subs { width: 220px; flex: none; }
@@ -282,5 +466,28 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   .conn-table { flex: none; height: 60vh; min-height: 300px; }
   .toolbar-row { flex-wrap: wrap; }
   .toolbar-row .search { flex: 1 1 100%; max-width: 100%; }
+}
+
+/* ---- 全屏查看（与日志页 .log-card.full 同法，置于媒体查询之后保证覆盖手机定高）：
+   fixed 铺满视口 + 实心底盖掉磨砂半透明；表格恢复弹性占满 ---- */
+.conn-card.full {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 1000;
+  border-radius: 0; border: none;
+  background: var(--bg);
+}
+.conn-card.full .conn-table { flex: 1; height: auto; }
+</style>
+
+<style>
+/* 右键菜单顶部目标行：NDropdown 浮层 teleport 到 body/卡片，scoped 属性不跟随，
+   须放全局样式块（类名带 conn- 前缀防冲突） */
+.conn-ctx-head {
+  display: flex; align-items: baseline; gap: 10px;
+  max-width: 380px; padding: 2px 0;
+}
+.conn-ctx-label { font-size: 11.5px; color: var(--text-dim); flex: none; }
+.conn-ctx-val {
+  font-size: 12px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 </style>
