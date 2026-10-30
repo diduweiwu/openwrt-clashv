@@ -352,7 +352,10 @@ onBeforeUnmount(() => {
 .sub-note { font-size: 11.5px; color: var(--text-dim); }
 .ctl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .tabs { width: 260px; flex: none; }
-.opts { display: flex; align-items: center; gap: 14px; }
+/* wrap + 复选框文字 nowrap：窄屏放不下时整组换行，防止「自动刷新/跟随滚动」
+   被压缩成一字一行竖排（与连接页 .actions 同款防护） */
+.opts { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.opts :deep(.n-checkbox__label) { white-space: nowrap; }
 /* 日志页整体精确占满内容区（.content 有 overflow:auto，若页面超高会同时出现
    内外两根滚动条）：page 高度锁死为可视区，日志卡片吃掉剩余高度，滚动只发生在
    日志组件内部；头部已包进 n-card，块间呼吸恢复走全局 16px gap（头部卡片与
