@@ -300,12 +300,12 @@ onBeforeUnmount(() => {
         <!-- 时间范围拆成开始/结束两个选择器：单月历面板窄屏放得下，日期互相限定 -->
         <n-date-picker
           v-model:value="rangeStart" type="datetime" size="small" clearable
-          format="MM-dd HH:mm" placeholder="开始时间" class="f-range"
+          format="yyyy-MM-dd HH:mm" placeholder="开始时间" class="f-range"
           :is-date-disabled="disableStartDate"
         />
         <n-date-picker
           v-model:value="rangeEnd" type="datetime" size="small" clearable
-          format="MM-dd HH:mm" placeholder="结束时间" class="f-range"
+          format="yyyy-MM-dd HH:mm" placeholder="结束时间" class="f-range"
           :is-date-disabled="disableEndDate"
         />
       </div>
