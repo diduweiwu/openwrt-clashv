@@ -69,7 +69,37 @@ function onGlobalKey(e) {
 // 筛选条件：关键字 / 级别 / 时间范围（[起, 止] 毫秒时间戳，null=不限）
 const kw = ref('')
 const levelSel = ref(null)
+// 时间范围拆成「开始/结束」两个独立 datetime 选择器（datetimerange 的双月历面板
+// 固定 581px，手机端横向溢出；单月历面板 ~322px 放得下）。range 数据形态不变，
+// 经 rangeStart/rangeEnd 双向映射并在 setter 里钳制先后，保持 range[0] <= range[1]
 const range = ref(null)
+
+// 取当天 0 点：日期可选性只按「日」粒度比较，同日内的先后交给 setter 钳制
+function dayStart(ts) {
+  const d = new Date(ts)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+const rangeStart = computed({
+  get: () => (range.value ? range.value[0] : null),
+  set(v) {
+    if (v == null) { range.value = null; return } // 清空任一侧 = 清空整个范围
+    const end = range.value?.[1]
+    range.value = [v, end != null && end < v ? v : (end ?? v)]
+  },
+})
+const rangeEnd = computed({
+  get: () => (range.value ? range.value[1] : null),
+  set(v) {
+    if (v == null) { range.value = null; return }
+    const start = range.value?.[0]
+    range.value = [start != null && start > v ? v : (start ?? v), v]
+  },
+})
+// 日期动态限定：开始不可选晚于结束所在日，结束不可选早于开始所在日
+const disableStartDate = ts => range.value?.[1] != null && dayStart(ts) > dayStart(range.value[1])
+const disableEndDate = ts => range.value?.[0] != null && dayStart(ts) < dayStart(range.value[0])
 
 const preRef = ref(null)
 let timer = null
@@ -267,9 +297,16 @@ onBeforeUnmount(() => {
           </template>
         </n-input>
         <n-select v-model:value="levelSel" size="small" :options="LEVEL_OPTS" placeholder="筛选级别" class="f-level" />
+        <!-- 时间范围拆成开始/结束两个选择器：单月历面板窄屏放得下，日期互相限定 -->
         <n-date-picker
-          v-model:value="range" type="datetimerange" size="small" clearable
-          format="MM-dd HH:mm" class="f-range"
+          v-model:value="rangeStart" type="datetime" size="small" clearable
+          format="MM-dd HH:mm" placeholder="开始时间" class="f-range"
+          :is-date-disabled="disableStartDate"
+        />
+        <n-date-picker
+          v-model:value="rangeEnd" type="datetime" size="small" clearable
+          format="MM-dd HH:mm" placeholder="结束时间" class="f-range"
+          :is-date-disabled="disableEndDate"
         />
       </div>
 
@@ -332,11 +369,12 @@ onBeforeUnmount(() => {
 }
 .f-kw { flex: 1 1 150px; max-width: 240px; }
 .f-level { width: 112px; flex: none; }
-.f-range { width: 310px; flex: none; }
-/* 日期范围选择器桌面固定 310px，320px 窄屏容器仅约 276px 会横向溢出（溢出被卡片裁掉
-   看不全控件），改为独占一行自适应；置于桌面规则之后保证同特异性下覆盖生效 */
+/* 开始/结束两个 datetime 选择器：基线 150px 自适应等分，窄屏放不下自然换行成两行，
+   宽屏各封顶 190px 不无限拉伸 */
+.f-range { flex: 1 1 150px; min-width: 0; max-width: 190px; }
+/* 手机端换行后铺满整行（190px 封顶会留右侧空白）；置于上方桌面规则之后保证覆盖生效 */
 @media (max-width: 760px) {
-  .f-range { width: 100%; flex: 1 1 100%; }
+  .f-range { max-width: none; }
 }
 
 /* 日志区容器：行数与操作钮浮动其上，不随内容滚动 */
