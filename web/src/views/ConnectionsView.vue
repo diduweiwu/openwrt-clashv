@@ -186,12 +186,13 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   <div class="page conn-page">
     <n-card>
       <div class="head-row">
-        <div>
+        <div class="title-line">
           <h2 class="page-title">连接</h2>
-          <p class="page-sub">
+          <!-- 统计指标：标题右侧同行小字副标题（与规则/日志页 sub-note 同款） -->
+          <span class="sub-note">
             ↑ {{ fmtBytes(totals.up) }} · ↓ {{ fmtBytes(totals.down) }} · 活跃 {{ activeCount }} 条
             <template v-if="sub === 'closed'"> · 已关闭 {{ closedCount }} 条</template>
-          </p>
+          </span>
         </div>
         <div class="actions">
           <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
@@ -252,6 +253,9 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .conn-card :deep(.n-card-content) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 2px 2px; }
 .conn-table { flex: 1; min-height: 0; }
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+/* 统计副标题：标题右侧同行小字灰调（与规则/日志页 sub-note 同款） */
+.title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sub-note { font-size: 11.5px; color: var(--text-dim); }
 .page-title { margin-bottom: 2px; }
 .actions { display: flex; align-items: center; gap: 14px; }
 .toolbar :deep(.n-card-content) { padding: 8px 14px; }
@@ -268,8 +272,14 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 :deep(.addr) { color: var(--text-dim); }
 .inbound { margin-left: 6px; font-size: 10.5px; color: var(--text-dim); }
 
-/* ---- 手机/平板：工具栏换行，搜索框独占一行；表格靠 scroll-x 横向滚动 ---- */
+/* ---- 手机/平板：工具栏换行，搜索框独占一行；表格靠 scroll-x 横向滚动 ----
+   页面解锁一屏（与日志页同法）：头部/工具栏换行后会把 flex:1 的表格压缩到 0，
+   改页面自然高度 + 表格定高 60vh 内部滚动（flex-height 依赖容器高度） */
 @media (max-width: 760px) {
+  .conn-page { height: auto; }
+  .conn-card { flex: none; }
+  /* flex:1 的 basis=0 在自动高度父容器里会盖掉 height，须放开 flex 用定高 */
+  .conn-table { flex: none; height: 60vh; min-height: 300px; }
   .toolbar-row { flex-wrap: wrap; }
   .toolbar-row .search { flex: 1 1 100%; max-width: 100%; }
 }
