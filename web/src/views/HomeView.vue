@@ -716,6 +716,12 @@ const onToggleProbe = () => {
 // ---- 首页卡片布局：区块顺序 + 显隐（homeLayout.js，localStorage 持久化）。
 // ---- 排序靠 .page（flex column）上的 CSS order，无需改模板结构；入口在运行行右侧 ----
 const showLayout = ref(false)
+
+// 打开项目 GitHub 仓库（新标签；noopener 断开 opener，防新页反向操控本页）
+function openGitHub() {
+  window.open('https://github.com/diduweiwu/openwrt-clashv', '_blank', 'noopener')
+}
+
 const secStyle = (key) => ({ order: orderOf(key) })
 // 弹窗列表按当前顺序展示（上移/下移即与相邻行交换）
 const orderedSections = computed(() => cardOrder.value.map(k => HOME_SECTIONS.find(s => s.key === k)))
@@ -824,6 +830,14 @@ function currentOf(g) {
             @click="showLayout = true"
           >
             <AppIcon name="layers" :size="14" />
+          </n-button>
+          <!-- GitHub 仓库入口：布局按钮右侧，新标签打开项目主页（noopener 断开 opener） -->
+          <n-button
+            quaternary size="tiny" class="ip-eye"
+            title="GitHub 仓库"
+            @click="openGitHub"
+          >
+            <AppIcon name="github" :size="14" />
           </n-button>
           <n-flex class="hero-actions" :size="10">
             <!-- 启动/停止同一个按钮：停止态主色「启动」，运行态实心红「停止」；主操作排在重启前面 -->
