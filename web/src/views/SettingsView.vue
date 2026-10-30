@@ -1026,7 +1026,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
       <div class="head-row">
         <div class="title-line">
           <h2 class="page-title">设置</h2>
-          <span class="sub-note">修改后点底部「保存」生效，涉及连接的改动会自动重启内核</span>
+          <span class="sub-note">保存后生效，涉及连接的改动会重启内核</span>
         </div>
         <n-tabs v-model:value="tab" type="segment" size="small" class="tabs">
           <n-tab-pane name="general"><template #tab>通用</template></n-tab-pane>
@@ -1706,9 +1706,10 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-/* 说明文案：标题右侧同行小字副标题（与规则/日志/连接页 sub-note 同款） */
+/* 说明文案：标题右侧同行小字副标题（与规则/日志/连接页 sub-note 同款）；
+   18 字在 320 窄屏也放得下，加 nowrap 保证不折行 */
 .title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.sub-note { font-size: 11.5px; color: var(--text-dim); }
+.sub-note { font-size: 11.5px; color: var(--text-dim); white-space: nowrap; }
 /* segment tabs 自带 width:100% + tab 平分拉伸，这里收成内容宽度（与日志页同款不占满），窄屏兜底不溢出；
    naive segment tab 默认左右 padding 为 0（设计上靠拉伸撑宽），收窄后必须补横向内边距否则文字挤在一起 */
 .tabs { width: fit-content; max-width: 100%; min-width: 0; }
