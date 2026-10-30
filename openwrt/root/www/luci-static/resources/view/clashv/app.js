@@ -4,6 +4,37 @@
 'require dom';
 
 /*
+ * 探测 LuCI 主题的页面背景色，返回 "r,g,b" 字符串；全部取不到返回空串。
+ * 候选元素从视口最外层向内：html / body 是绝大多数主题写页面底色的地方；
+ * #main / main / #maincontent / .container / #app 兜住「body 透明、
+ * 背景画在主容器上」的主题（如 ImmortalWrt 系），只看 body/html 会取空。
+ * 每个候选分两轮看：先纯色（backgroundColor，非透明即命中），后渐变
+ * （backgroundImage 里第一个 rgb 色，Argon 类渐变主题兜底；纯色优先于
+ * 渐变，避免装饰性渐变盖过真实底色）。
+ */
+function themeBgColor() {
+	var sels = [document.documentElement, document.body,
+		'#main', 'main', '#maincontent', '.container', '#app'];
+	var els = [];
+	for (var i = 0; i < sels.length; i++) {
+		var el = (typeof sels[i] === 'string') ? document.querySelector(sels[i]) : sels[i];
+		if (el) els.push(el);
+	}
+	for (var j = 0; j < els.length; j++) {
+		var c = (window.getComputedStyle(els[j]).backgroundColor || '')
+			.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+		if (c && c[4] !== '0')  // alpha 0（全透明）取不到色，跳过
+			return c[1] + ',' + c[2] + ',' + c[3];
+	}
+	for (var k = 0; k < els.length; k++) {
+		var g = (window.getComputedStyle(els[k]).backgroundImage || '')
+			.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+		if (g) return g[1] + ',' + g[2] + ',' + g[3];
+	}
+	return '';
+}
+
+/*
  * LuCI 入口页：把 clashv 管理界面以 iframe 内嵌到 LuCI。
  * 实际界面由 clashv 服务（Go）直接提供，LuCI 只做一个导航入口。
  */
@@ -24,19 +55,9 @@ return L.view.extend({
 		/*
 		 * 把 LuCI 主题的背景色传给 clashv（luci_bg=r,g,b）：界面用同色铺页面底，
 		 * 视觉上融入当前主题（深浅由底色亮度自动判断，「跟随系统」时优先跟随 LuCI）。
-		 * 主题背景是图片/渐变（如 Argon）时拿不到有意义的纯色就省略参数，
-		 * 界面回退到透明让位方案（html.embedded）。body 上取不到再看 html。
+		 * 主题背景取不到纯色时省略参数，界面回退到透明让位方案（html.embedded）。
 		 */
-		var luciBg = (function () {
-			var els = [document.body, document.documentElement];
-			for (var i = 0; i < els.length; i++) {
-				var c = window.getComputedStyle(els[i]).backgroundColor || '';
-				var m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-				if (m && m[4] !== '0')  // alpha 0（全透明）取不到色，跳过
-					return m[1] + ',' + m[2] + ',' + m[3];
-			}
-			return '';
-		})();
+		var luciBg = themeBgColor();
 		if (luciBg)
 			src += (src.indexOf('?') >= 0 ? '&' : '?') + 'luci_bg=' + luciBg;
 		var frame = E('iframe', {
