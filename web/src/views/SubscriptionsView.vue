@@ -20,6 +20,7 @@ const editing = ref(null) // 编辑中的订阅；null=添加模式
 const busyId = ref('')
 const updatingAll = ref(false)
 const keyword = ref('')
+const nameExp = ref(false) // 头部副标题的当前订阅名是否展开（超宽省略号，点击切换）
 
 function openAdd() {
   editing.value = null
@@ -293,11 +294,14 @@ onMounted(() => {
   <div class="page">
     <n-card>
       <div class="head-row">
-        <div>
+        <div class="title-line">
           <h2 class="page-title">订阅</h2>
-          <p class="page-sub">
-            {{ profiles.length }} 个订阅<template v-if="activeName"> · 当前使用：{{ activeName }}</template>
-          </p>
+          <!-- 统计+当前订阅名一行：超宽省略号，点击展开/收起完整名称 -->
+          <span
+            class="sub-note sub-stat" :class="{ exp: nameExp }"
+            :title="nameExp ? '' : `${profiles.length} 个订阅 · ${activeName || '未选择'}`"
+            @click="activeName && (nameExp = !nameExp)"
+          >{{ profiles.length }} 个订阅<template v-if="activeName"> · {{ activeName }}</template></span>
         </div>
         <n-button type="primary" @click="openAdd"><template #icon><AppIcon name="plus" :size="14" /></template>添加</n-button>
       </div>
@@ -446,6 +450,14 @@ onMounted(() => {
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+/* 统计副标题：标题右侧同行小字；不换行、超宽省略号，点击展开完整名称 */
+.title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: nowrap; min-width: 0; flex: 1; }
+.sub-note { font-size: 11.5px; color: var(--text-dim); }
+.sub-stat {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: pointer;
+}
+.sub-stat.exp { white-space: normal; overflow: visible; text-overflow: clip; word-break: break-all; }
 .pad :deep(.n-empty) { padding: 34px 0; }
 
 /* 筛选/操作条（日志页同款）：关键字过滤 + 命中计数 + 定时/全部更新 */
