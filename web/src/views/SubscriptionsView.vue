@@ -336,7 +336,7 @@ onMounted(() => {
         <n-list-item v-for="p in paged" :key="p.id" :class="{ 'item-on': p.id === active }">
           <div class="sub-item">
             <div class="li-head">
-              <span class="li-name" :title="p.name">{{ p.name }}</span>
+              <span class="li-name">{{ p.name }}</span>
               <n-tag v-if="p.id === active" size="small" round :bordered="false" type="success">已启用</n-tag>
             </div>
             <div class="li-url-row">
@@ -457,11 +457,15 @@ onMounted(() => {
 /* 订阅列表（n-list）：item 内三段式——名称/地址/元信息/操作按钮行 */
 .sub-list { background: transparent; }
 .sub-list :deep(.n-list-item) { padding: 13px 16px; }
+/* naive 把 item 内容包在 __main（flex 项）里，默认 min-width:auto——nowrap 长内容会把
+   最小内容宽度撑爆卡片（名称顶穿右缘的根因），放开后内容才能真正收缩 */
+.sub-list :deep(.n-list-item__main) { min-width: 0; }
 /* 当前使用中的订阅：accent 淡底标识（与表格时代的 row-active 同语义） */
 .sub-list :deep(.n-list-item.item-on) { background: var(--accent-soft); }
 .sub-item { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .li-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.li-name { font-weight: 600; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 名称超宽换行（用户指定，弃省略号）：break-all 兼容长英文/URL 式名称 */
+.li-name { font-weight: 600; font-size: 14px; min-width: 0; word-break: break-all; line-height: 1.4; }
 .li-url-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 /* 复制按钮：tiny 图标钮压成方形贴地址行首，hover 才出淡底 */
 .li-url-row .copy-btn { flex: none; width: 22px; height: 22px; padding: 0; color: var(--text-dim); }
