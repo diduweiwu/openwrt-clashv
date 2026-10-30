@@ -227,28 +227,28 @@ onBeforeUnmount(() => {
   <div class="page logs-page">
     <n-card>
       <div class="head">
-        <h2 class="page-title">日志</h2>
-        <p class="page-sub">
-          {{ TABS.find(k => k.key === tab)?.hint }} ·
-          {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template>
-        </p>
-      </div>
-      <!-- 标签与刷新选项独立一行：与标题分离后不再挤占同一行，窄屏换行也更整齐 -->
-      <div class="ctl-row">
-        <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
-          <!-- NTab 纯展示标签：NTabPane 会渲染空内容区，在标签下多出一大块高度 -->
-          <n-tab v-for="k in TABS" :key="k.key" :name="k.key">{{ k.label }}</n-tab>
-        </n-tabs>
-        <div class="opts">
-          <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
-          <n-checkbox v-model:checked="follow">跟随滚动</n-checkbox>
-          <n-button size="small" :loading="loading" @click="load(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
+        <!-- 运行日志状态：标题右侧同行小字副标题（与规则页 sub-note 同款） -->
+        <div class="title-line">
+          <h2 class="page-title">日志</h2>
+          <span class="sub-note">{{ TABS.find(k => k.key === tab)?.hint }} · {{ exists ? `共 ${fmtSize(size)}` : '暂无日志' }}<template v-if="truncated">（仅显示末尾 128 KB）</template></span>
+        </div>
+        <!-- 标签与刷新选项独立一行 -->
+        <div class="ctl-row">
+          <n-tabs :value="tab" type="segment" size="small" class="tabs" @update:value="pick">
+            <!-- NTab 纯展示标签：NTabPane 会渲染空内容区，在标签下多出一大块高度 -->
+            <n-tab v-for="k in TABS" :key="k.key" :name="k.key">{{ k.label }}</n-tab>
+          </n-tabs>
+          <div class="opts">
+            <n-checkbox v-model:checked="auto" @update:checked="setAuto">自动刷新</n-checkbox>
+            <n-checkbox v-model:checked="follow">跟随滚动</n-checkbox>
+            <n-button size="small" :loading="loading" @click="load(false)"><template #icon><AppIcon name="refresh" :size="13" /></template>刷新</n-button>
+          </div>
         </div>
       </div>
     </n-card>
 
     <n-card ref="cardRef" class="log-card" :class="{ full }">
-      <!-- 筛选与快捷操作条 -->
+      <!-- 筛选条：只留筛选控件，行数与操作钮挪进日志区浮动 -->
       <div class="log-bar">
         <n-input v-model:value="kw" size="small" clearable placeholder="关键字筛选…" class="f-kw">
           <template #prefix>
@@ -262,44 +262,49 @@ onBeforeUnmount(() => {
           v-model:value="range" type="datetimerange" size="small" clearable
           format="MM-dd HH:mm" class="f-range"
         />
-        <span class="lg-count mono">{{ filtered.length }}/{{ parsed.length }} 行</span>
-        <div class="bar-btns">
-          <!-- 全屏查看：优先系统级全屏（盖满整个浏览器窗口，LuCI 内嵌需入口页放行），
-               不可用时回退 iframe 内 fixed 铺满 -->
-          <n-button size="small" :title="full ? '退出全屏（Esc）' : '全屏查看日志'" @click="toggleFull">
-            <template #icon><AppIcon :name="full ? 'shrink' : 'expand'" :size="13" /></template>
-            {{ full ? '退出' : '全屏' }}
-          </n-button>
-          <n-button size="small" title="瞬移到顶部" @click="jump(true)"><template #icon><AppIcon name="chevron-up" :size="14" /></template></n-button>
-          <n-button size="small" title="瞬移到底部" @click="jump(false)"><template #icon><AppIcon name="chevron-down" :size="14" /></template></n-button>
-          <n-button size="small" type="error" ghost @click="clearLog">
-            <template #icon><AppIcon name="trash" :size="13" /></template>清空
-          </n-button>
-        </div>
       </div>
 
-      <div v-if="exists && raw" ref="preRef" class="log-view">
-        <div v-for="(l, i) in filtered" :key="i" class="lg-line">
-          <template v-if="l.ts">
-            <span class="lg-t">{{ l.ts }}</span><span v-if="l.level" class="lg-l" :class="'lvl-' + l.level">{{ levelLabel(l.level) }}</span><span class="lg-m">{{ l.msg }}</span><span v-if="l.attrs" class="lg-a">{{ l.attrs }}</span>
-          </template>
-          <span v-else class="lg-m">{{ l.raw || ' ' }}</span>
+      <!-- 日志区：行数固定左上角、操作钮右侧垂直居中浮动（不随内容滚动） -->
+      <div class="log-body">
+        <span class="lg-count mono">{{ filtered.length }}/{{ parsed.length }} 行</span>
+        <div class="float-ops">
+          <!-- 全屏查看：优先系统级全屏（盖满整个浏览器窗口，LuCI 内嵌需入口页放行），
+               不可用时回退 iframe 内 fixed 铺满 -->
+          <n-button size="small" circle :title="full ? '退出全屏（Esc）' : '全屏查看日志'" @click="toggleFull">
+            <template #icon><AppIcon :name="full ? 'shrink' : 'expand'" :size="13" /></template>
+          </n-button>
+          <n-button size="small" circle title="瞬移到顶部" @click="jump(true)"><template #icon><AppIcon name="chevron-up" :size="14" /></template></n-button>
+          <n-button size="small" circle title="瞬移到底部" @click="jump(false)"><template #icon><AppIcon name="chevron-down" :size="14" /></template></n-button>
+          <n-button size="small" circle type="error" ghost title="清空日志" @click="clearLog">
+            <template #icon><AppIcon name="trash" :size="13" /></template>
+          </n-button>
         </div>
-        <div v-if="!filtered.length" class="lg-none">没有匹配的日志行（共 {{ parsed.length }} 行被过滤）</div>
-      </div>
-      <div v-else-if="exists" class="log-empty">
-        <n-empty description="日志为空，启动内核后这里会有输出" style="padding: 60px 0" />
-      </div>
-      <div v-else class="log-empty">
-        <n-empty description="暂无日志文件" style="padding: 60px 0" />
+
+        <div v-if="exists && raw" ref="preRef" class="log-view">
+          <div v-for="(l, i) in filtered" :key="i" class="lg-line">
+            <template v-if="l.ts">
+              <span class="lg-t">{{ l.ts }}</span><span v-if="l.level" class="lg-l" :class="'lvl-' + l.level">{{ levelLabel(l.level) }}</span><span class="lg-m">{{ l.msg }}</span><span v-if="l.attrs" class="lg-a">{{ l.attrs }}</span>
+            </template>
+            <span v-else class="lg-m">{{ l.raw || ' ' }}</span>
+          </div>
+          <div v-if="!filtered.length" class="lg-none">没有匹配的日志行（共 {{ parsed.length }} 行被过滤）</div>
+        </div>
+        <div v-else-if="exists" class="log-empty">
+          <n-empty description="日志为空，启动内核后这里会有输出" style="padding: 60px 0" />
+        </div>
+        <div v-else class="log-empty">
+          <n-empty description="暂无日志文件" style="padding: 60px 0" />
+        </div>
       </div>
     </n-card>
   </div>
 </template>
 
 <style scoped>
-/* 标题块与控制行分两行：标题在上，标签+刷新选项独立一行靠下（tabs 左、选项右） */
+/* 标题与状态副文案同行（小字灰调），下方一行放标签+刷新选项 */
 .head { margin-bottom: 12px; }
+.title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sub-note { font-size: 11.5px; color: var(--text-dim); }
 .ctl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .tabs { width: 260px; flex: none; }
 .opts { display: flex; align-items: center; gap: 14px; }
@@ -319,12 +324,25 @@ onBeforeUnmount(() => {
 .f-kw { flex: 1 1 150px; max-width: 240px; }
 .f-level { width: 112px; flex: none; }
 .f-range { width: 310px; flex: none; }
-.lg-count { flex: none; color: var(--text-dim); font-size: 11px; }
-.bar-btns { display: flex; gap: 8px; margin-left: auto; }
 /* 日期范围选择器桌面固定 310px，320px 窄屏容器仅约 276px 会横向溢出（溢出被卡片裁掉
    看不全控件），改为独占一行自适应；置于桌面规则之后保证同特异性下覆盖生效 */
 @media (max-width: 760px) {
   .f-range { width: 100%; flex: 1 1 100%; }
+}
+
+/* 日志区容器：行数与操作钮浮动其上，不随内容滚动 */
+.log-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* 行数固定左上角：实底小胶囊盖在日志首行上方（日志区预留了顶部内边距） */
+.lg-count {
+  position: absolute; top: 8px; left: 12px; z-index: 2;
+  color: var(--text-dim); font-size: 11px;
+  background: var(--bg-card-2); border: 1px solid var(--border);
+  padding: 2px 8px; border-radius: 8px;
+}
+/* 操作钮右侧垂直居中竖排：全屏/顶部/底部/清空（纯图标） */
+.float-ops {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 2;
+  display: flex; flex-direction: column; gap: 8px;
 }
 
 /* 全屏查看：日志卡固定铺满视口（筛选条一起带走）。实心底盖掉磨砂半透明；
@@ -334,14 +352,15 @@ onBeforeUnmount(() => {
   border-radius: 0; border: none;
   background: var(--bg);
 }
-.log-card.full .log-view, .log-card.full .log-empty { height: auto; flex: 1; }
+.log-card.full .log-body, .log-card.full .log-view, .log-card.full .log-empty { height: auto; flex: 1; }
 
 .log-view {
   flex: 1; box-sizing: border-box;
   /* 最小高度兜底：视口过矮时头部卡+筛选条会把 flex:1 的日志区压缩到 0（完全看不见
      日志），260px 起步保证始终可读；垫高后整页超出时由 .content 滚动兜底 */
   min-height: 260px;
-  padding: 12px 16px;
+  /* 顶部让位左上角行数胶囊、右侧让位浮动操作钮列 */
+  padding: 32px 46px 12px 16px;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 12px; line-height: 1.75;
   overflow-y: auto;
