@@ -230,11 +230,9 @@ watch(
   <div class="page">
     <n-card>
       <div class="head-row">
-        <div>
+        <div class="title-line">
           <h2 class="page-title">规则</h2>
-          <p class="page-sub">
-            <template v-if="store.status?.running">内核当前加载共 {{ rules.length }} 条</template><template v-if="keyword">命中：自定义 {{ customFiltered.length }} / 运行时 {{ filtered.length }} 条</template><template v-if="!store.status?.running && !keyword">启动内核后这里会显示实际加载的路由规则</template>
-          </p>
+          <span class="sub-note"><template v-if="store.status?.running">内核当前加载共 {{ rules.length }} 条</template><template v-if="keyword">命中：自定义 {{ customFiltered.length }} / 运行时 {{ filtered.length }} 条</template><template v-if="!store.status?.running && !keyword">启动内核后这里会显示实际加载的路由规则</template></span>
         </div>
         <n-button size="small" :loading="loading" :disabled="!store.status?.running" @click="load(false); loadTargets()">
           <template #icon><AppIcon name="refresh" :size="13" /></template>刷新
@@ -344,6 +342,8 @@ watch(
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+/* 说明文案：标题右侧同行小字副标题（与其他列表页统一） */
+.title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .page-title { margin: 0 0 2px; font-size: 17px; }
 .pad :deep(.n-empty) { padding: 60px 0; }
 

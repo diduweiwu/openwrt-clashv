@@ -74,9 +74,9 @@ onMounted(load)
   <div class="page">
     <n-card>
       <div class="head-row">
-        <div>
+        <div class="title-line">
           <h2 class="page-title">代理</h2>
-          <span class="page-sub">点击节点切换 · {{ groups.length }} 个代理组</span>
+          <span class="sub-note">点击节点切换 · {{ groups.length }} 个代理组</span>
         </div>
         <n-button :loading="loading" @click="load">
           <template #icon><AppIcon name="refresh" :size="15" /></template>
@@ -130,6 +130,9 @@ onMounted(load)
 
 <style scoped>
 .head-row { display: flex; align-items: flex-start; justify-content: space-between; }
+/* 说明文案：标题右侧同行小字副标题（与其他列表页统一） */
+.title-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sub-note { font-size: 11.5px; color: var(--text-dim); }
 .pad :deep(.n-empty) { padding: 34px 0; }
 .g-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 13px; flex-wrap: wrap; }
 .g-title { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; }
