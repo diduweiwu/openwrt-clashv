@@ -52,18 +52,22 @@ return L.view.extend({
 		});
 
 		/*
-		 * 让 iframe 恰好撑满视口剩余高度：LuCI 页面本身不再溢出滚动，
-		 * 左侧菜单保持固定，滚动只发生在界面内部
-		 * （界面内容不满一屏时内部也不出滚动条，由界面自身的 overflow-y:auto 保证）。
+		 * 页脚随文档流：部分主题（移动端尤甚）把页脚钉在视口底部，叠加 iframe
+		 * 撑满剩余高度后，「Powered by LuCI…」版本信息永远贴底常驻；钉住的
+		 * 改回文档流尾随（与其他 LuCI 页一致），未钉住的随文档落在 iframe 下方
+		 * （首屏外，滚动 LuCI 页面可见）。
+		 */
+		document.head.appendChild(E('style', { type: 'text/css' },
+			'footer, .footer, #footer { position: static !important; bottom: auto !important; }'));
+
+		/*
+		 * 让 iframe 撑满视口剩余高度：滚动只发生在界面内部，LuCI 页面本身
+		 * 基本不滚（页脚留在文档流末尾，滚 LuCI 页面才能看到，与其他页面一致）。
 		 */
 		var fit = function () {
 			var top = frame.getBoundingClientRect().top;
 			var h = Math.max(360, window.innerHeight - top - 8);
 			frame.style.height = h + 'px';
-			/* 主题页脚/边距等额外高度导致外层仍溢出时，按实际溢出量收敛一次 */
-			var over = document.documentElement.scrollHeight - window.innerHeight;
-			if (over > 0)
-				frame.style.height = Math.max(360, h - over) + 'px';
 		};
 
 		requestAnimationFrame(fit);
