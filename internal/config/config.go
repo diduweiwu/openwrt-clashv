@@ -53,7 +53,7 @@ type Settings struct {
 	WorkDir          string `json:"workdir"`           // 数据目录：订阅、运行时配置、日志
 	PluginRepo       string `json:"plugin_repo"`       // 插件自更新的 GitHub 仓库（owner/repo）
 	GithubToken      string `json:"github_token"`      // GitHub 访问令牌：私有仓库查 Release/下载安装包必带，公开仓库留空
-	DownloadProxy    string `json:"download_proxy"`    // GitHub 下载加速前缀（如 https://gh-proxy.com），留空直连
+	DownloadProxy    string `json:"download_proxy"`    // GitHub 下载加速前缀（如 https://gh-proxy.org），留空直连
 	ActiveProfile    string `json:"active_profile"`    // 当前激活的订阅 ID
 }
 
@@ -95,7 +95,7 @@ func Defaults() Settings {
 		WorkDir:          "",
 		PluginRepo:       "diduweiwu/openwrt-clashv",
 		GithubToken:      "",
-		DownloadProxy:    "https://gh-proxy.com",
+		DownloadProxy:    "https://gh-proxy.org",
 		ActiveProfile:    "",
 	}
 }

@@ -43,7 +43,7 @@ import (
 //	    option workdir ''
 //	    option plugin_repo 'diduweiwu/openwrt-clashv'
 //	    option github_token ''
-//	    option download_proxy 'https://gh-proxy.com'
+//	    option download_proxy 'https://gh-proxy.org'
 //	    option active_profile ''
 
 const uciSection = "clashv.main"

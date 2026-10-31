@@ -62,7 +62,7 @@ const HELP = {
     title: '下载加速前缀',
     rows: [
       { k: '作用', v: '内核/插件从 GitHub 下载时套用此前缀加速。' },
-      { k: '默认与建议', v: '默认 https://gh-proxy.com，建议保持；直连 GitHub 够快可留空。' },
+      { k: '默认与建议', v: '默认 https://gh-proxy.org，建议保持；直连 GitHub 够快可留空。' },
       { k: '注意', v: '对私有仓库无效，私有仓库下载将直连 GitHub。' },
     ],
   },
@@ -302,7 +302,7 @@ const form = reactive({
   core_arch: '',
   core_channel: 'release',
   core_mem_limit: 0,
-  download_proxy: 'https://gh-proxy.com',
+  download_proxy: 'https://gh-proxy.org',
   plugin_repo: 'diduweiwu/openwrt-clashv',
   github_token: '',
 })
@@ -1077,7 +1077,7 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             <div class="row-text">
               <span class="rt">下载加速前缀<HelpModal v-bind="HELP.downloadProxy" /></span>
             </div>
-            <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.com" />
+            <n-input v-model:value="form.download_proxy" placeholder="https://gh-proxy.org" />
           </div>
         </div>
       </n-card>

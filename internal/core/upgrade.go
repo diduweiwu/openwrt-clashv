@@ -110,7 +110,7 @@ func (m *Manager) downloadCandidates(raw string) []string {
 	return append(urls, raw)
 }
 
-// proxiedURL 给 GitHub 下载地址套上加速前缀（如 https://gh-proxy.com）。
+// proxiedURL 给 GitHub 下载地址套上加速前缀（如 https://gh-proxy.org）。
 // 仅处理 github.com 的资源链接；设置里留空则原样直连。
 func (m *Manager) proxiedURL(raw string) string {
 	s, err := m.cfg.Get()

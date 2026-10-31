@@ -5,7 +5,7 @@
 # 在 OpenWrt 路由器的 SSH 终端里执行，自动完成：
 #   1. 检测设备架构是否受支持（读 DISTRIB_ARCH 映射到架构精简包）
 #   2. 检测依赖：root 权限、包管理器（opkg/apk）、下载工具、ca-bundle/kmod-tun
-#   3. 询问是否经 gh-proxy.com 加速下载 GitHub 资源（默认：是），
+#   3. 询问是否经 gh-proxy.org 加速下载 GitHub 资源（默认：是），
 #      从 GitHub Release 拉取与设备匹配的插件包
 #   4. 执行安装（apk 系统自动带 --allow-untrusted，自建包未签名必须加）
 #
@@ -15,7 +15,7 @@
 # 选项:
 #   -y, --yes        非交互执行，所有确认按默认值（加速代理按「是」处理）
 #       --no-proxy   不走加速代理，直连 GitHub
-#       --proxy URL  自定义加速前缀（默认 https://gh-proxy.com）
+#       --proxy URL  自定义加速前缀（默认 https://gh-proxy.org）
 #       --repo REPO  插件所在仓库 owner/repo（默认 diduweiwu/openwrt-clashv）
 #       --tag TAG    安装指定版本（如 v0.1.24），默认最新 Release
 #       --token TOK  GitHub 访问令牌（私有仓库用），默认读环境变量 GITHUB_TOKEN
@@ -35,7 +35,7 @@ set -u
 
 # ---------- 默认配置（与插件设置里的默认值保持一致） ----------
 REPO="diduweiwu/openwrt-clashv"   # 插件 Release 所在仓库
-PROXY="https://gh-proxy.com"      # GitHub 下载加速前缀；置空 = 直连
+PROXY="https://gh-proxy.org"      # GitHub 下载加速前缀；置空 = 直连
 TAG=""                            # 指定版本，空 = 最新 Release
 TOKEN="${GITHUB_TOKEN:-}"         # GitHub 访问令牌（私有仓库）
 FORCE_PKG=""                      # 强制指定的包名
@@ -82,7 +82,7 @@ usage() {
 选项:
   -y, --yes        非交互执行，所有确认按默认值（加速代理按「是」处理）
       --no-proxy   不走加速代理，直连 GitHub
-      --proxy URL  自定义加速前缀（默认 https://gh-proxy.com）
+      --proxy URL  自定义加速前缀（默认 https://gh-proxy.org）
       --repo REPO  插件所在仓库 owner/repo（默认 diduweiwu/openwrt-clashv）
       --tag TAG    安装指定版本（如 v0.1.24），默认最新 Release
       --token TOK  GitHub 访问令牌（私有仓库用），默认读环境变量 GITHUB_TOKEN
