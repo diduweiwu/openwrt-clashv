@@ -15,10 +15,14 @@
   --tile-d: rgba(224, 85, 133, 0.05);
   /* 磨砂玻璃的底色 RGB（取各自主题的 --bg-card，供 rgba(var(--glass-tint), α) 拼接） */
   --glass-tint: 255, 255, 255;
-  /* 面板内光斑色（画在 .n-card/.sidebar 的 ::before 上，只在面板内可见）：
-     浓度对标同类面板的通透观感——淡了在半透明面板上几乎隐身 */
+  /* 面板内光斑色板（画在 .n-card/.sidebar 的 ::before 上，只在面板内可见）：
+     五色供下方 nth 变体组随机配对（紫蓝/青为默认对），浓度对标同类面板的通透
+     观感——淡了在半透明面板上几乎隐身；绿/玫红/琥珀在浅底上显色更跳，浓度略收 */
   --cau-1: rgba(91, 107, 240, 0.14);
   --cau-2: rgba(34, 211, 238, 0.09);
+  --cau-g: rgba(63, 185, 111, 0.1);
+  --cau-p: rgba(224, 85, 133, 0.08);
+  --cau-o: rgba(240, 176, 82, 0.09);
 }
 
 html[data-theme='dark'] {
@@ -41,6 +45,9 @@ html[data-theme='dark'] {
   /* 面板内光斑（深色加浓：暗卡上彩渐变衰减快） */
   --cau-1: rgba(91, 107, 240, 0.26);
   --cau-2: rgba(34, 211, 238, 0.17);
+  --cau-g: rgba(63, 185, 111, 0.2);
+  --cau-p: rgba(224, 85, 133, 0.17);
+  --cau-o: rgba(240, 176, 82, 0.16);
 }
 
 html[data-theme='light'] {
@@ -145,23 +152,25 @@ html.glass-on .sidebar::before {
   inset: -45%;  /* 比面板大一圈，给游走位移留余量，边缘不露空 */
   z-index: -1;
   pointer-events: none;
-  /* 渐变落点/相位/周期走面板上的变量（默认值见此，伪随机变体见下方 nth-child 组）：
-     同页所有面板若共用同一相位同一落点，光斑会整齐划一地同步游走，观感很假 */
+  /* 渐变落点/颜色/相位/周期全走面板上的变量（默认值见此，伪随机变体见下方
+     nth-child 组）：同页所有面板若共用同一相位同一落点同一色对，光斑会整齐
+     划一地同步游走，观感很假 */
   background:
-    radial-gradient(42% 38% at var(--cau-pos-1, 24% 22%), var(--cau-1), transparent 72%),
-    radial-gradient(46% 42% at var(--cau-pos-2, 78% 80%), var(--cau-2), transparent 74%);
+    radial-gradient(42% 38% at var(--cau-pos-1, 24% 22%), var(--cau-a, var(--cau-1)), transparent 72%),
+    radial-gradient(46% 42% at var(--cau-pos-2, 78% 80%), var(--cau-b, var(--cau-2)), transparent 74%);
   animation: card-aurora var(--cau-dur, 16s) ease-in-out infinite;
   animation-delay: var(--cau-delay, 0s);
 }
-/* 伪随机变体：按容器内第 n 张卡分配不同相位/落点/周期（负 delay 等于从动画中段
-   起播，页面打开即错落；duration 各异则长期永不重同步）。纯 CSS 静态分布，
-   动态增删卡片自动按 nth 规则取模命中，无需 JS 逐个注入 */
-html.glass-on .n-card:nth-child(5n + 2) { --cau-delay: -4s;  --cau-pos-1: 68% 16%; --cau-pos-2: 22% 78%; }
-html.glass-on .n-card:nth-child(5n + 3) { --cau-delay: -8s;  --cau-pos-1: 18% 68%; --cau-pos-2: 82% 22%; --cau-dur: 19s; }
-html.glass-on .n-card:nth-child(5n + 4) { --cau-delay: -12s; --cau-pos-1: 62% 58%; --cau-pos-2: 28% 18%; }
-html.glass-on .n-card:nth-child(5n + 5) { --cau-delay: -6s;  --cau-pos-1: 30% 30%; --cau-pos-2: 66% 86%; --cau-dur: 18s; }
+/* 伪随机变体：按容器内第 n 张卡分配不同相位/落点/周期/色对（负 delay 等于从
+   动画中段起播，页面打开即错落；duration 各异则长期永不重同步；色对从五色板
+   取不同搭配——紫蓝/青/绿/玫红/琥珀，变量值为主题级 --cau-*，深浅浓度自动适配）。
+   纯 CSS 静态分布，动态增删卡片自动按 nth 规则取模命中，无需 JS 逐个注入 */
+html.glass-on .n-card:nth-child(5n + 2) { --cau-delay: -4s;  --cau-pos-1: 68% 16%; --cau-pos-2: 22% 78%; --cau-a: var(--cau-2); --cau-b: var(--cau-g); }
+html.glass-on .n-card:nth-child(5n + 3) { --cau-delay: -8s;  --cau-pos-1: 18% 68%; --cau-pos-2: 82% 22%; --cau-dur: 19s; --cau-a: var(--cau-p); --cau-b: var(--cau-1); }
+html.glass-on .n-card:nth-child(5n + 4) { --cau-delay: -12s; --cau-pos-1: 62% 58%; --cau-pos-2: 28% 18%; --cau-a: var(--cau-o); --cau-b: var(--cau-p); }
+html.glass-on .n-card:nth-child(5n + 5) { --cau-delay: -6s;  --cau-pos-1: 30% 30%; --cau-pos-2: 66% 86%; --cau-dur: 18s; --cau-a: var(--cau-1); --cau-b: var(--cau-g); }
 /* 侧栏无卡片兄弟竞争相位，给一组专属错开值（周期 21s 与所有卡片渐行渐远） */
-html.glass-on .sidebar { --cau-delay: -10s; --cau-dur: 21s; --cau-pos-1: 30% 10%; --cau-pos-2: 72% 86%; }
+html.glass-on .sidebar { --cau-delay: -10s; --cau-dur: 21s; --cau-pos-1: 30% 10%; --cau-pos-2: 72% 86%; --cau-a: var(--cau-2); --cau-b: var(--cau-o); }
 /* 游走路径：闭合循环（0%/100% 同位无缝衔接），四方位绕行 + 微缩放/旋转呼吸。
    幅度按「柔光渐变上肉眼可感」校准：translate 百分比相对光斑层自身（约为面板
    1.9 倍大），8~16% 即面板宽的 15~30%，渐变团明显扫过面板；周期 16s 每方位
