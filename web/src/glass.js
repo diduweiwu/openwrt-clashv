@@ -35,7 +35,36 @@ export function applyGlass() {
   el.classList.toggle('glass-motion-off', !glassMotion.value)
   el.classList.toggle('glass-lights-off', !glassLights.value)
   el.style.setProperty('--glass-alpha', String((100 - glassOpacity.value) / 100))
+  randomizeAurora(document)
 }
+
+// ---- 光斑初始参数真随机 ----
+// CSS nth 变体只能按容器索引伪随机分布，而卡片在容器里混排着 hero/列表等非
+// 卡片元素，索引不可控——一批卡片可能整批落进同一变体组（同相位同落点，首次
+// 出现位置一致）。这里用 JS 给每个面板注入内联随机值：负 delay=从动画随机相位
+// 起播（首次出现位置即随机）、落点/周期各面板独立随机，每次刷新都不同。
+// 内联样式优先级高于样式表，注入后自然覆盖 nth 变体（nth 仅作注入前首帧兜底）。
+// dataset.cauDone 打标防重复；Vue 动态渲染的新卡片由 MutationObserver 兜住。
+function randomizeAurora(root) {
+  root.querySelectorAll?.('.n-card, .sidebar').forEach((el) => {
+    if (el.dataset.cauDone) return
+    el.dataset.cauDone = '1'
+    const rnd = (min, max) => (min + Math.random() * (max - min)).toFixed(1)
+    el.style.setProperty('--cau-delay', `-${rnd(0, 20)}s`)
+    el.style.setProperty('--cau-dur', `${rnd(14, 20)}s`)
+    el.style.setProperty('--cau-pos-1', `${rnd(10, 60) | 0}% ${rnd(8, 55) | 0}%`)
+    el.style.setProperty('--cau-pos-2', `${rnd(40, 90) | 0}% ${rnd(45, 92) | 0}%`)
+  })
+}
+
+let cauRaf = 0
+// DOM 增删后补注入（rAF 合并高频变更，连接页等每秒刷新的页面不产生额外开销）；
+// 只在有新增节点时扫描，纯文本/属性更新不触发
+new MutationObserver((muts) => {
+  if (!muts.some((m) => m.addedNodes.length)) return
+  cancelAnimationFrame(cauRaf)
+  cauRaf = requestAnimationFrame(() => randomizeAurora(document))
+}).observe(document.documentElement, { childList: true, subtree: true })
 
 watch([glassEnabled, glassOpacity, glassMotion, glassLights], () => {
   localStorage.setItem(KEY, glassEnabled.value ? '1' : '0')
