@@ -173,6 +173,12 @@ html.glass-on body::after {
   html.glass-on body::before,
   html.glass-on body::after { animation: none; }
 }
+/* 「光斑游走动画」开关（glass.js 挂 glass-motion-off，默认开）：关=停住游走只留静态淡彩。
+   光斑持续位移是磨砂模式下最主要的渲染开销——GPU 每帧合成两个大光斑，还连累上方
+   backdrop-filter 磨砂卡片逐帧重采样模糊（实测停掉后帧率约 +47%）；低端设备关动画
+   即可明显流畅，磨砂与静态淡彩保留。规则与 reduced-motion 那条等价，只差触发来源。 */
+html.glass-motion-off body::before,
+html.glass-motion-off body::after { animation: none; }
 html.glass-on .n-card,
 html.glass-on .sidebar {
   background-color: rgba(var(--glass-tint), var(--glass-alpha));

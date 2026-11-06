@@ -120,11 +120,21 @@ return L.view.extend({
 	 */
 	var bgNotified = false;
 	var frameLoaded = false;
+	/*
+	 * 「LuCI 内嵌透明背景」开关（存放在插件界面侧 localStorage，默认关）：
+	 * 开 = iframe 元素底色透明 + 插件页自身不铺底，透出 LuCI 主题的真实背景
+	 * （纯色/渐变/背景图都成立）；关 = 恢复实测色铺底（取色融合方案）。
+	 * 开关状态经 clashv_luci_transparent 消息从界面同步过来（插件启动与
+	 * 用户切换时各发一次）；fit()/load 里反复调用的 syncBg 也要按它跳过
+	 * iframe 自身铺底，否则透明开着会被实测色盖回去。透明开启时祖先链
+	 * 实测与校正消息照常进行——界面深浅判断仍依赖实测底色亮度。
+	 */
+	var transparentOn = false;
 	var syncBg = function () {
 		var rgb = chainBgColor(frame);
 		if (!rgb) return;
 		var s = rgb.join(',');
-		frame.style.background = 'rgb(' + s + ')';
+		if (!transparentOn) frame.style.background = 'rgb(' + s + ')';
 		if (bgNotified || s === luciBg || !frameLoaded) return;
 		bgNotified = true;
 		try {
@@ -139,7 +149,14 @@ return L.view.extend({
 	window.addEventListener('message', function (ev) {
 		if (ev.source !== frame.contentWindow) return;
 		var d = ev.data;
-		if (!d || d.type !== 'clashv_bg_query') return;
+		if (!d) return;
+		if (d.type === 'clashv_luci_transparent') {
+			transparentOn = !!d.on;
+			if (transparentOn) frame.style.background = 'transparent';
+			else syncBg();  // 关掉后恢复实测色铺底（bgNotified 已置位时只改底色不再发消息）
+			return;
+		}
+		if (d.type !== 'clashv_bg_query') return;
 		frameLoaded = true;
 		bgNotified = false;
 		syncBg();

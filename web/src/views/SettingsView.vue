@@ -4,7 +4,8 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSlider, NSpin, NSwitch, NTabs, NTabPane, NTag, NTimePicker } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
-import { glassEnabled, glassOpacity } from '../glass.js'
+import { glassEnabled, glassOpacity, glassMotion } from '../glass.js'
+import { luciTransparent, setLuciTransparent } from '../theme.js'
 import { menuMode } from '../menuMode.js'
 import AppIcon from '../components/AppIcon.vue'
 import HelpModal from '../components/HelpModal.vue'
@@ -33,6 +34,22 @@ const HELP = {
     rows: [
       { k: '作用', v: '调节磨砂开启时卡片与侧栏背景的透明程度：数值越大越透，越小越接近实心。' },
       { k: '范围', v: '10%（近乎实心）～ 100%（全透，只留磨砂模糊）；默认 45%。字体颜色不随透明度变化，拉满后靠磨砂模糊与背景光晕衬托，仍能保持文字可读。' },
+    ],
+  },
+  glassMotion: {
+    title: '光斑游走动画',
+    rows: [
+      { k: '作用', v: '调节磨砂开启时页面两个极光光斑是否绕屏幕缓慢游走：关闭后光斑停在原位，只保留静态淡彩。' },
+      { k: '开关影响', v: '光斑持续位移是磨砂模式下最主要的渲染开销：GPU 每帧都要合成两个大光斑，磨砂卡片也要跟着逐帧重新采样模糊；低性能设备感觉卡顿时关闭即可明显流畅。' },
+      { k: '默认与建议', v: '默认开启游走；设备性能好建议保持，低端设备、虚拟机建议关闭。' },
+    ],
+  },
+  luciTransparent: {
+    title: 'LuCI 内嵌透明背景',
+    rows: [
+      { k: '作用', v: '仅从 LuCI 菜单进入本界面时生效：开启后插件页面自身完全不铺底色，直接透出 LuCI 主题的真实背景，与系统主题背景（含背景图）完全一致。' },
+      { k: '开关影响', v: '关闭（默认）时按 LuCI 主题底色取色铺底融合，背景为纯色；开启后改为全透明让位，主题背景是渐变或图片也能透出。深浅色跟随不受影响，仍按 LuCI 主题底色亮度自动判断。' },
+      { k: '默认与建议', v: '默认关闭；使用带背景图/渐变背景的主题（如 Argon 及多数第三方主题）时建议开启。改动即时生效并保存在本浏览器。' },
     ],
   },
   mixedPort: {
@@ -276,6 +293,9 @@ function fmtSize(n) {
   if (n >= 1024) return (n / 1024).toFixed(1) + ' KB'
   return n + ' B'
 }
+
+// 是否处于 LuCI iframe 内嵌：「LuCI 内嵌透明背景」开关只在此时有意义，行随此显隐
+const isEmbedded = window.self !== window.top
 
 const form = reactive({
   mixed_port: 7890,
@@ -1112,6 +1132,18 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
               />
               <span class="glass-val mono">{{ glassOpacity }}%</span>
             </div>
+          </div>
+          <div class="row" v-if="glassEnabled">
+            <div class="row-text">
+              <span class="rt">光斑游走动画<HelpModal v-bind="HELP.glassMotion" /></span>
+            </div>
+            <n-switch v-model:value="glassMotion" />
+          </div>
+          <div class="row" v-if="isEmbedded">
+            <div class="row-text">
+              <span class="rt">LuCI 内嵌透明背景<HelpModal v-bind="HELP.luciTransparent" /></span>
+            </div>
+            <n-switch :value="luciTransparent" @update:value="setLuciTransparent" />
           </div>
         </div>
       </n-card>

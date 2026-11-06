@@ -42,6 +42,30 @@ function setLuciBg(r, g, b) {
   applyTheme()
 }
 
+// ---- 「LuCI 内嵌透明背景」开关（默认关）----
+// 开：插件页自身完全不铺底色（html 连同入口页 iframe 元素都透明），直接透出
+// LuCI 主题的真实背景（纯色/渐变/背景图都成立）；关：沿用取色铺底融合方案。
+// 深浅判断不受开关影响：始终按实测/预估的 LuCI 底色亮度跟随（luciDark）。
+// iframe 元素画在父页（LuCI 域），插件侧只能经 postMessage(clashv_luci_transparent)
+// 通知入口页同步，不能直接改它的样式。
+const KEY_TRANS = 'clashv_luci_transparent'
+export const luciTransparent = ref(localStorage.getItem(KEY_TRANS) === '1')
+
+// 通知入口页当前透明开关状态（仅内嵌时有父页可通知；独立访问直接跳过）
+function notifyTransparent() {
+  if (window.self === window.top) return
+  try { window.parent.postMessage({ type: 'clashv_luci_transparent', on: luciTransparent.value }, '*') } catch (e) { /* 跨源拒绝时静默 */ }
+}
+
+// 切换透明背景开关：写档 + 立即重铺本页底色 + 通知入口页同步 iframe 元素底色。
+// 示例：setLuciTransparent(true) → 插件页全透明并通知入口页把 iframe 底色置 transparent。
+export function setLuciTransparent(v) {
+  luciTransparent.value = !!v
+  localStorage.setItem(KEY_TRANS, v ? '1' : '0')
+  applyTheme()
+  notifyTransparent()
+}
+
 if (window.self !== window.top) {
   window.addEventListener('message', (ev) => {
     if (ev.source !== window.parent) return
@@ -53,6 +77,9 @@ if (window.self !== window.top) {
     if (r > 255 || g > 255 || b > 255) return
     setLuciBg(r, g, b)
   })
+  // 启动即同步一次透明开关（入口页创建 iframe 时不知道开关状态，初始铺的是
+  // 主题预估色防闪，收到本消息后才切透明）；clashv_bg_query 照发兜取色时序
+  notifyTransparent()
   try { window.parent.postMessage({ type: 'clashv_bg_query' }, '*') } catch (e) { /* 非同源父页拒绝时静默 */ }
 }
 
@@ -67,10 +94,13 @@ export function applyTheme() {
     ? (luciDark != null ? (luciDark ? 'dark' : 'light') : (mq.matches ? 'dark' : 'light'))
     : (themeMode.value === 'dark' ? 'dark' : 'light')
   document.documentElement.dataset.theme = resolvedTheme.value
-  // 页面底色优先级：LuCI 传入的主题色（内嵌融合）> 内嵌透明让位（旧入口页 /
-  // 主题底色取不到时的兜底，配合 style.css 的 html.embedded）> 本应用自己的
-  // 主题底色（独立访问 :9097 防白屏闪色）
-  if (luciBg) {
+  // 页面底色优先级：「LuCI 内嵌透明背景」开关（仅内嵌生效，全透让位 LuCI 真实
+  // 背景）> LuCI 传入的主题色（内嵌取色融合）> 内嵌透明让位（旧入口页 / 主题
+  // 底色取不到时的兜底，配合 style.css 的 html.embedded）> 本应用自己的主题底色
+  // （独立访问 :9097 防白屏闪色）
+  if (luciTransparent.value && document.documentElement.classList.contains('embedded')) {
+    document.documentElement.style.background = 'transparent'
+  } else if (luciBg) {
     document.documentElement.style.background = `rgb(${luciBg.r}, ${luciBg.g}, ${luciBg.b})`
   } else if (document.documentElement.classList.contains('embedded')) {
     document.documentElement.style.background = 'transparent'
