@@ -179,6 +179,11 @@ html.glass-on body::after {
    即可明显流畅，磨砂与静态淡彩保留。规则与 reduced-motion 那条等价，只差触发来源。 */
 html.glass-motion-off body::before,
 html.glass-motion-off body::after { animation: none; }
+/* 「光斑光晕」开关（glass.js 挂 glass-lights-off，默认开）：关=完全不渲染两个光斑，
+   页面只剩磨砂与底色（LuCI 内嵌透明时直接透系统主题背景），即「只要透明磨砂、
+   不要光斑」的档位；display:none 连合成层都不留，也是比停动画更彻底的省资源档。 */
+html.glass-lights-off body::before,
+html.glass-lights-off body::after { display: none; }
 html.glass-on .n-card,
 html.glass-on .sidebar {
   background-color: rgba(var(--glass-tint), var(--glass-alpha));

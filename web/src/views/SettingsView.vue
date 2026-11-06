@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSlider, NSpin, NSwitch, NTabs, NTabPane, NTag, NTimePicker } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
-import { glassEnabled, glassOpacity, glassMotion } from '../glass.js'
+import { glassEnabled, glassOpacity, glassMotion, glassLights } from '../glass.js'
 import { luciTransparent, setLuciTransparent } from '../theme.js'
 import { menuMode } from '../menuMode.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -41,7 +41,15 @@ const HELP = {
     rows: [
       { k: '作用', v: '调节磨砂开启时页面两个极光光斑是否绕屏幕缓慢游走：关闭后光斑停在原位，只保留静态淡彩。' },
       { k: '开关影响', v: '光斑持续位移是磨砂模式下最主要的渲染开销：GPU 每帧都要合成两个大光斑，磨砂卡片也要跟着逐帧重新采样模糊；低性能设备感觉卡顿时关闭即可明显流畅。' },
-      { k: '默认与建议', v: '默认开启游走；设备性能好建议保持，低端设备、虚拟机建议关闭。' },
+      { k: '默认与建议', v: '默认开启游走；设备性能好建议保持，低端设备、虚拟机建议关闭。不想要光斑本身时，直接关闭上方的「光斑光晕」。' },
+    ],
+  },
+  glassLights: {
+    title: '光斑光晕',
+    rows: [
+      { k: '作用', v: '调节磨砂开启时是否显示页面两个极光光斑：关闭后光斑完全不渲染，页面只剩磨砂卡片与底色（LuCI 内嵌透明时直接透出系统主题背景），即纯净的透明磨砂效果。' },
+      { k: '开关影响', v: '这是比「光斑游走动画」更彻底的档位：光斑隐藏后不再有任何动态合成开销，也是磨砂模式下最省资源的显示方案。' },
+      { k: '默认与建议', v: '默认开启；只想要透明磨砂、不喜欢彩色光斑时关闭。关闭后本页的「光斑游走动画」随之隐藏（没有光斑可游走）。' },
     ],
   },
   luciTransparent: {
@@ -1134,6 +1142,12 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
             </div>
           </div>
           <div class="row" v-if="glassEnabled">
+            <div class="row-text">
+              <span class="rt">光斑光晕<HelpModal v-bind="HELP.glassLights" /></span>
+            </div>
+            <n-switch v-model:value="glassLights" />
+          </div>
+          <div class="row" v-if="glassEnabled && glassLights">
             <div class="row-text">
               <span class="rt">光斑游走动画<HelpModal v-bind="HELP.glassMotion" /></span>
             </div>
