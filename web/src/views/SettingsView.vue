@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSlider, NSpin, NSwitch, NTabs, NTabPane, NTag, NTimePicker } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
-import { glassEnabled, glassOpacity, glassMotion, glassLights } from '../glass.js'
+import { glassEnabled, glassOpacity, glassLights } from '../glass.js'
 import { luciTransparent, setLuciTransparent } from '../theme.js'
 import { menuMode } from '../menuMode.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -24,7 +24,7 @@ const HELP = {
   glass: {
     title: '磨砂模糊',
     rows: [
-      { k: '作用', v: '开启后卡片、侧边栏等界面元素改为半透明底 + 背景磨砂模糊（毛玻璃），页面同时衬两个极淡的光斑让效果可见；透明度可用下方滑杆调节。' },
+      { k: '作用', v: '开启后卡片、侧边栏改为半透明底 + 磨砂模糊（毛玻璃），卡片自衬两团柔彩渐变光斑让磨砂质感可见；透明度可用下方滑杆调节。页面整体背景不受影响，保持主题底色（LuCI 内嵌透明时透出系统主题背景）。' },
       { k: '提示', v: '改动即时生效并保存在本浏览器（不占用后端设置）；背景模糊由浏览器渲染，低性能设备如感觉滚动卡顿可关闭。' },
       { k: '默认与建议', v: '默认关闭；透明度默认 45%，滑杆已限制调节范围，不会透到文字看不清。' },
     ],
@@ -33,23 +33,15 @@ const HELP = {
     title: '磨砂透明度',
     rows: [
       { k: '作用', v: '调节磨砂开启时卡片与侧栏背景的透明程度：数值越大越透，越小越接近实心。' },
-      { k: '范围', v: '10%（近乎实心）～ 100%（全透，只留磨砂模糊）；默认 45%。字体颜色不随透明度变化，拉满后靠磨砂模糊与背景光晕衬托，仍能保持文字可读。' },
-    ],
-  },
-  glassMotion: {
-    title: '光斑游走动画',
-    rows: [
-      { k: '作用', v: '调节磨砂开启时页面两个极光光斑是否绕屏幕缓慢游走：关闭后光斑停在原位，只保留静态淡彩。' },
-      { k: '开关影响', v: '光斑持续位移是磨砂模式下最主要的渲染开销：GPU 每帧都要合成两个大光斑，磨砂卡片也要跟着逐帧重新采样模糊；低性能设备感觉卡顿时关闭即可明显流畅。' },
-      { k: '默认与建议', v: '默认开启游走；设备性能好建议保持，低端设备、虚拟机建议关闭。不想要光斑本身时，直接关闭上方的「光斑光晕」。' },
+      { k: '范围', v: '10%（近乎实心）～ 100%（全透，只留磨砂模糊）；默认 45%。字体颜色不随透明度变化，拉满后靠磨砂模糊与卡片内渐变衬托，仍能保持文字可读。' },
     ],
   },
   glassLights: {
-    title: '光斑光晕',
+    title: '卡片光斑',
     rows: [
-      { k: '作用', v: '调节磨砂开启时是否显示页面两个彩色极光光斑：关闭后光斑完全不渲染，背景换成一团极淡的无彩色明暗底纹（灰调、静止、不发彩），页面只剩磨砂卡片与底色（LuCI 内嵌透明时直接透出系统主题背景）。' },
-      { k: '开关影响', v: '磨砂的原理是模糊卡片背后的内容，纯色底上什么效果都看不出来——所以关掉光斑后背景会保留这层极淡底纹，让磨砂玻璃仍有可感的层次；这也是比「光斑游走动画」更彻底的省资源档（光斑隐藏后无任何动态合成开销）。' },
-      { k: '默认与建议', v: '默认开启；不喜欢彩色光斑时关闭。关闭后本页的「光斑游走动画」随之隐藏（没有光斑可游走）。' },
+      { k: '作用', v: '调节磨砂开启时卡片是否自衬柔彩渐变光斑（左上紫蓝 / 右下青）：光斑画在卡片自身背景上，只在卡片内可见，插件整体背景保持纯净不变。' },
+      { k: '开关影响', v: '关闭后卡片退回纯色半透明磨砂（毛玻璃质感保留，只是没有柔彩渐变）。' },
+      { k: '默认与建议', v: '默认开启；喜欢更素净的卡片时关闭。' },
     ],
   },
   luciTransparent: {
@@ -1143,15 +1135,9 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
           </div>
           <div class="row" v-if="glassEnabled">
             <div class="row-text">
-              <span class="rt">光斑光晕<HelpModal v-bind="HELP.glassLights" /></span>
+              <span class="rt">卡片光斑<HelpModal v-bind="HELP.glassLights" /></span>
             </div>
             <n-switch v-model:value="glassLights" />
-          </div>
-          <div class="row" v-if="glassEnabled && glassLights">
-            <div class="row-text">
-              <span class="rt">光斑游走动画<HelpModal v-bind="HELP.glassMotion" /></span>
-            </div>
-            <n-switch v-model:value="glassMotion" />
           </div>
           <div class="row" v-if="isEmbedded">
             <div class="row-text">

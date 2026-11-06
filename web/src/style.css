@@ -15,17 +15,10 @@
   --tile-d: rgba(224, 85, 133, 0.05);
   /* 磨砂玻璃的底色 RGB（取各自主题的 --bg-card，供 rgba(var(--glass-tint), α) 拼接） */
   --glass-tint: 255, 255, 255;
-  /* 极光光晕色（浅色一套，深色在下方主题块加浓）：白底上彩色更显色，
-     浓度须明显低于深色（约六成）防把页面染暗，但也压到透出感可辨 */
-  --au-1: rgba(91, 107, 240, 0.3);
-  --au-2: rgba(34, 211, 238, 0.2);
-  --au-3: rgba(63, 185, 111, 0.24);
-  --au-4: rgba(224, 85, 133, 0.16);
-  /* 中性底纹色（光斑关闭时的替代背景）：无彩色的明暗团，只提供层次不提供色彩。
-     浓度需比直觉高：无彩色本身对比弱，再被磨砂 blur 抹平一层后所剩无几，
-     8% 上下的亮度差才能穿透模糊被肉眼感知 */
-  --neu-1: rgba(20, 22, 30, 0.06);
-  --neu-2: rgba(20, 22, 30, 0.035);
+  /* 卡片内光斑色（画在 .n-card 自身背景上，只在卡片内可见）：小面积渐变感知
+     比全屏光斑强，浓度取约一成即可察觉，过浓会艳得抢文字 */
+  --cau-1: rgba(91, 107, 240, 0.1);
+  --cau-2: rgba(34, 211, 238, 0.07);
 }
 
 html[data-theme='dark'] {
@@ -45,14 +38,9 @@ html[data-theme='dark'] {
   --tile-d: rgba(238, 106, 150, 0.08);
   /* 磨砂玻璃底色 RGB（= --bg-card #1e222c） */
   --glass-tint: 30, 34, 44;
-  /* 极光光晕色（深色加浓：暗底上彩光衰减快，太淡看不出磨砂在透光） */
-  --au-1: rgba(91, 107, 240, 0.55);
-  --au-2: rgba(34, 211, 238, 0.38);
-  --au-3: rgba(63, 185, 111, 0.44);
-  --au-4: rgba(224, 85, 133, 0.28);
-  /* 中性底纹（深色）：暗底上白团衰减快，浓度需略高于浅色才可感 */
-  --neu-1: rgba(255, 255, 255, 0.1);
-  --neu-2: rgba(255, 255, 255, 0.055);
+  /* 卡片内光斑（深色加浓：暗卡上彩渐变衰减快） */
+  --cau-1: rgba(91, 107, 240, 0.17);
+  --cau-2: rgba(34, 211, 238, 0.11);
 }
 
 html[data-theme='light'] {
@@ -129,88 +117,35 @@ p { margin: 0; }
    由透明度滑杆换算而来，越小越透；文字颜色不变，可读性靠模糊背景 + 半透明底共同保证，
    滑杆已限制最低不透明度防止调到看不见字。 */
 /* 背景必须挪到 html；内容层显式抬高（部分渲染路径下 z-index:-1 的伪元素会被
-   不透明层盖住，显式分层最稳）：光晕垫底、#app 抬在其上 */
+   不透明层盖住，显式分层最稳）：光晕垫底、#app 抬在其上。
+   页面背景层永远纯净——不画光斑不画底纹（用户要求：磨砂与光彩只发生在卡片上，
+   插件整体背景保持主题底色 / 内嵌透明时透出的 LuCI 真实背景不变）；
+   磨砂可感的层次由「卡片内光斑」提供（见下方 .n-card 规则）。 */
 html.glass-on { background: var(--bg); }
 html.glass-on body { background: transparent; }
 html.glass-on #app { position: relative; z-index: 1; }
-html.glass-on body::before,
-html.glass-on body::after {
-  content: "";
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(72px);
-  pointer-events: none;
+/* 大卡片磨砂 + 卡片内光斑：半透明 tint 底 + backdrop 模糊背后（内嵌透明时透出
+   LuCI 背景是真磨砂，独立访问纯色底时模糊无感），柔彩渐变画在卡片自身
+   background-image 上——只在卡片内可见、随卡片圆角裁剪，页面背景不受染。
+   渐变尺寸用百分比随卡片自适应，左上紫蓝 / 右下青两团对角（色板同极光，
+   浓度按小面积感知另调，见 --cau-*）。 */
+html.glass-on .n-card {
+  background-color: rgba(var(--glass-tint), var(--glass-alpha));
+  background-image:
+    radial-gradient(120% 100% at 0% 0%, var(--cau-1), transparent 60%),
+    radial-gradient(110% 90% at 100% 100%, var(--cau-2), transparent 62%);
+  -webkit-backdrop-filter: blur(14px) saturate(1.35);
+  backdrop-filter: blur(14px) saturate(1.35);
 }
-/* 左上极光：紫蓝 + 青。多段关键帧让光斑绕屏幕游走（左上→右上→中下→左中），
-   不再固定一处；位移大、周期长，局部速度平缓但位置一直在变 */
-html.glass-on body::before {
-  width: 62vmax; height: 52vmax;
-  left: -14vmax; top: -20vmax;
-  background:
-    radial-gradient(closest-side, var(--au-1), transparent 80%),
-    radial-gradient(closest-side at 72% 68%, var(--au-2), transparent 82%);
-  animation: aurora-a 28s ease-in-out infinite;
-}
-/* 右下极光：绿 + 玫红。与左上反相游走（右下→左下→中上→右中），两团光任意时刻错开区域 */
-html.glass-on body::after {
-  width: 58vmax; height: 48vmax;
-  right: -16vmax; bottom: -18vmax;
-  background:
-    radial-gradient(closest-side, var(--au-3), transparent 80%),
-    radial-gradient(closest-side at 28% 30%, var(--au-4), transparent 82%);
-  animation: aurora-b 36s ease-in-out infinite;
-}
-/* 游走路径：以初始停靠位为基准（0%/100% 闭合循环），经停另三个方位；
-   scale/rotate 同步微变避免形状单调 */
-@keyframes aurora-a {
-  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  25%  { transform: translate(55vmax, 18vmax) scale(1.15) rotate(12deg); }
-  50%  { transform: translate(30vmax, 72vmax) scale(0.94) rotate(-8deg); }
-  75%  { transform: translate(-10vmax, 32vmax) scale(1.06) rotate(6deg); }
-  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
-}
-@keyframes aurora-b {
-  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  25%  { transform: translate(-62vmax, -6vmax) scale(1.12) rotate(-10deg); }
-  50%  { transform: translate(-32vmax, -56vmax) scale(0.92) rotate(9deg); }
-  75%  { transform: translate(8vmax, -26vmax) scale(1.08) rotate(-6deg); }
-  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
-}
-/* 系统开启「减弱动态效果」时停住光晕，只保留静态淡彩 */
-@media (prefers-reduced-motion: reduce) {
-  html.glass-on body::before,
-  html.glass-on body::after { animation: none; }
-}
-/* 「光斑游走动画」开关（glass.js 挂 glass-motion-off，默认开）：关=停住游走只留静态淡彩。
-   光斑持续位移是磨砂模式下最主要的渲染开销——GPU 每帧合成两个大光斑，还连累上方
-   backdrop-filter 磨砂卡片逐帧重采样模糊（实测停掉后帧率约 +47%）；低端设备关动画
-   即可明显流畅，磨砂与静态淡彩保留。规则与 reduced-motion 那条等价，只差触发来源。 */
-html.glass-motion-off body::before,
-html.glass-motion-off body::after { animation: none; }
-/* 「光斑光晕」开关（glass.js 挂 glass-lights-off，默认开）：关=完全不渲染两个光斑，
-   页面只剩磨砂与底色（LuCI 内嵌透明时直接透系统主题背景），即「只要透明磨砂、
-   不要光斑」的档位；display:none 连合成层都不留，也是比停动画更彻底的省资源档。 */
-html.glass-lights-off body::before,
-html.glass-lights-off body::after { display: none; }
-/* 光斑关闭时补一层中性底纹：磨砂=模糊卡片背后的内容，纯色底上模糊结果仍是
-   纯色，什么效果都看不出来（实测反馈「黑漆漆的看不出磨砂」）。两团极淡的无彩
-   色明暗（灰调、静止、不发彩——不是光斑，只是让磨砂有内容可透）画在 body 上：
-   html 的背景被 theme.js 内联 style.background 占用（简写会清掉 image 层，类
-   规则写不进去），body 背景本来就是透明的，类规则可正常写入。:not(.embedded)
-   排除内嵌——透明让位时 body 必须保持透明（embedded 让位规则特异性 0,1,2，
-   本条 0,2,1 更高，不排除会把它盖回去挡住 LuCI 背景），那边有没有内容可透由
-   系统主题自己决定。 */
-html.glass-on.glass-lights-off:not(.embedded) body {
-  background:
-    radial-gradient(52vmax 44vmax at 16% 10%, var(--neu-1), transparent 70%),
-    radial-gradient(48vmax 40vmax at 85% 90%, var(--neu-2), transparent 72%);
-}
-html.glass-on .n-card,
+/* 侧栏磨砂：纯 tint 不带光斑（侧栏属于页面骨架，保持「背景不变」的纯净语义） */
 html.glass-on .sidebar {
   background-color: rgba(var(--glass-tint), var(--glass-alpha));
   -webkit-backdrop-filter: blur(14px) saturate(1.35);
   backdrop-filter: blur(14px) saturate(1.35);
 }
+/* 「卡片光斑」开关（glass.js 挂 glass-lights-off，默认开）：关=卡片退回纯 tint
+   磨砂（去渐变留 backdrop），页面与卡片都是纯净的透明磨砂 */
+html.glass-lights-off .n-card { background-image: none; }
 /* 内嵌小卡跟随磨砂：切换节点的节点卡/分组折叠头、解锁测试的站点瓦片。
    浓度按大卡 α 打 6 折、blur 半径略小——保持「内嵌略深于所在大卡」的层次感，
    也避免小面积上强模糊发糊；磨砂关闭时这些规则不生效，仍是实心 --bg-card-2 */
