@@ -21,6 +21,11 @@
   --au-2: rgba(34, 211, 238, 0.2);
   --au-3: rgba(63, 185, 111, 0.24);
   --au-4: rgba(224, 85, 133, 0.16);
+  /* 中性底纹色（光斑关闭时的替代背景）：无彩色的明暗团，只提供层次不提供色彩。
+     浓度需比直觉高：无彩色本身对比弱，再被磨砂 blur 抹平一层后所剩无几，
+     8% 上下的亮度差才能穿透模糊被肉眼感知 */
+  --neu-1: rgba(20, 22, 30, 0.06);
+  --neu-2: rgba(20, 22, 30, 0.035);
 }
 
 html[data-theme='dark'] {
@@ -45,6 +50,9 @@ html[data-theme='dark'] {
   --au-2: rgba(34, 211, 238, 0.38);
   --au-3: rgba(63, 185, 111, 0.44);
   --au-4: rgba(224, 85, 133, 0.28);
+  /* 中性底纹（深色）：暗底上白团衰减快，浓度需略高于浅色才可感 */
+  --neu-1: rgba(255, 255, 255, 0.1);
+  --neu-2: rgba(255, 255, 255, 0.055);
 }
 
 html[data-theme='light'] {
@@ -184,6 +192,19 @@ html.glass-motion-off body::after { animation: none; }
    不要光斑」的档位；display:none 连合成层都不留，也是比停动画更彻底的省资源档。 */
 html.glass-lights-off body::before,
 html.glass-lights-off body::after { display: none; }
+/* 光斑关闭时补一层中性底纹：磨砂=模糊卡片背后的内容，纯色底上模糊结果仍是
+   纯色，什么效果都看不出来（实测反馈「黑漆漆的看不出磨砂」）。两团极淡的无彩
+   色明暗（灰调、静止、不发彩——不是光斑，只是让磨砂有内容可透）画在 body 上：
+   html 的背景被 theme.js 内联 style.background 占用（简写会清掉 image 层，类
+   规则写不进去），body 背景本来就是透明的，类规则可正常写入。:not(.embedded)
+   排除内嵌——透明让位时 body 必须保持透明（embedded 让位规则特异性 0,1,2，
+   本条 0,2,1 更高，不排除会把它盖回去挡住 LuCI 背景），那边有没有内容可透由
+   系统主题自己决定。 */
+html.glass-on.glass-lights-off:not(.embedded) body {
+  background:
+    radial-gradient(52vmax 44vmax at 16% 10%, var(--neu-1), transparent 70%),
+    radial-gradient(48vmax 40vmax at 85% 90%, var(--neu-2), transparent 72%);
+}
 html.glass-on .n-card,
 html.glass-on .sidebar {
   background-color: rgba(var(--glass-tint), var(--glass-alpha));
