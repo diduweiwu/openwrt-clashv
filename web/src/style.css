@@ -148,14 +148,19 @@ html.glass-on .sidebar::before {
   background:
     radial-gradient(42% 38% at 24% 22%, var(--cau-1), transparent 72%),
     radial-gradient(46% 42% at 78% 80%, var(--cau-2), transparent 74%);
-  animation: card-aurora 26s ease-in-out infinite alternate;
+  animation: card-aurora 16s ease-in-out infinite;
 }
-/* 游走路径：小幅 translate 漂移 + 微缩放呼吸，transform 走合成器不触发重绘；
-   光斑层在面板 backdrop 采样区之后绘制，动画也不会连累磨砂逐帧重采样 */
+/* 游走路径：闭合循环（0%/100% 同位无缝衔接），四方位绕行 + 微缩放/旋转呼吸。
+   幅度按「柔光渐变上肉眼可感」校准：translate 百分比相对光斑层自身（约为面板
+   1.9 倍大），8~16% 即面板宽的 15~30%，渐变团明显扫过面板；周期 16s 每方位
+   停留 4s，缓入缓出的停顿感被四个路径点稀释。transform 走合成器不触发重绘，
+   光斑层在面板 backdrop 采样区之后绘制，动画不连累磨砂逐帧重采样 */
 @keyframes card-aurora {
-  0%   { transform: translate(0, 0) scale(1); }
-  50%  { transform: translate(6%, -4%) scale(1.06); }
-  100% { transform: translate(-5%, 6%) scale(0.96); }
+  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
+  25%  { transform: translate(-14%, 10%) scale(1.07) rotate(3deg); }
+  50%  { transform: translate(8%, -8%) scale(0.94) rotate(-3deg); }
+  75%  { transform: translate(16%, 6%) scale(1.05) rotate(2deg); }
+  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
 }
 /* 系统开启「减弱动态效果」时光斑停住，只保留静态渐变 */
 @media (prefers-reduced-motion: reduce) {
