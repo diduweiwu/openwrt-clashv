@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { NButton, NCard, NEmpty, NInput, NInputGroup, NInputNumber, NModal, NProgress, NSelect, NSlider, NSpin, NSwitch, NTabs, NTabPane, NTag, NTimePicker } from 'naive-ui'
 import { api } from '../api.js'
 import { store, toast, ask, fmtTime } from '../store.js'
-import { glassEnabled, glassOpacity, glassLights } from '../glass.js'
+import { glassEnabled, glassOpacity, glassMotion, glassLights } from '../glass.js'
 import { luciTransparent, setLuciTransparent } from '../theme.js'
 import { menuMode } from '../menuMode.js'
 import AppIcon from '../components/AppIcon.vue'
@@ -24,24 +24,32 @@ const HELP = {
   glass: {
     title: '磨砂模糊',
     rows: [
-      { k: '作用', v: '开启后卡片、侧边栏改为半透明底 + 磨砂模糊（毛玻璃），卡片自衬两团柔彩渐变光斑让磨砂质感可见；透明度可用下方滑杆调节。页面整体背景不受影响，保持主题底色（LuCI 内嵌透明时透出系统主题背景）。' },
-      { k: '提示', v: '改动即时生效并保存在本浏览器（不占用后端设置）；背景模糊由浏览器渲染，低性能设备如感觉滚动卡顿可关闭。' },
-      { k: '默认与建议', v: '默认关闭；透明度默认 45%，滑杆已限制调节范围，不会透到文字看不清。' },
+      { k: '作用', v: '开启后卡片、侧边栏改为半透明底 + 磨砂模糊（毛玻璃），面板内自衬两团柔彩渐变光斑让磨砂质感可见；透明度可用下方滑杆调节。页面整体背景不受影响，保持主题底色（LuCI 内嵌透明时透出系统主题背景）。' },
+      { k: '提示', v: '改动即时生效并保存在本浏览器（不占用后端设置）；光斑动画走 GPU 合成不重绘，若低端设备仍觉卡顿可关闭磨砂总开关。' },
+      { k: '默认与建议', v: '默认关闭；透明度默认 65%，滑杆已限制调节范围，不会透到文字看不清。' },
     ],
   },
   glassOpacity: {
     title: '磨砂透明度',
     rows: [
       { k: '作用', v: '调节磨砂开启时卡片与侧栏背景的透明程度：数值越大越透，越小越接近实心。' },
-      { k: '范围', v: '10%（近乎实心）～ 100%（全透，只留磨砂模糊）；默认 45%。字体颜色不随透明度变化，拉满后靠磨砂模糊与卡片内渐变衬托，仍能保持文字可读。' },
+      { k: '范围', v: '10%（近乎实心）～ 100%（全透，只留磨砂模糊）；默认 65%。字体颜色不随透明度变化，拉满后靠磨砂模糊与面板内光斑衬托，仍能保持文字可读。' },
     ],
   },
   glassLights: {
     title: '卡片光斑',
     rows: [
-      { k: '作用', v: '调节磨砂开启时卡片是否自衬柔彩渐变光斑（左上紫蓝 / 右下青）：光斑画在卡片自身背景上，只在卡片内可见，插件整体背景保持纯净不变。' },
-      { k: '开关影响', v: '关闭后卡片退回纯色半透明磨砂（毛玻璃质感保留，只是没有柔彩渐变）。' },
-      { k: '默认与建议', v: '默认开启；喜欢更素净的卡片时关闭。' },
+      { k: '作用', v: '调节磨砂开启时卡片与侧边栏是否自衬柔彩渐变光斑（左上紫蓝 / 右下青）：光斑画在面板自身内部，只在面板内可见，插件整体背景保持纯净不变。' },
+      { k: '开关影响', v: '关闭后面板退回纯色半透明磨砂（毛玻璃质感保留，只是没有柔彩渐变）。' },
+      { k: '默认与建议', v: '默认开启；喜欢更素净的面板时关闭。' },
+    ],
+  },
+  glassMotion: {
+    title: '光斑游走动画',
+    rows: [
+      { k: '作用', v: '调节面板内光斑是否缓慢漂移呼吸（位移 + 微缩放）：关闭后光斑停在原位只留静态渐变。' },
+      { k: '开关影响', v: '动画走 GPU 合成、不触发页面重绘，也不影响磨砂模糊的采样成本；光斑只在面板内部游走，页面背景不受影响。' },
+      { k: '默认与建议', v: '默认开启；偏好完全静态时关闭，系统开启「减弱动态效果」时也会自动停住。' },
     ],
   },
   luciTransparent: {
@@ -1138,6 +1146,12 @@ const tplViewing = computed(() => !!tplEditing.value?.builtin)
               <span class="rt">卡片光斑<HelpModal v-bind="HELP.glassLights" /></span>
             </div>
             <n-switch v-model:value="glassLights" />
+          </div>
+          <div class="row" v-if="glassEnabled && glassLights">
+            <div class="row-text">
+              <span class="rt">光斑游走动画<HelpModal v-bind="HELP.glassMotion" /></span>
+            </div>
+            <n-switch v-model:value="glassMotion" />
           </div>
           <div class="row" v-if="isEmbedded">
             <div class="row-text">

@@ -15,10 +15,10 @@
   --tile-d: rgba(224, 85, 133, 0.05);
   /* 磨砂玻璃的底色 RGB（取各自主题的 --bg-card，供 rgba(var(--glass-tint), α) 拼接） */
   --glass-tint: 255, 255, 255;
-  /* 卡片内光斑色（画在 .n-card 自身背景上，只在卡片内可见）：小面积渐变感知
-     比全屏光斑强，浓度取约一成即可察觉，过浓会艳得抢文字 */
-  --cau-1: rgba(91, 107, 240, 0.1);
-  --cau-2: rgba(34, 211, 238, 0.07);
+  /* 面板内光斑色（画在 .n-card/.sidebar 的 ::before 上，只在面板内可见）：
+     浓度对标同类面板的通透观感——淡了在半透明面板上几乎隐身 */
+  --cau-1: rgba(91, 107, 240, 0.14);
+  --cau-2: rgba(34, 211, 238, 0.09);
 }
 
 html[data-theme='dark'] {
@@ -38,9 +38,9 @@ html[data-theme='dark'] {
   --tile-d: rgba(238, 106, 150, 0.08);
   /* 磨砂玻璃底色 RGB（= --bg-card #1e222c） */
   --glass-tint: 30, 34, 44;
-  /* 卡片内光斑（深色加浓：暗卡上彩渐变衰减快） */
-  --cau-1: rgba(91, 107, 240, 0.17);
-  --cau-2: rgba(34, 211, 238, 0.11);
+  /* 面板内光斑（深色加浓：暗卡上彩渐变衰减快） */
+  --cau-1: rgba(91, 107, 240, 0.26);
+  --cau-2: rgba(34, 211, 238, 0.17);
 }
 
 html[data-theme='light'] {
@@ -124,28 +124,51 @@ p { margin: 0; }
 html.glass-on { background: var(--bg); }
 html.glass-on body { background: transparent; }
 html.glass-on #app { position: relative; z-index: 1; }
-/* 大卡片磨砂 + 卡片内光斑：半透明 tint 底 + backdrop 模糊背后（内嵌透明时透出
-   LuCI 背景是真磨砂，独立访问纯色底时模糊无感），柔彩渐变画在卡片自身
-   background-image 上——只在卡片内可见、随卡片圆角裁剪，页面背景不受染。
-   渐变尺寸用百分比随卡片自适应，左上紫蓝 / 右下青两团对角（色板同极光，
-   浓度按小面积感知另调，见 --cau-*）。 */
-html.glass-on .n-card {
-  background-color: rgba(var(--glass-tint), var(--glass-alpha));
-  background-image:
-    radial-gradient(120% 100% at 0% 0%, var(--cau-1), transparent 60%),
-    radial-gradient(110% 90% at 100% 100%, var(--cau-2), transparent 62%);
-  -webkit-backdrop-filter: blur(14px) saturate(1.35);
-  backdrop-filter: blur(14px) saturate(1.35);
-}
-/* 侧栏磨砂：纯 tint 不带光斑（侧栏属于页面骨架，保持「背景不变」的纯净语义） */
+/* 大卡片/侧栏磨砂 + 面板内光斑：半透明 tint 底 + backdrop 模糊背后（内嵌透明时
+   透出 LuCI 背景是真磨砂，独立访问纯色底时模糊无感）。光斑画在 ::before 上——
+   z-index:-1 恰好夹在面板背景与内容之间（backdrop-filter 自建层叠上下文，负 z
+   伪元素落在其背景之上、普通流内容之下，文字不被渐变罩住）；面板 position:
+   relative + overflow:hidden 把游走中的光斑裁在圆角内（卡片内滚动容器自带
+   overflow 不受影响，弹层均 teleport 到 body 不受影响）。 */
+html.glass-on .n-card,
 html.glass-on .sidebar {
+  position: relative;
+  overflow: hidden;
   background-color: rgba(var(--glass-tint), var(--glass-alpha));
   -webkit-backdrop-filter: blur(14px) saturate(1.35);
   backdrop-filter: blur(14px) saturate(1.35);
 }
-/* 「卡片光斑」开关（glass.js 挂 glass-lights-off，默认开）：关=卡片退回纯 tint
-   磨砂（去渐变留 backdrop），页面与卡片都是纯净的透明磨砂 */
-html.glass-lights-off .n-card { background-image: none; }
+html.glass-on .n-card::before,
+html.glass-on .sidebar::before {
+  content: "";
+  position: absolute;
+  inset: -45%;  /* 比面板大一圈，给游走位移留余量，边缘不露空 */
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 38% at 24% 22%, var(--cau-1), transparent 72%),
+    radial-gradient(46% 42% at 78% 80%, var(--cau-2), transparent 74%);
+  animation: card-aurora 26s ease-in-out infinite alternate;
+}
+/* 游走路径：小幅 translate 漂移 + 微缩放呼吸，transform 走合成器不触发重绘；
+   光斑层在面板 backdrop 采样区之后绘制，动画也不会连累磨砂逐帧重采样 */
+@keyframes card-aurora {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(6%, -4%) scale(1.06); }
+  100% { transform: translate(-5%, 6%) scale(0.96); }
+}
+/* 系统开启「减弱动态效果」时光斑停住，只保留静态渐变 */
+@media (prefers-reduced-motion: reduce) {
+  html.glass-on .n-card::before,
+  html.glass-on .sidebar::before { animation: none; }
+}
+/* 「光斑游走动画」开关（glass.js 挂 glass-motion-off，默认开）：关=光斑停在原位 */
+html.glass-motion-off .n-card::before,
+html.glass-motion-off .sidebar::before { animation: none; }
+/* 「卡片光斑」开关（glass.js 挂 glass-lights-off，默认开）：关=面板退回纯 tint
+   磨砂（去光斑留 backdrop），页面与面板都是纯净的透明磨砂 */
+html.glass-lights-off .n-card::before,
+html.glass-lights-off .sidebar::before { display: none; }
 /* 内嵌小卡跟随磨砂：切换节点的节点卡/分组折叠头、解锁测试的站点瓦片。
    浓度按大卡 α 打 6 折、blur 半径略小——保持「内嵌略深于所在大卡」的层次感，
    也避免小面积上强模糊发糊；磨砂关闭时这些规则不生效，仍是实心 --bg-card-2 */
