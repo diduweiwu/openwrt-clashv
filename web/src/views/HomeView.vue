@@ -495,8 +495,43 @@ const cfgEditing = ref(false)
 const cfgEditContent = ref('')
 const cfgOriginal = ref('')
 const cfgSaving = ref(false)
-// 弹窗全屏态：全屏时卡片定高（96vw × 92vh），查看区/编辑框占满剩余空间
+// 正在编辑的订阅 id：进入编辑态时记下，保存按它落盘——不能用 activeProfile 兜底取，
+// 否则编辑 A 期间切换激活订阅到 B，会把 A 的内容写进 B 的订阅文件
+const cfgProfileId = ref(null)
+// 弹窗全屏态：优先系统级全屏（Fullscreen API 盖满整个浏览器窗口），不可用时回退
+// iframe 内 fixed 铺满插件区域；两种形态下查看区/编辑框都占满剩余空间
 const cfgFull = ref(false)
+
+// 未保存草稿：编辑内容按订阅 id 存 localStorage（惯例 clashv_ 前缀），切换订阅、
+// 关弹窗、刷新页面后重新进入编辑态都能恢复；保存成功或改回原文时清除
+const draftKey = id => `clashv_profile_draft_${id}`
+
+/**
+ * 读取指定订阅的未保存编辑草稿。
+ *
+ * @param {number|string} id 订阅 id
+ * @returns {string|null} 草稿内容；无草稿或 localStorage 不可用（隐私模式等）时返回 null
+ */
+function loadDraft(id) {
+  try {
+    return localStorage.getItem(draftKey(id))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 关闭配置弹窗：若正处系统级全屏先退出，再复位弹窗与全屏标记。
+ *
+ * @returns {void}
+ */
+function closeCfg() {
+  if (document.fullscreenElement === cfgModalEl()) {
+    document.exitFullscreen().catch(() => { /* 浏览器自行处理 */ })
+  }
+  showConfig.value = false
+  cfgFull.value = false
+}
 
 async function viewConfig() {
   showConfig.value = true
@@ -518,8 +553,16 @@ async function editProfileContent() {
   if (!id) return
   try {
     const r = await api.get(`/api/profiles/${id}/content`)
+    cfgProfileId.value = id
     cfgOriginal.value = r.content || ''
-    cfgEditContent.value = cfgOriginal.value
+    // 有未保存草稿则恢复（切走再切回、中途关弹窗都不丢），否则用服务器原文
+    const draft = loadDraft(id)
+    if (draft != null && draft !== cfgOriginal.value) {
+      cfgEditContent.value = draft
+      toast('已恢复上次未保存的编辑内容', 'info')
+    } else {
+      cfgEditContent.value = cfgOriginal.value
+    }
     cfgEditing.value = true
   } catch (e) {
     toast(e.message, 'error')
@@ -527,7 +570,7 @@ async function editProfileContent() {
 }
 
 async function saveProfileContent() {
-  const id = activeProfile.value?.id
+  const id = cfgProfileId.value
   if (!id || cfgSaving.value) return
   if (cfgEditContent.value === cfgOriginal.value) {
     cfgEditing.value = false
@@ -538,7 +581,8 @@ async function saveProfileContent() {
   try {
     await api.put(`/api/profiles/${id}/content`, { content: cfgEditContent.value })
     cfgEditing.value = false
-    showConfig.value = false
+    try { localStorage.removeItem(draftKey(id)) } catch { /* 隐私模式等静默 */ }
+    closeCfg()
     toast('订阅文件已保存，重新拉取该订阅会覆盖此修改', 'success', 5000)
     if (await ask('重启内核', '订阅文件已修改，立即重启内核以应用新的订阅内容？')) {
       try {
@@ -556,6 +600,60 @@ async function saveProfileContent() {
     cfgSaving.value = false
   }
 }
+
+// 编辑中内容实时落草稿：改回与原文一致时清掉，避免留下永远弹「已恢复」的幽灵草稿。
+// 进入编辑态的首次赋值发生在 cfgEditing 置 true 之前，不会触发本 watch 误写
+watch(cfgEditContent, v => {
+  if (!cfgEditing.value || !cfgProfileId.value) return
+  try {
+    if (v === cfgOriginal.value) localStorage.removeItem(draftKey(cfgProfileId.value))
+    else localStorage.setItem(draftKey(cfgProfileId.value), v)
+  } catch { /* 隐私模式等场景静默 */ }
+})
+
+// ---- 弹窗全屏（与日志页同款方案，挂载目标换成弹窗卡片）----
+// 优先系统级 Fullscreen API 盖满整个浏览器窗口（LuCI 内嵌时入口页 app.js 的 iframe
+// 已放行 allowfullscreen）；不支持/被拒（如 iOS Safari 仅允许 video 全屏）时回退
+// iframe 内 fixed 铺满插件区域。卡片在 .n-modal-body-wrapper（fixed inset:0，无
+// transform 祖先）内，fixed 包含块即 iframe 视口，可精确铺满
+const cfgModalEl = () => document.querySelector('.cfg-modal')
+
+// 系统全屏状态同步：用户按 Esc / 浏览器退出全屏时把 cfgFull 拉回 false；
+// fixed 铺满兜底态（无系统全屏事件）不受影响
+function onCfgFsChange() {
+  cfgFull.value = document.fullscreenElement === cfgModalEl()
+}
+
+/**
+ * 切换配置弹窗全屏：已全屏则退出；否则请求系统级全屏，失败时回退 fixed 铺满态。
+ *
+ * @returns {void}
+ */
+async function toggleCfgFull() {
+  if (document.fullscreenElement) {
+    try { await document.exitFullscreen() } catch { /* 浏览器自行处理 */ }
+    return
+  }
+  try {
+    await cfgModalEl().requestFullscreen()
+  } catch {
+    cfgFull.value = !cfgFull.value
+    // fixed 铺满态从头显示内容：常规态在窄屏可能残留横向滚动位置（卡片从常规布局
+    // 切到 fixed 的瞬间浏览器会把旧的滚动偏移记进新容器），不清零内容会整体左移出屏
+    if (cfgFull.value) {
+      const el = cfgModalEl()
+      if (el) { el.scrollLeft = 0; el.scrollTop = 0 }
+    }
+  }
+}
+
+onMounted(() => document.addEventListener('fullscreenchange', onCfgFsChange))
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', onCfgFsChange)
+  if (document.fullscreenElement === cfgModalEl()) {
+    document.exitFullscreen().catch(() => { /* 浏览器自行处理 */ })
+  }
+})
 
 // ---- 快速切换：分组手风琴，默认全展开、可折叠；节点点击先确认再切换 ----
 const folded = ref({}) // 组名 → 是否折叠（缺省 false = 展开）
@@ -1357,11 +1455,11 @@ function currentOf(g) {
       :class="{ 'cfg-full': cfgFull }"
       :title="cfgEditing ? '编辑订阅文件' : '运行时配置（config.yaml）'"
       :show="showConfig"
-      :style="cfgFull ? { width: '96vw', maxWidth: '96vw', height: '92vh' } : { width: '860px', maxWidth: '94vw' }"
-      @update:show="showConfig = false; cfgFull = false"
+      :style="cfgFull ? undefined : { width: '860px', maxWidth: '94vw' }"
+      @update:show="closeCfg"
     >
       <template #header-extra>
-        <n-button size="tiny" quaternary :title="cfgFull ? '退出全屏' : '全屏'" @click="cfgFull = !cfgFull">
+        <n-button size="tiny" quaternary :title="cfgFull ? '退出全屏' : '全屏'" @click="toggleCfgFull">
           <template #icon><AppIcon :name="cfgFull ? 'shrink' : 'expand'" :size="14" /></template>
         </n-button>
       </template>
@@ -1756,7 +1854,7 @@ function currentOf(g) {
 .cfg-edit :deep(.n-input__textarea-el) { font-size: 12px; line-height: 1.6; tab-size: 2; }
 
 /* 全屏态：底部操作行钉底、查看 pre / 编辑框占满剩余空间（内容区转 flex 见下方全局块）。
-   只在全屏启用，避免影响常规态 naive 默认块级布局 */
+   只在全屏启用，避免影响常规态 naive 默认块级布局；铺满视口的 fixed/尺寸规则在全局块 */
 .cfg-full .cfg-view { flex: 1; max-height: none; }
 .cfg-full .cfg-foot { flex: none; margin-top: auto; padding-top: 10px; }
 .cfg-full .cfg-edit { flex: 1; }
@@ -1800,7 +1898,18 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
 /* 配置弹窗全屏态的 naive 内层调整：n-modal 是 teleport 渲染，传过去的 class 落在卡片根上
    但不带本组件的 scoped 属性，:deep() 前缀匹配不上，只能放全局；用 cfg-modal/cfg-full
    限定作用范围（类名仅此弹窗使用） */
-/* 全屏态内容区转纵向 flex：卡片定高（92vh）后查看 pre / 编辑框占满剩余空间；
+/* 全屏兜底态（Fullscreen API 不可用/被拒，如 iOS Safari）：fixed 铺满插件 iframe 视口。
+   卡片所在 .n-modal-body-wrapper 是 fixed inset:0 且无 transform 祖先，fixed 包含块即
+   视口；z-index 需盖过同层的 modal 遮罩。选择器必须带 .n-modal 凑足 (0,3,0)——磨砂模式
+   的 html.glass-on .n-card { position: relative } 是 (0,2,0) 且注入在后，同为 (0,2,0)
+   会把 fixed 盖回 relative（日志页全屏因 scoped data-v 特异性更高而幸免）。
+   系统级全屏态由浏览器 UA 样式强制铺满，不经此规则 */
+.n-modal.cfg-modal.cfg-full {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  width: 100vw; height: 100vh; max-width: none;
+  z-index: 2100;
+}
+/* 全屏态内容区转纵向 flex：查看 pre / 编辑框占满剩余空间；
    min-height:0 解除 flex 子项默认不收缩限制，否则长内容会把内容区撑出卡片 */
 .cfg-modal.cfg-full .n-card-content { display: flex; flex-direction: column; min-height: 0; }
 /* textarea 内部是 n-scrollbar 包裹：content 定高后，height:100% 的输入区才能跟着撑满 */
