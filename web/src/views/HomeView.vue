@@ -13,7 +13,7 @@ import UnlockPanel from '../components/UnlockPanel.vue'
 import HomeInfoCards from '../components/HomeInfoCards.vue'
 import AppIcon from '../components/AppIcon.vue'
 import { showIps } from '../ipDisplay.js'
-import { ipData, loadIpInfo, ipText, ipPlace as ipTitle, copyIp, probeMode, toggleProbeMode } from '../ipinfo.js'
+import { ipData, loadIpInfo, ipText, ipPlace as ipTitle, copyIp, probeMode } from '../ipinfo.js'
 import {
   HOME_SECTIONS, cardOrder, orderOf, sectionVisible, cardVisible, moveSection, toggleCard, resetLayout,
 } from '../homeLayout.js'
@@ -805,12 +805,6 @@ watch(
   },
 )
 
-// 切换出口 IP 检测模式（浏览器端 ↔ OpenWrt 后端）后立即按新模式重查
-const onToggleProbe = () => {
-  toggleProbeMode()
-  loadIpInfo(status?.value?.running, true)
-}
-
 // ---- 首页卡片布局：区块顺序 + 显隐（homeLayout.js，localStorage 持久化）。
 // ---- 排序靠 .page（flex column）上的 CSS order，无需改模板结构；入口在运行行右侧 ----
 const showLayout = ref(false)
@@ -1086,21 +1080,14 @@ function currentOf(g) {
           <span class="k"><AppIcon name="zap" :size="13" />断网守护</span>
           <span class="v" :style="{ color: watchView.color }">{{ watchView.text }}</span>
         </div>
-        <!-- 出口 IP 组合瓦片（仅运行中显示）：直连/代理各一行，右上工具区「更多/检测位置/显隐」；
+        <!-- 出口 IP 组合瓦片（仅运行中显示）：直连/代理各一行，右上工具区「更多/显隐」
+             两钮（检测位置切换是低频设置，收进「更多」详情弹窗底部）；
              显隐开关是遮罩语义——隐藏时瓦片不消失，IP 值打码为星号 -->
         <div v-if="status?.running" class="meta-item tint-c ip-combo">
           <span class="k">
             <AppIcon name="globe" :size="13" />出口 IP
             <button class="ip-more" title="查看更多出口 IP 详情" @click="showIpModal = true">
               <AppIcon name="expand" :size="11" />
-            </button>
-            <!-- 检测位置开关：亮起=OpenWrt 后端检测，熄灭=浏览器端检测（默认） -->
-            <button
-              class="ip-more" :class="{ on: probeMode === 'openwrt' }"
-              :title="probeMode === 'openwrt' ? '当前在 OpenWrt 后端检测，点击切换为浏览器端检测' : '当前在浏览器端检测，点击切换为 OpenWrt 后端检测'"
-              @click="onToggleProbe"
-            >
-              <AppIcon name="server" :size="11" />
             </button>
             <!-- 显隐开关：隐藏=IP 值打码星号（卡片保留），显示=真实 IP -->
             <button
@@ -1706,8 +1693,6 @@ function currentOf(g) {
 .ip-combo .k .ip-more:first-of-type { margin-left: auto; }
 .ip-combo .k .ip-more + .ip-more { margin-left: 3px; }
 .ip-more:hover { opacity: 1; color: var(--accent); background: var(--hover); }
-/* 选中态：OpenWrt 后端检测模式，主题蓝常亮 */
-.ip-more.on { opacity: 1; color: var(--accent); }
 .ip-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .ip-row em {
   font-style: normal; flex: none;
@@ -1891,6 +1876,11 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   .sub-actions { flex: 1 1 100%; flex-wrap: nowrap; }
   .sub-actions :deep(.n-button) { flex: 1 1 0; min-width: 0; padding: 0 4px; font-size: 12px; }
   .sub-actions :deep(.n-button__content) { gap: 4px; }
+  /* 图标与文字间距收紧：naive 图标是独立元素 .n-button__icon（content 的 gap 管不到），
+     默认 margin 6px 在等分窄钮里把文字挤到溢出；压到 2px 文字不再换行/截断 */
+  .sub-actions :deep(.n-button__icon) { margin-right: 2px; }
+  /* 出口 IP 瓦片两列等分下更窄：IP 值与标签降 1px，最长 IPv4（15 字符）完整不截断 */
+  .ip-combo .ip-row em, .ip-combo .ip-row-v { font-size: 10px; }
 }
 </style>
 

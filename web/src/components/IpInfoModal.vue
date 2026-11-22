@@ -15,7 +15,7 @@ import { computed, watch } from 'vue'
 import { NButton, NModal, NTag } from 'naive-ui'
 import { toast, fmtTime, store } from '../store.js'
 import AppIcon from './AppIcon.vue'
-import { ipData, ipLoading, loadIpInfo, probeMode } from '../ipinfo.js'
+import { ipData, ipLoading, loadIpInfo, probeMode, toggleProbeMode } from '../ipinfo.js'
 
 const props = defineProps({
   show: Boolean, // 弹窗显隐（v-model:show）
@@ -30,6 +30,17 @@ watch(() => props.show, (v) => {
 // 重新查询：绕过 60 秒缓存
 function refresh() {
   loadIpInfo(store.status?.running, true)
+}
+
+/**
+ * 切换出口 IP 检测位置（浏览器端 ↔ OpenWrt 后端）并立即按新模式重查。
+ * 原为首页瓦片右上角图标钮（round 186），瓦片瘦身挪进本弹窗底部。
+ *
+ * @returns {void}
+ */
+function switchProbe() {
+  toggleProbeMode()
+  refresh()
 }
 
 // 直连/代理两个出口分节
@@ -155,9 +166,20 @@ function copyIP(ip) {
         <span class="page-sub">
           {{ ipData?.ts ? '采样于 ' + fmtTime(ipData.ts) + '（缓存 60 秒）· ' : '' }}{{ probeText }}
         </span>
-        <n-button size="small" :loading="ipLoading" @click="refresh">
-          <template #icon><AppIcon name="refresh" :size="13" /></template>重新查询
-        </n-button>
+        <div class="ip-foot-btns">
+          <!-- 检测位置切换（原首页瓦片右上图标钮）：显示当前模式，点击切到另一端并重查 -->
+          <n-button
+            size="small"
+            :disabled="ipLoading"
+            :title="probeMode === 'openwrt' ? '当前在 OpenWrt 后端检测，点击切换为浏览器端检测' : '当前在浏览器端检测，点击切换为 OpenWrt 后端检测'"
+            @click="switchProbe"
+          >
+            <template #icon><AppIcon name="server" :size="13" /></template>{{ probeMode === 'openwrt' ? '后端检测' : '浏览器检测' }}
+          </n-button>
+          <n-button size="small" :loading="ipLoading" @click="refresh">
+            <template #icon><AppIcon name="refresh" :size="13" /></template>重新查询
+          </n-button>
+        </div>
       </div>
     </div>
   </n-modal>
@@ -197,4 +219,5 @@ function copyIP(ip) {
 .ip-sub { color: var(--text-dim); font-size: 11.5px; }
 .ip-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px; }
 .ip-foot .page-sub { text-align: left; }
+.ip-foot-btns { display: flex; align-items: center; gap: 8px; flex: none; }
 </style>
