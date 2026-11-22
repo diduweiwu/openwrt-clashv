@@ -1879,8 +1879,9 @@ html[data-theme='dark'] .cfg-edit.n-input { background: var(--bg); }
   /* 图标与文字间距收紧：naive 图标是独立元素 .n-button__icon（content 的 gap 管不到），
      默认 margin 6px 在等分窄钮里把文字挤到溢出；压到 2px 文字不再换行/截断 */
   .sub-actions :deep(.n-button__icon) { margin-right: 2px; }
-  /* 出口 IP 瓦片两列等分下更窄：IP 值与标签降 1px，最长 IPv4（15 字符）完整不截断 */
-  .ip-combo .ip-row em, .ip-combo .ip-row-v { font-size: 10px; }
+  /* 出口 IP 瓦片独占一整行：两列等分下瓦片太窄 IP 易截断（含守护开启的 6 列变体同名瓦片，
+     规则带 .traffic-nums 前缀统一覆盖）；独占后空间宽裕，字号保持 11px 与桌面一致 */
+  .traffic-nums .ip-combo { grid-column: 1 / -1; }
 }
 </style>
 
